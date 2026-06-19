@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " P ",
+    "HCH",
+    "WWW"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:iron_pickaxe"
+    },
+    "H": {
+      "item": "minecraft:iron_hoe"
+    },
+    "C": {
+      "item": "minecraft:chest"
+    },
+    "W": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "item": "valet:valet_workstation",
+    "count": 1
+  }
+}

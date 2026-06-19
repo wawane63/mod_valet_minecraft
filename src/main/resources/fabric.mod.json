@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "valet",
+  "version": "${version}",
+  "name": "Valet",
+  "description": "Ajoute le metier valet aux villageois.",
+  "authors": [
+    "Wawane"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.wawane.valet.ValetMod"
+    ],
+    "client": [
+      "com.wawane.valet.client.ValetClient"
+    ]
+  },
+  "mixins": [
+    "valet.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "fabric-api": "*",
+    "minecraft": "~1.20.1",
+    "java": ">=17"
+  }
+}

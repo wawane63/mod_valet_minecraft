@@ -1,0 +1,94 @@
+package com.wawane.valet;
+
+import net.minecraft.entity.ai.brain.MemoryModuleType;
+import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.GlobalPos;
+import net.minecraft.world.World;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public final class ValetHome {
+    private static final String HOME_X_KEY = "ValetHomeX";
+    private static final String HOME_Y_KEY = "ValetHomeY";
+    private static final String HOME_Z_KEY = "ValetHomeZ";
+    private static final String HOME_DIMENSION_KEY = "ValetHomeDimension";
+    private static final Map<UUID, GlobalPos> HOMES = new ConcurrentHashMap<>();
+
+    private ValetHome() {
+    }
+
+    public static BlockPos get(ServerWorld world, VillagerEntity villager) {
+        Optional<GlobalPos> jobSite = villager.getBrain().getOptionalMemory(MemoryModuleType.JOB_SITE);
+        if (jobSite.isPresent() && jobSite.get().getDimension().equals(world.getRegistryKey())) {
+            BlockPos pos = jobSite.get().getPos();
+            set(villager, jobSite.get());
+            return pos;
+        }
+        GlobalPos home = HOMES.get(villager.getUuid());
+        if (home == null || !home.getDimension().equals(world.getRegistryKey())) {
+            return null;
+        }
+        return home.getPos();
+    }
+
+    public static void set(VillagerEntity villager, BlockPos pos) {
+        set(villager, GlobalPos.create(villager.getWorld().getRegistryKey(), pos.toImmutable()));
+    }
+
+    private static void set(VillagerEntity villager, GlobalPos pos) {
+        HOMES.put(villager.getUuid(), pos);
+    }
+
+    public static boolean hasData(VillagerEntity villager) {
+        return HOMES.containsKey(villager.getUuid());
+    }
+
+    public static boolean hasNbt(NbtCompound nbt) {
+        return nbt.contains(HOME_X_KEY) || nbt.contains(HOME_Y_KEY) || nbt.contains(HOME_Z_KEY) || nbt.contains(HOME_DIMENSION_KEY);
+    }
+
+    public static void clear(UUID uuid) {
+        HOMES.remove(uuid);
+    }
+
+    public static void clearAll() {
+        HOMES.clear();
+    }
+
+    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
+        GlobalPos home = HOMES.get(villager.getUuid());
+        if (home == null) {
+            nbt.remove(HOME_X_KEY);
+            nbt.remove(HOME_Y_KEY);
+            nbt.remove(HOME_Z_KEY);
+            nbt.remove(HOME_DIMENSION_KEY);
+            return;
+        }
+
+        BlockPos pos = home.getPos();
+        nbt.putString(HOME_DIMENSION_KEY, home.getDimension().getValue().toString());
+        nbt.putInt(HOME_X_KEY, pos.getX());
+        nbt.putInt(HOME_Y_KEY, pos.getY());
+        nbt.putInt(HOME_Z_KEY, pos.getZ());
+    }
+
+    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+        if (!nbt.contains(HOME_X_KEY) || !nbt.contains(HOME_Y_KEY) || !nbt.contains(HOME_Z_KEY)) {
+            HOMES.remove(villager.getUuid());
+            return;
+        }
+
+        Identifier dimensionId = nbt.contains(HOME_DIMENSION_KEY) ? new Identifier(nbt.getString(HOME_DIMENSION_KEY)) : villager.getWorld().getRegistryKey().getValue();
+        RegistryKey<World> dimension = RegistryKey.of(RegistryKeys.WORLD, dimensionId);
+        set(villager, GlobalPos.create(dimension, new BlockPos(nbt.getInt(HOME_X_KEY), nbt.getInt(HOME_Y_KEY), nbt.getInt(HOME_Z_KEY))));
+    }
+}

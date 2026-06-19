@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "valet:block/construction_blueprint"
+    },
+    "facing=south": {
+      "model": "valet:block/construction_blueprint"
+    },
+    "facing=east": {
+      "model": "valet:block/construction_blueprint"
+    },
+    "facing=west": {
+      "model": "valet:block/construction_blueprint"
+    }
+  }
+}

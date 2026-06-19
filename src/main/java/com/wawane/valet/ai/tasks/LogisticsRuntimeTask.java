@@ -1,0 +1,210 @@
+package com.wawane.valet.ai.tasks;
+
+import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
+import com.wawane.valet.ai.ValetStateMachine.State;
+import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
+import com.wawane.valet.progress.ValetProgress;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
+
+import java.util.List;
+import java.util.Set;
+
+public final class LogisticsRuntimeTask {
+    private final Control control;
+    private BlockPos chestPos;
+
+    public LogisticsRuntimeTask(Control control) {
+        this.control = control;
+    }
+
+    public void returnToChest(ServerWorld world) {
+        BlockPos workOrigin = control.getWorkOrigin(world);
+        if (workOrigin == null) {
+            control.setDelayTicks(40);
+            return;
+        }
+
+        if (!control.hasInventoryItems()) {
+            control.setState(control.hasMiningOrder() ? State.FIND_TARGET : State.RETURNING_HOME);
+            return;
+        }
+
+        chestPos = findNearestContainer(world, workOrigin);
+        if (chestPos == null) {
+            control.setState(State.RETURNING_HOME);
+            control.setDelayTicks(40);
+            return;
+        }
+
+        Set<BlockPos> goals = control.findStandGoals(world, chestPos);
+        if (goals.contains(control.villager().getBlockPos())) {
+            control.setState(State.DEPOSITING);
+            return;
+        }
+
+        List<BlockPos> path = control.planPathToAdjacent(world, chestPos, goals);
+        if (path.isEmpty()) {
+            control.setState(State.RETURNING_HOME);
+            control.setDelayTicks(40);
+            return;
+        }
+
+        control.startPath(PathPurpose.CHEST, path);
+    }
+
+    public void returnToWorkstation(ServerWorld world) {
+        BlockPos workOrigin = control.getWorkOrigin(world);
+        if (workOrigin == null) {
+            control.setDelayTicks(40);
+            return;
+        }
+
+        if (control.isNearWorkstation(world, workOrigin)) {
+            control.clearPathState();
+            control.clearMiningState();
+            control.setState(State.IDLE);
+            idleAtWorkstation(world);
+            return;
+        }
+
+        Set<BlockPos> goals = control.findStandGoals(world, workOrigin);
+        List<BlockPos> path = control.planPathToAdjacent(world, workOrigin, goals);
+        if (path.isEmpty()) {
+            control.setDelayTicks(20);
+            return;
+        }
+
+        control.startPath(PathPurpose.HOME, path);
+    }
+
+    public void idleAtWorkstation(ServerWorld world) {
+        if (control.hasConstructionOrder()) {
+            control.setState(State.FIND_TARGET);
+            return;
+        }
+
+        if (control.hasMiningOrder()) {
+            control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
+            return;
+        }
+
+        BlockPos workOrigin = control.getWorkOrigin(world);
+        if (workOrigin == null) {
+            control.setDelayTicks(40);
+            return;
+        }
+
+        if (!control.isNearWorkstation(world, workOrigin)) {
+            control.setState(State.RETURNING_HOME);
+            return;
+        }
+
+        control.villager().getNavigation().stop();
+        control.villager().setVelocity(0.0D, control.villager().getVelocity().y, 0.0D);
+        control.villager().getLookControl().lookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
+    }
+
+    public void tickDepositing(ServerWorld world) {
+        int movedItems = 0;
+        if (chestPos != null) {
+            movedItems += ValetInventoryTransfer.depositInventory(world, chestPos, control.villager().getInventory());
+        }
+
+        if (movedItems > 0) {
+            control.animateChestUse(world, chestPos);
+            ValetProgress.addXp(control.villager(), Math.max(2, movedItems / 8));
+        }
+
+        clearChestTarget();
+        control.clearPathState();
+        if (control.hasInventoryItems()) {
+            control.setState(State.RETURNING);
+            control.setDelayTicks(4);
+            return;
+        }
+
+        control.setState(control.hasConstructionOrder() || control.hasMiningOrder() && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
+        control.setDelayTicks(4);
+    }
+
+    public void clearChestTarget() {
+        chestPos = null;
+    }
+
+    private BlockPos findNearestContainer(ServerWorld world, BlockPos origin) {
+        return findNearest(world, origin, control.chestRadius(), 4, pos -> {
+            BlockState blockState = world.getBlockState(pos);
+            return (blockState.isOf(Blocks.CHEST) || blockState.isOf(Blocks.TRAPPED_CHEST) || blockState.isOf(Blocks.BARREL))
+                    && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
+        });
+    }
+
+    private BlockPos findNearest(ServerWorld world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
+        BlockPos nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (BlockPos pos : BlockPos.iterateOutwards(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
+            BlockPos immutable = pos.toImmutable();
+            if (predicate.test(immutable)) {
+                double distance = squaredDistance(origin, immutable);
+                if (distance < nearestDistance) {
+                    nearest = immutable;
+                    nearestDistance = distance;
+                }
+            }
+        }
+
+        return nearest;
+    }
+
+    private static double squaredDistance(BlockPos first, BlockPos second) {
+        int dx = first.getX() - second.getX();
+        int dy = first.getY() - second.getY();
+        int dz = first.getZ() - second.getZ();
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    @FunctionalInterface
+    private interface BlockPredicate {
+        boolean test(BlockPos pos);
+    }
+
+    public interface Control {
+        VillagerEntity villager();
+
+        BlockPos getWorkOrigin(ServerWorld world);
+
+        boolean hasMiningOrder();
+
+        boolean hasConstructionOrder();
+
+        boolean hasInventorySpace();
+
+        boolean hasInventoryItems();
+
+        boolean isNearWorkstation(ServerWorld world, BlockPos workOrigin);
+
+        Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock);
+
+        List<BlockPos> planPathToAdjacent(ServerWorld world, BlockPos targetBlock, Set<BlockPos> goals);
+
+        void startPath(PathPurpose purpose, List<BlockPos> path);
+
+        void clearPathState();
+
+        void clearMiningState();
+
+        int chestRadius();
+
+        void animateChestUse(ServerWorld world, BlockPos pos);
+
+        void setState(State state);
+
+        void setDelayTicks(int ticks);
+    }
+}

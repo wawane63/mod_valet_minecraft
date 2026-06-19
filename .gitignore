@@ -1,0 +1,15 @@
+.gradle/
+.gradle-bootstrap/
+.jdk/
+.tools/
+.vs/
+build/
+out/
+run/
+*.iml
+.idea/
+.vscode/
+*.log
+logs/
+crash-reports/
+local.properties

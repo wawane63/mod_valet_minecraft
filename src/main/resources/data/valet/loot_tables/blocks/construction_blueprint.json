@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "valet:construction_blueprint",
+          "functions": [
+            {
+              "function": "minecraft:copy_nbt",
+              "source": "block_entity",
+              "ops": [
+                {
+                  "source": "ConstructionId",
+                  "target": "ConstructionId",
+                  "op": "replace"
+                },
+                {
+                  "source": "ConstructionName",
+                  "target": "ConstructionName",
+                  "op": "replace"
+                },
+                {
+                  "source": "Blueprint",
+                  "target": "Blueprint",
+                  "op": "replace"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        }
+      ]
+    }
+  ]
+}
