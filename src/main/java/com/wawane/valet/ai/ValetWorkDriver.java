@@ -1,6 +1,7 @@
 package com.wawane.valet.ai;
 
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -59,29 +60,46 @@ public final class ValetWorkDriver {
             }
             return current;
         });
+        String orderKey = orderKey(villager);
 
         if (runtime.running) {
-            if (runtime.goal.shouldContinue()) {
+            if (!orderKey.equals(runtime.orderKey)) {
+                ValetMod.LOGGER.info("Valet {} switches order {} -> {}", villager.getUuid(), runtime.orderKey, orderKey);
+                runtime.goal.stop();
+                runtime.running = false;
+            } else if (runtime.goal.shouldContinue()) {
                 runtime.goal.tick();
                 return;
+            } else {
+                runtime.goal.stop();
+                runtime.running = false;
             }
-
-            runtime.goal.stop();
-            runtime.running = false;
         }
 
         if (runtime.goal.canStart()) {
             runtime.goal.start();
             runtime.running = true;
-            ValetMod.LOGGER.info("Valet {} starts order {}", villager.getUuid(), ValetOrders.get(villager).getId());
+            runtime.orderKey = orderKey;
+            ValetMod.LOGGER.info("Valet {} starts order {}", villager.getUuid(), orderKey);
             runtime.goal.tick();
         }
+    }
+
+    private static String orderKey(VillagerEntity villager) {
+        ValetOrder order = ValetOrders.get(villager);
+        return switch (order) {
+            case MINE_ORES -> order.getId() + ":" + ValetOrders.getMineTarget(villager);
+            case CHOP_WOOD -> order.getId() + ":" + ValetOrders.getWoodTarget(villager);
+            case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
+            case NONE -> order.getId();
+        };
     }
 
     private static final class Runtime {
         private final VillagerEntity villager;
         private final ValetWorkGoal goal;
         private boolean running;
+        private String orderKey = ValetOrder.NONE.getId();
 
         private Runtime(VillagerEntity villager) {
             this.villager = villager;

@@ -113,12 +113,14 @@ public class ValetWorkGoal extends Goal {
     @Override
     public void start() {
         state = chooseStartState();
+        delayTicks = 0;
         clearPathState();
     }
 
     @Override
     public void stop() {
         state = State.FIND_TARGET;
+        delayTicks = 0;
         clearPathState();
         clearMiningState();
         clearVeinState();
@@ -198,7 +200,10 @@ public class ValetWorkGoal extends Goal {
 
     private void updatePassiveState() {
         if (hasMiningOrder()) {
-            if (state == State.IDLE) {
+            if (shouldPreemptForMiningOrder()) {
+                clearPathState();
+                clearMiningState();
+                clearVeinState();
                 state = hasInventorySpace() ? State.FIND_TARGET : State.RETURNING;
             }
             return;
@@ -206,7 +211,9 @@ public class ValetWorkGoal extends Goal {
 
         clearVeinState();
         if (hasConstructionOrder()) {
-            if (state == State.IDLE) {
+            if (shouldPreemptForConstructionOrder()) {
+                clearPathState();
+                clearMiningState();
                 state = State.FIND_TARGET;
             }
             return;
@@ -219,6 +226,22 @@ public class ValetWorkGoal extends Goal {
         clearPathState();
         clearMiningState();
         state = State.RETURNING_HOME;
+    }
+
+    private boolean shouldPreemptForMiningOrder() {
+        if (state == State.IDLE || state == State.RETURNING_HOME || isExecuting(PathPurpose.HOME)) {
+            return true;
+        }
+        return hasInventorySpace() && (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST));
+    }
+
+    private boolean shouldPreemptForConstructionOrder() {
+        return state == State.IDLE
+                || state == State.RETURNING_HOME
+                || state == State.RETURNING
+                || state == State.DEPOSITING
+                || isExecuting(PathPurpose.HOME)
+                || isExecuting(PathPurpose.CHEST);
     }
 
     private void findTarget(ServerWorld world) {
