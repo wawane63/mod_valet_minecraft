@@ -6,6 +6,7 @@ import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintItem;
 import com.wawane.valet.construction.ConstructionBeaconBlock;
 import com.wawane.valet.construction.ValetConstructionMarkers;
+import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
@@ -145,6 +146,7 @@ public class ValetMod implements ModInitializer {
 
     private static void clearEntityRuntimeState(Entity entity, ServerWorld world) {
         if (entity instanceof VillagerEntity villager) {
+            ValetWorkGoal.clearRestartRequest(villager.getUuid());
             ValetData.clearVillagerRuntime(villager.getUuid());
         }
     }

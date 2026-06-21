@@ -42,8 +42,11 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ValetWorkGoal extends Goal {
+    private static final Set<UUID> RESTART_REQUESTS = ConcurrentHashMap.newKeySet();
     private static final int CHEST_RADIUS = 10;
     private static final int MINE_RADIUS = 18;
     private static final int MINE_VERTICAL_RADIUS = 12;
@@ -91,6 +94,7 @@ public class ValetWorkGoal extends Goal {
     private BlockPos navigationStepTarget;
     private int navigationStepTicks;
     private int delayTicks;
+    private String activeOrderKey = "";
 
     public ValetWorkGoal(VillagerEntity villager) {
         this.villager = villager;
@@ -98,6 +102,14 @@ public class ValetWorkGoal extends Goal {
         this.constructionTask = new ConstructionRuntimeTask(new ConstructionControl());
         this.logisticsTask = new LogisticsRuntimeTask(new LogisticsControl());
         setControls(EnumSet.of(Control.MOVE, Control.LOOK));
+    }
+
+    public static void requestRestart(VillagerEntity villager) {
+        RESTART_REQUESTS.add(villager.getUuid());
+    }
+
+    public static void clearRestartRequest(UUID uuid) {
+        RESTART_REQUESTS.remove(uuid);
     }
 
     @Override
@@ -112,10 +124,7 @@ public class ValetWorkGoal extends Goal {
 
     @Override
     public void start() {
-        state = chooseStartState();
-        delayTicks = 0;
-        clearPathState();
-        ValetMod.LOGGER.info("Valet {} goal starts order {}", villager.getUuid(), ValetOrders.get(villager).getId());
+        resetForCurrentOrder("starts");
     }
 
     @Override
@@ -135,6 +144,10 @@ public class ValetWorkGoal extends Goal {
         }
 
         constructionTask.tickCooldown();
+        String currentOrderKey = currentOrderKey();
+        if (RESTART_REQUESTS.remove(villager.getUuid()) || !currentOrderKey.equals(activeOrderKey)) {
+            resetForCurrentOrder("restarts");
+        }
 
         if (ValetConversations.isTalking(villager)) {
             suppressVanillaMovementTargets();
@@ -193,6 +206,26 @@ public class ValetWorkGoal extends Goal {
 
     private State chooseStartState() {
         return ValetStateMachine.chooseStartState(ValetConversations.isTalking(villager), hasActiveOrder(), shouldReturnToChestBeforeWork());
+    }
+
+    private void resetForCurrentOrder(String action) {
+        state = chooseStartState();
+        delayTicks = 0;
+        activeOrderKey = currentOrderKey();
+        clearPathState();
+        clearMiningState();
+        clearVeinState();
+        ValetMod.LOGGER.info("Valet {} goal {} order {}", villager.getUuid(), action, activeOrderKey);
+    }
+
+    private String currentOrderKey() {
+        ValetOrder order = ValetOrders.get(villager);
+        return switch (order) {
+            case MINE_ORES -> order.getId() + ":" + ValetOrders.getMineTarget(villager);
+            case CHOP_WOOD -> order.getId() + ":" + ValetOrders.getWoodTarget(villager);
+            case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
+            case NONE -> order.getId();
+        };
     }
 
     private boolean shouldReturnToChestBeforeWork() {

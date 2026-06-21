@@ -1,6 +1,7 @@
 package com.wawane.valet;
 
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
+import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.construction.ValetConstructionStorage;
@@ -191,6 +192,7 @@ public final class ValetNetworking {
             ValetHome.getOrRecover(player.getServerWorld(), villager, player.getBlockPos());
             if (order == ValetOrder.NONE) {
                 ValetOrders.set(villager, ValetOrder.NONE);
+                ValetWorkGoal.requestRestart(villager);
                 ValetMod.LOGGER.info("Valet {} order set to none", villager.getUuid());
                 player.sendMessage(Text.translatable("message.valet.order_set", Text.translatable("order.valet.none")), true);
                 finishOrderInteraction(player, villager);
@@ -213,6 +215,7 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setMineTarget(villager, target);
+                ValetWorkGoal.requestRestart(villager);
                 ValetMod.LOGGER.info("Valet {} order set to mine {}", villager.getUuid(), target.name());
                 player.sendMessage(Text.translatable("message.valet.mine_target_set", Text.translatable(target.getTranslationKey())), true);
                 finishOrderInteraction(player, villager);
@@ -235,6 +238,7 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setWoodTarget(villager, target);
+                ValetWorkGoal.requestRestart(villager);
                 ValetMod.LOGGER.info("Valet {} order set to chop {}", villager.getUuid(), target.name());
                 player.sendMessage(Text.translatable("message.valet.wood_target_set", Text.translatable(target.getTranslationKey())), true);
                 finishOrderInteraction(player, villager);
@@ -251,6 +255,7 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setConstructionTarget(villager, targetIndex);
+                ValetWorkGoal.requestRestart(villager);
                 ValetMod.LOGGER.info("Valet {} order set to build {}", villager.getUuid(), targetIndex);
                 giveBlueprintItem(player, villager, blueprint);
                 player.sendMessage(Text.translatable("message.valet.construction_target_set", blueprint.name()), true);
