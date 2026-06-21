@@ -6,7 +6,6 @@ import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintItem;
 import com.wawane.valet.construction.ConstructionBeaconBlock;
 import com.wawane.valet.construction.ValetConstructionMarkers;
-import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
@@ -139,23 +138,18 @@ public class ValetMod implements ModInitializer {
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ValetConstructionMarkers.clear(handler.player.getUuid()));
-        ServerTickEvents.END_WORLD_TICK.register(world -> {
-            assignValetJobs(world);
-            ValetWorkDriver.tick(world);
-        });
+        ServerTickEvents.END_WORLD_TICK.register(ValetMod::assignValetJobs);
         ValetNetworking.registerServerReceivers();
         LOGGER.info("Valet mod initialized");
     }
 
     private static void clearEntityRuntimeState(Entity entity, ServerWorld world) {
         if (entity instanceof VillagerEntity villager) {
-            ValetWorkDriver.clear(villager.getUuid());
             ValetData.clearVillagerRuntime(villager.getUuid());
         }
     }
 
     private static void clearAllRuntimeState() {
-        ValetWorkDriver.clearAll();
         ValetData.clearAllVillagerRuntime();
         ValetConstructionMarkers.clearAll();
     }

@@ -115,6 +115,7 @@ public class ValetWorkGoal extends Goal {
         state = chooseStartState();
         delayTicks = 0;
         clearPathState();
+        ValetMod.LOGGER.info("Valet {} goal starts order {}", villager.getUuid(), ValetOrders.get(villager).getId());
     }
 
     @Override
