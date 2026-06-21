@@ -64,6 +64,7 @@ public class ValetWorkGoal extends Goal {
     private static final int MAX_VEIN_BLOCKS_BONUS = 64;
     private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 30;
     private static final double NAVIGATION_STEP_SPEED = 1.0D;
+    private static final double DIRECT_STEP_SPEED = 0.12D;
     private static final double NAVIGATION_REACHED_DISTANCE_SQUARED = 0.75D;
     private static final int MONSTER_SPAWN_BLOCK_LIGHT = 0;
     private static final int COMFORT_TORCH_BLOCK_LIGHT = 7;
@@ -365,6 +366,9 @@ public class ValetWorkGoal extends Goal {
         if (newStep || villager.getNavigation().isIdle() || navigationStepTicks % 5 == 0) {
             villager.getNavigation().startMovingTo(step.getX() + 0.5D, step.getY(), step.getZ() + 0.5D, NAVIGATION_STEP_SPEED);
         }
+        if (villager.getNavigation().isIdle()) {
+            moveDirectlyTowardPathStep(step);
+        }
 
         navigationStepTicks--;
         if (navigationStepTicks <= 0) {
@@ -372,6 +376,23 @@ public class ValetWorkGoal extends Goal {
             clearPathState();
             delayTicks = 10;
         }
+    }
+
+    private void moveDirectlyTowardPathStep(BlockPos step) {
+        double targetX = step.getX() + 0.5D;
+        double targetZ = step.getZ() + 0.5D;
+        double dx = targetX - villager.getX();
+        double dz = targetZ - villager.getZ();
+        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+        if (horizontalDistance <= 0.01D) {
+            return;
+        }
+
+        villager.setVelocity(
+                dx / horizontalDistance * DIRECT_STEP_SPEED,
+                villager.getVelocity().y,
+                dz / horizontalDistance * DIRECT_STEP_SPEED
+        );
     }
 
     private void clearNavigationStep() {
@@ -493,13 +514,13 @@ public class ValetWorkGoal extends Goal {
 
     private boolean canClearForTunnel(ServerWorld world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
-        return isPassableTunnelSpace(blockState) || canMinePathBlock(world, pos, blockState);
+        return isPassableTunnelSpace(world, pos) || canMinePathBlock(world, pos, blockState);
     }
 
     private BlockPos findMovementObstruction(ServerWorld world, BlockPos from, BlockPos to) {
         for (BlockPos candidate : movementClearancePositions(from, to)) {
             BlockState blockState = world.getBlockState(candidate);
-            if (!isPassableTunnelSpace(blockState)) {
+            if (!isPassableTunnelSpace(world, candidate)) {
                 return canMinePathBlock(world, candidate, blockState) ? candidate : null;
             }
         }
@@ -520,7 +541,7 @@ public class ValetWorkGoal extends Goal {
         }
 
         for (BlockPos pos : movementClearancePositions(from, to)) {
-            if (!isPassableTunnelSpace(world.getBlockState(pos))) {
+            if (!isPassableTunnelSpace(world, pos)) {
                 return false;
             }
         }
@@ -533,7 +554,7 @@ public class ValetWorkGoal extends Goal {
         }
 
         for (BlockPos pos : standClearancePositions(standPos)) {
-            if (!isPassableTunnelSpace(world.getBlockState(pos))) {
+            if (!isPassableTunnelSpace(world, pos)) {
                 return false;
             }
         }
@@ -565,13 +586,17 @@ public class ValetWorkGoal extends Goal {
         }
     }
 
-    private boolean isPassableTunnelSpace(BlockState blockState) {
-        return blockState.isAir() || blockState.isOf(Blocks.TORCH) || blockState.isOf(Blocks.WALL_TORCH);
+    private boolean isPassableTunnelSpace(ServerWorld world, BlockPos pos) {
+        BlockState blockState = world.getBlockState(pos);
+        return blockState.isAir()
+                || blockState.isOf(Blocks.TORCH)
+                || blockState.isOf(Blocks.WALL_TORCH)
+                || blockState.getFluidState().isEmpty() && blockState.getCollisionShape(world, pos).isEmpty();
     }
 
     private boolean canStandOn(ServerWorld world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
-        return !isPassableTunnelSpace(blockState)
+        return !isPassableTunnelSpace(world, pos)
                 && blockState.getFluidState().isEmpty()
                 && blockState.getHardness(world, pos) >= 0.0F
                 && blockState.isSideSolidFullSquare(world, pos, Direction.UP);
