@@ -67,6 +67,9 @@ public final class ValetNetworking {
         }
 
         if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION) {
+            if (world instanceof ServerWorld serverWorld && ValetMod.tryAssignValetJob(serverWorld, villager, player.getBlockPos())) {
+                return openValetOrders(player, world, hand, entity, hitResult);
+            }
             return ActionResult.PASS;
         }
 
@@ -75,6 +78,7 @@ public final class ValetNetworking {
             if (villager.hasCustomName()) {
                 villager.setCustomNameVisible(true);
             }
+            ValetHome.getOrRecover(serverPlayer.getServerWorld(), villager, serverPlayer.getBlockPos());
             ValetConversations.begin(villager);
             int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.getServerWorld(), villager);
             int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.getServerWorld(), villager);
@@ -184,9 +188,12 @@ public final class ValetNetworking {
 
             ValetOrder order = payload.order();
             int targetIndex = payload.targetIndex();
+            ValetHome.getOrRecover(player.getServerWorld(), villager, player.getBlockPos());
             if (order == ValetOrder.NONE) {
                 ValetOrders.set(villager, ValetOrder.NONE);
+                ValetMod.LOGGER.info("Valet {} order set to none", villager.getUuid());
                 player.sendMessage(Text.translatable("message.valet.order_set", Text.translatable("order.valet.none")), true);
+                finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
             }
@@ -206,7 +213,9 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setMineTarget(villager, target);
+                ValetMod.LOGGER.info("Valet {} order set to mine {}", villager.getUuid(), target.name());
                 player.sendMessage(Text.translatable("message.valet.mine_target_set", Text.translatable(target.getTranslationKey())), true);
+                finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
             }
@@ -226,7 +235,9 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setWoodTarget(villager, target);
+                ValetMod.LOGGER.info("Valet {} order set to chop {}", villager.getUuid(), target.name());
                 player.sendMessage(Text.translatable("message.valet.wood_target_set", Text.translatable(target.getTranslationKey())), true);
+                finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
             }
@@ -240,13 +251,20 @@ public final class ValetNetworking {
                 }
 
                 ValetOrders.setConstructionTarget(villager, targetIndex);
+                ValetMod.LOGGER.info("Valet {} order set to build {}", villager.getUuid(), targetIndex);
                 giveBlueprintItem(player, villager, blueprint);
                 player.sendMessage(Text.translatable("message.valet.construction_target_set", blueprint.name()), true);
+                finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
             }
             sendValetState(player, villager);
         });
+    }
+
+    private static void finishOrderInteraction(ServerPlayerEntity player, VillagerEntity villager) {
+        ValetConversations.end(villager);
+        player.closeHandledScreen();
     }
 
     private static void giveBlueprintItem(ServerPlayerEntity player, VillagerEntity villager, ValetConstructionBlueprint blueprint) {

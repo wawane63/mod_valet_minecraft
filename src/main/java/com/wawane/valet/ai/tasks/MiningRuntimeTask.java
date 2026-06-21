@@ -22,6 +22,7 @@ public final class MiningRuntimeTask {
     private BlockPos miningPos;
     private BlockState miningState;
     private boolean miningOre;
+    private boolean miningBonusResource;
     private final List<BlockPos> veinTargets = new ArrayList<>();
 
     public MiningRuntimeTask(Control control) {
@@ -90,7 +91,7 @@ public final class MiningRuntimeTask {
 
     public void beginMining(ServerWorld world, BlockPos pos, boolean ore) {
         BlockState blockState = world.getBlockState(pos);
-        boolean targetResource = ore || control.currentPathPurpose() == PathPurpose.ORE && control.matchesSelectedTarget(blockState);
+        boolean bonusResource = !ore && control.currentPathPurpose() == PathPurpose.ORE && control.isBonusResource(blockState);
         if (ore && !control.canReachTargetFromStand(pos, control.villager().getBlockPos())) {
             removeFromCurrentVein(pos);
             control.setState(control.interruptedWorkState());
@@ -104,7 +105,8 @@ public final class MiningRuntimeTask {
 
         miningPos = pos.toImmutable();
         miningState = blockState;
-        miningOre = targetResource;
+        miningOre = ore;
+        miningBonusResource = bonusResource;
         control.villager().getNavigation().stop();
         control.setState(State.MINING);
     }
@@ -125,7 +127,7 @@ public final class MiningRuntimeTask {
             if (miningOre) {
                 removeFromCurrentVein(miningPos);
             }
-            control.setState(miningOre ? State.COLLECTING : State.EXECUTING_PATH);
+            control.setState(getAfterMiningState());
             clearMiningState();
             return;
         }
@@ -136,8 +138,9 @@ public final class MiningRuntimeTask {
         }
 
         control.villager().getLookControl().lookAt(miningPos.getX() + 0.5D, miningPos.getY() + 0.5D, miningPos.getZ() + 0.5D);
-        List<ItemStack> drops = Block.getDroppedStacks(miningState, world, miningPos, world.getBlockEntity(miningPos), control.villager(), control.getToolForBlock(miningState));
-        if (!control.canStoreAllDrops(drops)) {
+        boolean collectDrops = miningOre || miningBonusResource;
+        List<ItemStack> drops = collectDrops ? Block.getDroppedStacks(miningState, world, miningPos, world.getBlockEntity(miningPos), control.villager(), control.getToolForBlock(miningState)) : List.of();
+        if (collectDrops && !control.canStoreAllDrops(drops)) {
             control.setState(State.RETURNING);
             clearMiningState();
             control.setDelayTicks(1);
@@ -146,14 +149,16 @@ public final class MiningRuntimeTask {
 
         control.animateMining(world, miningPos, miningState);
         world.breakBlock(miningPos, false, control.villager());
-        control.placeTorchIfNeeded(world, miningPos);
-        control.collectDrops(drops);
-        ValetProgress.addXp(control.villager(), miningOre ? 8 : 1);
+        if (collectDrops) {
+            control.placeTorchIfNeeded(world, miningPos);
+            control.collectDrops(drops);
+            ValetProgress.addXp(control.villager(), miningOre ? 8 : 2);
+        }
         if (miningOre) {
             removeFromCurrentVein(miningPos);
         }
 
-        control.setState(!control.hasInventorySpace() ? State.RETURNING : miningOre ? State.COLLECTING : State.EXECUTING_PATH);
+        control.setState(getAfterMiningState());
         clearMiningState();
         control.setDelayTicks(control.actionDelayTicks());
     }
@@ -172,6 +177,7 @@ public final class MiningRuntimeTask {
         miningPos = null;
         miningState = null;
         miningOre = false;
+        miningBonusResource = false;
     }
 
     public void clearVeinState() {
@@ -294,6 +300,13 @@ public final class MiningRuntimeTask {
         return WoodcuttingTask.findWoodCluster(world, seed, control.maxVeinBlocks(), control::matchesSelectedTarget);
     }
 
+    private State getAfterMiningState() {
+        if (!control.hasInventorySpace()) {
+            return State.RETURNING;
+        }
+        return miningOre ? State.COLLECTING : State.EXECUTING_PATH;
+    }
+
     private boolean isSelectedTarget(ServerWorld world, BlockPos pos) {
         return pos != null && control.matchesSelectedTarget(world.getBlockState(pos));
     }
@@ -325,6 +338,8 @@ public final class MiningRuntimeTask {
         boolean hasInventoryItems();
 
         boolean matchesSelectedTarget(BlockState blockState);
+
+        boolean isBonusResource(BlockState blockState);
 
         Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock);
 

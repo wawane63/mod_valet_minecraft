@@ -1,6 +1,5 @@
 package com.wawane.valet.mixin;
 
-import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.state.ValetData;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.passive.MerchantEntity;
@@ -16,11 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class VillagerEntityMixin extends MerchantEntity {
     protected VillagerEntityMixin(EntityType<? extends MerchantEntity> entityType, World world) {
         super(entityType, world);
-    }
-
-    @Inject(method = "<init>", at = @At("TAIL"))
-    private void valet$addWorkGoal(EntityType<? extends VillagerEntity> entityType, World world, CallbackInfo ci) {
-        this.goalSelector.add(3, new ValetWorkGoal((VillagerEntity) (Object) this));
     }
 
     @Inject(method = "writeCustomDataToNbt", at = @At("TAIL"))

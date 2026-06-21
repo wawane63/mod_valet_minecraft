@@ -6,6 +6,7 @@ import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintItem;
 import com.wawane.valet.construction.ConstructionBeaconBlock;
 import com.wawane.valet.construction.ValetConstructionMarkers;
+import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
@@ -138,18 +139,23 @@ public class ValetMod implements ModInitializer {
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> ValetConstructionMarkers.clear(handler.player.getUuid()));
-        ServerTickEvents.END_WORLD_TICK.register(ValetMod::assignValetJobs);
+        ServerTickEvents.END_WORLD_TICK.register(world -> {
+            assignValetJobs(world);
+            ValetWorkDriver.tick(world);
+        });
         ValetNetworking.registerServerReceivers();
         LOGGER.info("Valet mod initialized");
     }
 
     private static void clearEntityRuntimeState(Entity entity, ServerWorld world) {
         if (entity instanceof VillagerEntity villager) {
+            ValetWorkDriver.clear(villager.getUuid());
             ValetData.clearVillagerRuntime(villager.getUuid());
         }
     }
 
     private static void clearAllRuntimeState() {
+        ValetWorkDriver.clearAll();
         ValetData.clearAllVillagerRuntime();
         ValetConstructionMarkers.clearAll();
     }
@@ -162,14 +168,32 @@ public class ValetMod implements ModInitializer {
         for (ServerPlayerEntity player : world.getPlayers()) {
             Box searchBox = Box.from(player.getPos()).expand(PLAYER_SCAN_RADIUS);
             for (VillagerEntity villager : world.getEntitiesByClass(VillagerEntity.class, searchBox, ValetMod::canBecomeValet)) {
-                BlockPos workstation = findNearbyWorkstation(world, villager.getBlockPos());
-                if (workstation != null && !isWorkstationClaimed(world, workstation, villager)) {
-                    villager.getBrain().remember(MemoryModuleType.JOB_SITE, GlobalPos.create(world.getRegistryKey(), workstation));
-                    villager.setVillagerData(villager.getVillagerData().withProfession(VALET_PROFESSION));
-                    villager.reinitializeBrain(world);
-                }
+                tryAssignValetJob(world, villager, villager.getBlockPos());
             }
         }
+    }
+
+    public static boolean tryAssignValetJob(ServerWorld world, VillagerEntity villager, BlockPos searchOrigin) {
+        if (villager.getVillagerData().getProfession() == VALET_PROFESSION) {
+            return true;
+        }
+        if (!canBecomeValet(villager)) {
+            return false;
+        }
+
+        BlockPos workstation = findNearbyWorkstation(world, villager.getBlockPos());
+        if (workstation == null) {
+            workstation = findNearbyWorkstation(world, searchOrigin);
+        }
+        if (workstation == null || isWorkstationClaimed(world, workstation, villager)) {
+            return false;
+        }
+
+        villager.setVillagerData(villager.getVillagerData().withProfession(VALET_PROFESSION));
+        villager.reinitializeBrain(world);
+        villager.getBrain().remember(MemoryModuleType.JOB_SITE, GlobalPos.create(world.getRegistryKey(), workstation));
+        ValetHome.set(villager, workstation);
+        return true;
     }
 
     private static boolean canBecomeValet(VillagerEntity villager) {

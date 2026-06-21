@@ -17,6 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ValetHome {
+    private static final int WORKSTATION_RECOVERY_RADIUS = 24;
+    private static final int WORKSTATION_RECOVERY_VERTICAL_RADIUS = 4;
     private static final String HOME_X_KEY = "ValetHomeX";
     private static final String HOME_Y_KEY = "ValetHomeY";
     private static final String HOME_Z_KEY = "ValetHomeZ";
@@ -35,9 +37,34 @@ public final class ValetHome {
         }
         GlobalPos home = HOMES.get(villager.getUuid());
         if (home == null || !home.getDimension().equals(world.getRegistryKey())) {
-            return null;
+            BlockPos workstation = findNearbyWorkstation(world, villager.getBlockPos());
+            if (workstation == null) {
+                return null;
+            }
+
+            GlobalPos recoveredHome = GlobalPos.create(world.getRegistryKey(), workstation);
+            villager.getBrain().remember(MemoryModuleType.JOB_SITE, recoveredHome);
+            set(villager, recoveredHome);
+            return workstation;
         }
         return home.getPos();
+    }
+
+    public static BlockPos getOrRecover(ServerWorld world, VillagerEntity villager, BlockPos recoveryOrigin) {
+        BlockPos home = get(world, villager);
+        if (home != null) {
+            return home;
+        }
+
+        BlockPos workstation = findNearbyWorkstation(world, recoveryOrigin);
+        if (workstation == null) {
+            return null;
+        }
+
+        GlobalPos recoveredHome = GlobalPos.create(world.getRegistryKey(), workstation);
+        villager.getBrain().remember(MemoryModuleType.JOB_SITE, recoveredHome);
+        set(villager, recoveredHome);
+        return workstation;
     }
 
     public static void set(VillagerEntity villager, BlockPos pos) {
@@ -46,6 +73,15 @@ public final class ValetHome {
 
     private static void set(VillagerEntity villager, GlobalPos pos) {
         HOMES.put(villager.getUuid(), pos);
+    }
+
+    private static BlockPos findNearbyWorkstation(ServerWorld world, BlockPos origin) {
+        for (BlockPos pos : BlockPos.iterateOutwards(origin, WORKSTATION_RECOVERY_RADIUS, WORKSTATION_RECOVERY_VERTICAL_RADIUS, WORKSTATION_RECOVERY_RADIUS)) {
+            if (world.getBlockState(pos).isOf(ValetMod.VALET_WORKSTATION)) {
+                return pos.toImmutable();
+            }
+        }
+        return null;
     }
 
     public static boolean hasData(VillagerEntity villager) {

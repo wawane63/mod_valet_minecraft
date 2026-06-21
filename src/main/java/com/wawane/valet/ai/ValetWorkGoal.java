@@ -19,6 +19,7 @@ import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.ai.brain.MemoryModuleType;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.passive.VillagerEntity;
@@ -133,8 +134,13 @@ public class ValetWorkGoal extends Goal {
         constructionTask.tickCooldown();
 
         if (ValetConversations.isTalking(villager)) {
+            suppressVanillaMovementTargets();
             holdConversationPosition();
             return;
+        }
+
+        if (shouldClaimMovement()) {
+            suppressVanillaMovementTargets();
         }
 
         if (delayTicks > 0) {
@@ -179,7 +185,7 @@ public class ValetWorkGoal extends Goal {
     }
 
     private boolean hasWorkOrigin() {
-        return villager.getWorld() instanceof ServerWorld world && getWorkOrigin(world) != null;
+        return villager.getWorld() instanceof ServerWorld world && getKnownWorkOrigin(world) != null;
     }
 
     private State chooseStartState() {
@@ -290,14 +296,16 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void moveTowardPathStep(BlockPos step) {
-        if (!step.equals(navigationStepTarget)) {
+        boolean newStep = !step.equals(navigationStepTarget);
+        if (newStep) {
             navigationStepTarget = step.toImmutable();
             navigationStepTicks = NAVIGATION_STEP_TIMEOUT_TICKS;
             villager.getNavigation().stop();
         }
 
+        suppressVanillaMovementTargets();
         villager.getLookControl().lookAt(step.getX() + 0.5D, step.getY() + 1.0D, step.getZ() + 0.5D);
-        if (villager.getNavigation().isIdle()) {
+        if (newStep || villager.getNavigation().isIdle() || navigationStepTicks % 5 == 0) {
             villager.getNavigation().startMovingTo(step.getX() + 0.5D, step.getY(), step.getZ() + 0.5D, NAVIGATION_STEP_SPEED);
         }
 
@@ -641,6 +649,10 @@ public class ValetWorkGoal extends Goal {
         return false;
     }
 
+    private boolean isBonusResource(BlockState blockState) {
+        return ORE_TAGS.stream().anyMatch(blockState::isIn) || blockState.isIn(BlockTags.LOGS);
+    }
+
     private ItemStack getToolForBlock(BlockState blockState) {
         if (blockState.isIn(BlockTags.AXE_MINEABLE)) {
             return new ItemStack(Items.IRON_AXE);
@@ -652,6 +664,14 @@ public class ValetWorkGoal extends Goal {
     }
 
     private BlockPos getWorkOrigin(ServerWorld world) {
+        BlockPos workOrigin = getKnownWorkOrigin(world);
+        if (workOrigin != null) {
+            return workOrigin;
+        }
+        return hasActiveOrder() ? villager.getBlockPos() : null;
+    }
+
+    private BlockPos getKnownWorkOrigin(ServerWorld world) {
         return ValetHome.get(world, villager);
     }
 
@@ -712,6 +732,15 @@ public class ValetWorkGoal extends Goal {
     private void holdConversationPosition() {
         villager.getNavigation().stop();
         villager.setVelocity(0.0D, villager.getVelocity().y, 0.0D);
+    }
+
+    private boolean shouldClaimMovement() {
+        return hasActiveOrder() || hasInventoryItems() || state != State.IDLE;
+    }
+
+    private void suppressVanillaMovementTargets() {
+        villager.getBrain().forget(MemoryModuleType.WALK_TARGET);
+        villager.getBrain().forget(MemoryModuleType.LOOK_TARGET);
     }
 
     private boolean hasInventorySpace() {
@@ -939,6 +968,11 @@ public class ValetWorkGoal extends Goal {
         @Override
         public boolean matchesSelectedTarget(BlockState blockState) {
             return ValetWorkGoal.this.matchesSelectedTarget(blockState);
+        }
+
+        @Override
+        public boolean isBonusResource(BlockState blockState) {
+            return ValetWorkGoal.this.isBonusResource(blockState);
         }
 
         @Override
