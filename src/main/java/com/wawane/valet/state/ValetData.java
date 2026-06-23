@@ -48,7 +48,7 @@ public final class ValetData {
         ValetProgress.clearAll();
     }
 
-    private static boolean hasRuntimeData(VillagerEntity villager) {
+    public static boolean hasRuntimeData(VillagerEntity villager) {
         return ValetHome.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager);
     }
 
@@ -56,7 +56,7 @@ public final class ValetData {
         return ValetHome.hasNbt(nbt) || ValetOrders.hasNbt(nbt) || ValetProgress.hasNbt(nbt);
     }
 
-    private static boolean isValet(VillagerEntity villager) {
+    public static boolean isValet(VillagerEntity villager) {
         return villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION;
     }
 }

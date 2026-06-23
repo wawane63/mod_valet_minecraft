@@ -47,6 +47,7 @@ public final class ValetHome {
             set(villager, recoveredHome);
             return workstation;
         }
+        villager.getBrain().remember(MemoryModuleType.JOB_SITE, home);
         return home.getPos();
     }
 

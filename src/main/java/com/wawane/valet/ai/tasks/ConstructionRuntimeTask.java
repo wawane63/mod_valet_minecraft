@@ -1,5 +1,6 @@
 package com.wawane.valet.ai.tasks;
 
+import com.wawane.valet.ValetDebug;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
@@ -22,6 +23,7 @@ import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -62,6 +64,7 @@ public final class ConstructionRuntimeTask {
     public void findTarget(ServerWorld world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
+            ValetDebug.record(control.villager(), "build no_workstation");
             reportConstructionIssue(world, "message.valet.construction_no_workstation");
             control.setDelayTicks(40);
             return;
@@ -69,6 +72,7 @@ public final class ConstructionRuntimeTask {
 
         ValetConstructionBlueprint blueprint = ValetConstructionStorage.get(world).getBlueprint(ValetOrders.getConstructionTargetId(control.villager()));
         if (blueprint == null) {
+            ValetDebug.record(control.villager(), "build unknown_blueprint");
             reportConstructionIssue(world, "message.valet.construction_unknown");
             ValetOrders.set(control.villager(), ValetOrder.NONE);
             control.setState(State.RETURNING_HOME);
@@ -78,6 +82,7 @@ public final class ConstructionRuntimeTask {
 
         ConstructionSite site = findNearestConstructionSite(world, workOrigin, blueprint.id());
         if (site == null) {
+            ValetDebug.record(control.villager(), "build no_blueprint_item id=" + blueprint.id());
             reportConstructionIssue(world, "message.valet.construction_no_blueprint", blueprint.name());
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
@@ -94,6 +99,7 @@ public final class ConstructionRuntimeTask {
             BlockState buildState = buildTarget.state();
             BlockPos blockedPos = getBlockedBuildPos(world, buildTarget);
             if (blockedPos != null) {
+                ValetDebug.record(control.villager(), "build blocked pos=" + ValetDebug.shortPos(blockedPos));
                 reportConstructionIssue(world, "message.valet.construction_blocked", blockedPos.getX(), blockedPos.getY(), blockedPos.getZ());
                 control.setState(State.RETURNING_HOME);
                 control.setDelayTicks(40);
@@ -101,6 +107,7 @@ public final class ConstructionRuntimeTask {
             }
 
             if (!hasBuildMaterial(world, workOrigin, buildTarget)) {
+                ValetDebug.record(control.villager(), "build missing_material block=" + buildState.getBlock().getTranslationKey());
                 reportConstructionIssue(world, "message.valet.construction_missing_material", Text.translatable(getBuildItem(buildState).getTranslationKey()));
                 control.setState(State.RETURNING_HOME);
                 control.setDelayTicks(40);
@@ -117,8 +124,9 @@ public final class ConstructionRuntimeTask {
                 return;
             }
 
-            List<BlockPos> path = control.planPathToAdjacent(world, buildPos, goals);
+            List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.BUILD, buildPos, goals);
             if (path.isEmpty()) {
+                ValetDebug.record(control.villager(), "build no_path pos=" + ValetDebug.shortPos(buildPos));
                 reportConstructionIssue(world, "message.valet.construction_no_path", buildPos.getX(), buildPos.getY(), buildPos.getZ());
                 clearBuildState();
                 control.setState(State.RETURNING_HOME);
@@ -131,6 +139,7 @@ public final class ConstructionRuntimeTask {
         }
 
         ValetOrders.set(control.villager(), ValetOrder.NONE);
+        ValetDebug.record(control.villager(), "build done id=" + blueprint.id() + " name=" + blueprint.name());
         reportConstructionIssue(world, "message.valet.construction_done", blueprint.name());
         removeFinishedBlueprint(world, site.blueprintPos());
         ValetProgress.addXp(control.villager(), Math.max(10, blueprint.blockCount() / 4));
@@ -141,17 +150,20 @@ public final class ConstructionRuntimeTask {
 
     public void tickPlacing(ServerWorld world) {
         if (targetBuildPos == null || targetBuildState == null) {
+            ValetDebug.record(control.villager(), "build lost_target");
             control.setState(State.FIND_TARGET);
             return;
         }
 
         if (!control.canReachBuildTargetFromStand(targetBuildPos, control.villager().getBlockPos())) {
+            ValetDebug.record(control.villager(), "build lost_reach pos=" + ValetDebug.shortPos(targetBuildPos));
             control.setState(State.FIND_TARGET);
             return;
         }
 
         BuildTarget buildTarget = new BuildTarget(targetBuildPos, targetBuildState, targetBuildSecondaryPos, targetBuildSecondaryState);
         if (!needsBuildTarget(world, buildTarget)) {
+            ValetDebug.record(control.villager(), "build already_done pos=" + ValetDebug.shortPos(targetBuildPos));
             clearBuildState();
             control.setState(State.FIND_TARGET);
             return;
@@ -159,6 +171,7 @@ public final class ConstructionRuntimeTask {
 
         BlockPos blockedPos = getBlockedBuildPos(world, buildTarget);
         if (blockedPos != null) {
+            ValetDebug.record(control.villager(), "build blocked pos=" + ValetDebug.shortPos(blockedPos));
             reportConstructionIssue(world, "message.valet.construction_blocked", blockedPos.getX(), blockedPos.getY(), blockedPos.getZ());
             clearBuildState();
             control.setState(State.RETURNING_HOME);
@@ -168,6 +181,7 @@ public final class ConstructionRuntimeTask {
 
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
+            ValetDebug.record(control.villager(), "build no_workstation");
             reportConstructionIssue(world, "message.valet.construction_no_workstation");
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
@@ -175,6 +189,7 @@ public final class ConstructionRuntimeTask {
         }
 
         if (!consumeBuildMaterial(world, workOrigin, buildTarget)) {
+            ValetDebug.record(control.villager(), "build missing_material block=" + targetBuildState.getBlock().getTranslationKey());
             reportConstructionIssue(world, "message.valet.construction_missing_material", Text.translatable(getBuildItem(targetBuildState).getTranslationKey()));
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
@@ -190,6 +205,7 @@ public final class ConstructionRuntimeTask {
             placeBuildBlock(world, targetBuildSecondaryPos, targetBuildSecondaryState);
         }
         world.playSound(null, targetBuildPos, targetBuildState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, 0.7F, 1.0F);
+        ValetDebug.record(control.villager(), "build placed pos=" + ValetDebug.shortPos(targetBuildPos) + " block=" + targetBuildState.getBlock().getTranslationKey());
         ValetProgress.addXp(control.villager(), 1);
         clearBuildState();
         control.setState(State.FIND_TARGET);
@@ -201,6 +217,11 @@ public final class ConstructionRuntimeTask {
         targetBuildState = null;
         targetBuildSecondaryPos = null;
         targetBuildSecondaryState = null;
+    }
+
+    public String debugSummary() {
+        return "buildTarget=" + shortPos(targetBuildPos)
+                + " buildBlock=" + (targetBuildState == null ? "-" : targetBuildState.getBlock().getTranslationKey());
     }
 
     private ConstructionSite findNearestConstructionSite(ServerWorld world, BlockPos origin, int constructionId) {
@@ -331,7 +352,7 @@ public final class ConstructionRuntimeTask {
     }
 
     private boolean needsBuildBlock(ServerWorld world, BlockPos pos, BlockState targetState) {
-        return !world.getBlockState(pos).equals(targetState);
+        return !isOptionalNaturalBlock(targetState) && !world.getBlockState(pos).equals(targetState);
     }
 
     private boolean needsBuildTarget(ServerWorld world, BuildTarget target) {
@@ -457,6 +478,9 @@ public final class ConstructionRuntimeTask {
     }
 
     private boolean requiresBuildMaterial(BlockState buildState) {
+        if (isOptionalNaturalBlock(buildState)) {
+            return false;
+        }
         if (buildState.getBlock() instanceof BedBlock && buildState.contains(BedBlock.PART)) {
             return buildState.get(BedBlock.PART) == BedPart.FOOT;
         }
@@ -464,6 +488,11 @@ public final class ConstructionRuntimeTask {
             return buildState.get(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
         }
         return true;
+    }
+
+    private boolean isOptionalNaturalBlock(BlockState buildState) {
+        return buildState.isReplaceable()
+                || buildState.isIn(BlockTags.LEAVES);
     }
 
     private void reportConstructionIssue(ServerWorld world, String messageKey, Object... args) {
@@ -490,6 +519,10 @@ public final class ConstructionRuntimeTask {
         return dx * dx + dy * dy + dz * dz;
     }
 
+    private static String shortPos(BlockPos pos) {
+        return pos == null ? "-" : ValetDebug.shortPos(pos);
+    }
+
     private record ConstructionSite(BlockPos blueprintPos, Direction facing) {
     }
 
@@ -508,7 +541,7 @@ public final class ConstructionRuntimeTask {
 
         Set<BlockPos> findBuildStandGoals(ServerWorld world, BlockPos targetBlock);
 
-        List<BlockPos> planPathToAdjacent(ServerWorld world, BlockPos targetBlock, Set<BlockPos> goals);
+        List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
 
         void startPath(PathPurpose purpose, List<BlockPos> path);
 

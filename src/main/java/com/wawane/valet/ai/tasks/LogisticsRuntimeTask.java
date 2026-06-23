@@ -1,5 +1,6 @@
 package com.wawane.valet.ai.tasks;
 
+import com.wawane.valet.ValetDebug;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
@@ -25,32 +26,36 @@ public final class LogisticsRuntimeTask {
     public void returnToChest(ServerWorld world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
+            ValetDebug.record(control.villager(), "logistics no_work_origin");
             control.setDelayTicks(40);
             return;
         }
 
-        if (!control.hasInventoryItems()) {
-            control.setState(control.hasMiningOrder() ? State.FIND_TARGET : State.RETURNING_HOME);
+        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasConstructionOrder()) {
+            ValetDebug.record(control.villager(), "logistics no_items");
+            control.setState(State.RETURNING_HOME);
             return;
         }
 
-        chestPos = findNearestContainer(world, workOrigin);
+        chestPos = findBestContainer(world, workOrigin);
         if (chestPos == null) {
+            ValetDebug.record(control.villager(), "logistics no_chest");
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
         }
 
-        Set<BlockPos> goals = control.findStandGoals(world, chestPos);
+        Set<BlockPos> goals = control.findStandGoals(world, chestPos, PathPurpose.CHEST);
         if (goals.contains(control.villager().getBlockPos())) {
             control.setState(State.DEPOSITING);
             return;
         }
 
-        List<BlockPos> path = control.planPathToAdjacent(world, chestPos, goals);
+        List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CHEST, chestPos, goals);
         if (path.isEmpty()) {
-            control.setState(State.RETURNING_HOME);
-            control.setDelayTicks(40);
+            ValetDebug.record(control.villager(), "logistics no_chest_path pos=" + ValetDebug.shortPos(chestPos));
+            control.setState(State.RETURNING);
+            control.setDelayTicks(20);
             return;
         }
 
@@ -65,6 +70,7 @@ public final class LogisticsRuntimeTask {
         }
 
         if (control.isNearWorkstation(world, workOrigin)) {
+            ValetDebug.record(control.villager(), "logistics at_home");
             control.clearPathState();
             control.clearMiningState();
             control.setState(State.IDLE);
@@ -72,9 +78,10 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        Set<BlockPos> goals = control.findStandGoals(world, workOrigin);
-        List<BlockPos> path = control.planPathToAdjacent(world, workOrigin, goals);
+        Set<BlockPos> goals = control.findStandGoals(world, workOrigin, PathPurpose.HOME);
+        List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.HOME, workOrigin, goals);
         if (path.isEmpty()) {
+            ValetDebug.record(control.villager(), "logistics no_home_path pos=" + ValetDebug.shortPos(workOrigin));
             control.setDelayTicks(20);
             return;
         }
@@ -118,6 +125,9 @@ public final class LogisticsRuntimeTask {
         if (movedItems > 0) {
             control.animateChestUse(world, chestPos);
             ValetProgress.addXp(control.villager(), Math.max(2, movedItems / 8));
+            ValetDebug.record(control.villager(), "logistics deposited items=" + movedItems + " chest=" + shortPos(chestPos));
+        } else {
+            ValetDebug.record(control.villager(), "logistics deposit_empty chest=" + shortPos(chestPos));
         }
 
         clearChestTarget();
@@ -136,12 +146,29 @@ public final class LogisticsRuntimeTask {
         chestPos = null;
     }
 
+    public String debugSummary() {
+        return "chest=" + shortPos(chestPos);
+    }
+
     private BlockPos findNearestContainer(ServerWorld world, BlockPos origin) {
         return findNearest(world, origin, control.chestRadius(), 4, pos -> {
             BlockState blockState = world.getBlockState(pos);
             return (blockState.isOf(Blocks.CHEST) || blockState.isOf(Blocks.TRAPPED_CHEST) || blockState.isOf(Blocks.BARREL))
                     && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
         });
+    }
+
+    private BlockPos findBestContainer(ServerWorld world, BlockPos workOrigin) {
+        BlockPos villagerPos = control.villager().getBlockPos();
+        BlockPos nearVillager = findNearestContainer(world, villagerPos);
+        BlockPos nearWork = findNearestContainer(world, workOrigin);
+        if (nearVillager == null) {
+            return nearWork;
+        }
+        if (nearWork == null) {
+            return nearVillager;
+        }
+        return squaredDistance(villagerPos, nearVillager) <= squaredDistance(villagerPos, nearWork) ? nearVillager : nearWork;
     }
 
     private BlockPos findNearest(ServerWorld world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
@@ -169,6 +196,10 @@ public final class LogisticsRuntimeTask {
         return dx * dx + dy * dy + dz * dz;
     }
 
+    private static String shortPos(BlockPos pos) {
+        return pos == null ? "-" : ValetDebug.shortPos(pos);
+    }
+
     @FunctionalInterface
     private interface BlockPredicate {
         boolean test(BlockPos pos);
@@ -189,9 +220,9 @@ public final class LogisticsRuntimeTask {
 
         boolean isNearWorkstation(ServerWorld world, BlockPos workOrigin);
 
-        Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock);
+        Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock, PathPurpose purpose);
 
-        List<BlockPos> planPathToAdjacent(ServerWorld world, BlockPos targetBlock, Set<BlockPos> goals);
+        List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
 
         void startPath(PathPurpose purpose, List<BlockPos> path);
 

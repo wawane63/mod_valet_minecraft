@@ -14,7 +14,7 @@ public final class MiningTask {
     }
 
     public static List<BlockPos> findCluster(ServerWorld world, BlockPos seed, int maxBlocks, ResourceMatcher matcher, AreaPredicate areaPredicate, NeighborProvider neighborProvider) {
-        if (!matcher.matches(world.getBlockState(seed))) {
+        if (!matcher.matches(world, seed, world.getBlockState(seed))) {
             return List.of();
         }
 
@@ -26,7 +26,7 @@ public final class MiningTask {
 
         for (int index = 0; index < open.size() && result.size() < maxBlocks; index++) {
             BlockPos current = open.get(index);
-            if (!areaPredicate.contains(current) || !matcher.matches(world.getBlockState(current))) {
+            if (!areaPredicate.contains(current) || !matcher.matches(world, current, world.getBlockState(current))) {
                 continue;
             }
 
@@ -57,7 +57,7 @@ public final class MiningTask {
 
     @FunctionalInterface
     public interface ResourceMatcher {
-        boolean matches(BlockState state);
+        boolean matches(ServerWorld world, BlockPos pos, BlockState state);
     }
 
     @FunctionalInterface

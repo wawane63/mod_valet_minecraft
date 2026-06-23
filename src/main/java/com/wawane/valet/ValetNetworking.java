@@ -339,6 +339,7 @@ public final class ValetNetworking {
 
             ValetPerk perk = payload.perk();
             if (ValetProgress.choosePerk(villager, perk)) {
+                ValetWorkGoal.requestRestart(villager);
                 player.sendMessage(Text.translatable("message.valet.perk_set", Text.translatable(perk.getTranslationKey())), true);
             }
             sendValetState(player, villager);

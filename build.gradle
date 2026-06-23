@@ -40,6 +40,11 @@ if (appData != null) {
         dependsOn tasks.named('remapJar')
         from tasks.named('remapJar').flatMap { it.archiveFile }
         into file("${appData}/.minecraft/mods")
+        doFirst {
+            delete fileTree("${appData}/.minecraft/mods") {
+                include "${project.archives_base_name}-*.jar"
+            }
+        }
     }
 
     tasks.named('build') {

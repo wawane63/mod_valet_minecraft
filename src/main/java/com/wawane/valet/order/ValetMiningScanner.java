@@ -33,7 +33,7 @@ public final class ValetMiningScanner {
 
         for (BlockPos pos : BlockPos.iterateOutwards(origin, ORE_SCAN_RADIUS, ORE_SCAN_VERTICAL_RADIUS, ORE_SCAN_RADIUS)) {
             for (ValetWoodTarget target : ValetWoodTarget.values()) {
-                if (target.matches(world.getBlockState(pos))) {
+                if (target.matchesNaturalTree(world, pos)) {
                     counts[target.ordinal()]++;
                     break;
                 }

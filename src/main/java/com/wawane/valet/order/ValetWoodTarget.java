@@ -3,18 +3,21 @@ package com.wawane.valet.order;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 
 public enum ValetWoodTarget {
-    OAK("wood.valet.oak", Blocks.OAK_LOG, Blocks.OAK_WOOD),
-    SPRUCE("wood.valet.spruce", Blocks.SPRUCE_LOG, Blocks.SPRUCE_WOOD),
-    BIRCH("wood.valet.birch", Blocks.BIRCH_LOG, Blocks.BIRCH_WOOD),
-    JUNGLE("wood.valet.jungle", Blocks.JUNGLE_LOG, Blocks.JUNGLE_WOOD),
-    ACACIA("wood.valet.acacia", Blocks.ACACIA_LOG, Blocks.ACACIA_WOOD),
-    DARK_OAK("wood.valet.dark_oak", Blocks.DARK_OAK_LOG, Blocks.DARK_OAK_WOOD),
-    MANGROVE("wood.valet.mangrove", Blocks.MANGROVE_LOG, Blocks.MANGROVE_WOOD),
-    CHERRY("wood.valet.cherry", Blocks.CHERRY_LOG, Blocks.CHERRY_WOOD),
-    CRIMSON("wood.valet.crimson", Blocks.CRIMSON_STEM, Blocks.CRIMSON_HYPHAE),
-    WARPED("wood.valet.warped", Blocks.WARPED_STEM, Blocks.WARPED_HYPHAE);
+    OAK("wood.valet.oak", Blocks.OAK_LOG),
+    SPRUCE("wood.valet.spruce", Blocks.SPRUCE_LOG),
+    BIRCH("wood.valet.birch", Blocks.BIRCH_LOG),
+    JUNGLE("wood.valet.jungle", Blocks.JUNGLE_LOG),
+    ACACIA("wood.valet.acacia", Blocks.ACACIA_LOG),
+    DARK_OAK("wood.valet.dark_oak", Blocks.DARK_OAK_LOG),
+    MANGROVE("wood.valet.mangrove", Blocks.MANGROVE_LOG),
+    CHERRY("wood.valet.cherry", Blocks.CHERRY_LOG),
+    CRIMSON("wood.valet.crimson", Blocks.CRIMSON_STEM),
+    WARPED("wood.valet.warped", Blocks.WARPED_STEM);
 
     private final String translationKey;
     private final Block[] blocks;
@@ -31,6 +34,29 @@ public enum ValetWoodTarget {
     public boolean matches(BlockState state) {
         for (Block block : blocks) {
             if (state.isOf(block)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean matchesNaturalTree(World world, BlockPos pos) {
+        return matches(world.getBlockState(pos)) && hasTreeCrown(world, pos);
+    }
+
+    private boolean hasTreeCrown(World world, BlockPos pos) {
+        for (BlockPos candidate : BlockPos.iterate(
+                pos.getX() - 3,
+                pos.getY(),
+                pos.getZ() - 3,
+                pos.getX() + 3,
+                pos.getY() + 7,
+                pos.getZ() + 3
+        )) {
+            BlockState state = world.getBlockState(candidate);
+            if (state.isIn(BlockTags.LEAVES)
+                    || state.isOf(Blocks.NETHER_WART_BLOCK)
+                    || state.isOf(Blocks.WARPED_WART_BLOCK)) {
                 return true;
             }
         }
