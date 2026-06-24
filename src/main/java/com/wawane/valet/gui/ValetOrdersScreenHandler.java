@@ -3,6 +3,7 @@ package com.wawane.valet.gui;
 import com.wawane.valet.ValetConversations;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
@@ -31,6 +32,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     private final int currentMineTargetIndex;
     private final int currentWoodTargetIndex;
     private final int currentConstructionTargetId;
+    private final int currentCraftTargetIndex;
     private final int[] oreCounts;
     private final int[] woodCounts;
     private final List<ValetConstructionBlueprint> constructions;
@@ -52,14 +54,14 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     private final String valetName;
 
     public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, PacketByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUuid(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readString(32));
+        this(syncId, inventory, buf.readInt(), buf.readUuid(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readString(32));
     }
 
     public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), World.OVERWORLD.getValue(), ValetOrder.NONE.ordinal(), -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), World.OVERWORLD.getValue(), ValetOrder.NONE.ordinal(), -1, -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
     }
 
-    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -68,6 +70,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         this.currentMineTargetIndex = currentMineTargetIndex;
         this.currentWoodTargetIndex = currentWoodTargetIndex;
         this.currentConstructionTargetId = currentConstructionTargetId;
+        this.currentCraftTargetIndex = currentCraftTargetIndex;
         this.oreCounts = oreCounts;
         this.woodCounts = woodCounts;
         this.constructions = constructions;
@@ -115,6 +118,10 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
 
     public int getCurrentConstructionTargetId() {
         return currentConstructionTargetId;
+    }
+
+    public int getCurrentCraftTargetIndex() {
+        return currentCraftTargetIndex;
     }
 
     public int getOreCount(ValetMineTarget target) {

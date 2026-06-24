@@ -14,6 +14,7 @@ public final class ValetOrderKey {
             case MINE_ORES -> order.getId() + ":" + ValetOrders.getMineTarget(villager);
             case CHOP_WOOD -> order.getId() + ":" + ValetOrders.getWoodTarget(villager);
             case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
+            case CRAFT -> order.getId() + ":" + ValetOrders.getCraftTarget(villager);
             case NONE -> order.getId();
         };
     }

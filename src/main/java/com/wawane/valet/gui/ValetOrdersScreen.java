@@ -2,6 +2,7 @@ package com.wawane.valet.gui;
 
 import com.wawane.valet.ValetNetworking;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
@@ -60,6 +61,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private int selectedMineTargetIndex = -1;
     private int selectedWoodTargetIndex = -1;
     private int selectedConstructionTargetId = -1;
+    private int selectedCraftTargetIndex = -1;
     private int localLevel;
     private int localXp;
     private int localNextLevelXp;
@@ -87,10 +89,11 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         viewModel = ValetOrdersViewModel.fromHandler(handler);
         localConstructions = new ArrayList<>(viewModel.constructions());
         ValetOrder currentOrder = viewModel.currentOrder();
-        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : TargetCategory.NONE;
+        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = viewModel.currentMineTargetIndex();
         selectedWoodTargetIndex = viewModel.currentWoodTargetIndex();
         selectedConstructionTargetId = viewModel.currentConstructionTargetId();
+        selectedCraftTargetIndex = viewModel.currentCraftTargetIndex();
         localLevel = viewModel.level();
         localXp = viewModel.xp();
         localNextLevelXp = viewModel.nextLevelXp();
@@ -410,6 +413,13 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
                 orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Text.literal("  ").append(Text.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
             }
         }
+
+        orderEntries.add(OrderEntry.category(TargetCategory.CRAFT, Text.translatable("screen.valet.category_craft")));
+        if (selectedCategory == TargetCategory.CRAFT) {
+            for (ValetCraftTarget target : ValetCraftTarget.values()) {
+                orderEntries.add(OrderEntry.target(ValetOrder.CRAFT, target.ordinal(), Text.literal("  ").append(Text.translatable(target.getTranslationKey()))));
+            }
+        }
         clampOrderScroll();
         updateConstructionButtons();
     }
@@ -430,6 +440,9 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         if (entry.order == ValetOrder.BUILD_STRUCTURE) {
             return selectedCategory == TargetCategory.CONSTRUCTION && selectedConstructionTargetId == entry.targetIndex;
         }
+        if (entry.order == ValetOrder.CRAFT) {
+            return selectedCategory == TargetCategory.CRAFT && selectedCraftTargetIndex == entry.targetIndex;
+        }
         return false;
     }
 
@@ -438,6 +451,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             case ORE -> Text.translatable("screen.valet.available_ores");
             case WOOD -> Text.translatable("screen.valet.available_wood");
             case CONSTRUCTION -> Text.translatable("screen.valet.available_constructions");
+            case CRAFT -> Text.translatable("screen.valet.available_craft");
             case NONE -> Text.translatable("screen.valet.available_targets");
         };
     }
@@ -447,6 +461,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             case ORE -> Text.translatable("screen.valet.category_ores");
             case WOOD -> Text.translatable("screen.valet.category_wood");
             case CONSTRUCTION -> Text.translatable("screen.valet.category_constructions");
+            case CRAFT -> Text.translatable("screen.valet.category_craft");
             case NONE -> Text.translatable("order.valet.none");
         };
     }
@@ -468,12 +483,19 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             ValetConstructionBlueprint construction = getSelectedConstruction();
             return construction == null ? getCategoryText(TargetCategory.CONSTRUCTION) : Text.literal(construction.name());
         }
+        if (selectedCategory == TargetCategory.CRAFT) {
+            ValetCraftTarget target = ValetCraftTarget.fromIndex(selectedCraftTargetIndex);
+            return target == null ? getCategoryText(TargetCategory.CRAFT) : Text.translatable(target.getTranslationKey());
+        }
         return Text.translatable("order.valet.none");
     }
 
     private Text getHintText() {
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             return localConstructions.isEmpty() ? Text.translatable("screen.valet.no_constructions") : Text.translatable("screen.valet.build_hint");
+        }
+        if (selectedCategory == TargetCategory.CRAFT) {
+            return Text.translatable("screen.valet.craft_hint");
         }
         return Text.translatable("screen.valet.mine_hint");
     }
@@ -733,12 +755,13 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int constructionTargetId, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int constructionTargetId, int craftTargetIndex, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
-        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : TargetCategory.NONE;
+        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = mineTargetIndex;
         selectedWoodTargetIndex = woodTargetIndex;
         selectedConstructionTargetId = constructionTargetId;
+        selectedCraftTargetIndex = craftTargetIndex;
         localLevel = level;
         localXp = xp;
         localNextLevelXp = nextLevelXp;
@@ -806,6 +829,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             selectedMineTargetIndex = -1;
             selectedWoodTargetIndex = -1;
             selectedConstructionTargetId = -1;
+            selectedCraftTargetIndex = -1;
         } else if (order == ValetOrder.MINE_ORES) {
             selectedCategory = TargetCategory.ORE;
             selectedMineTargetIndex = targetIndex;
@@ -815,6 +839,9 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         } else if (order == ValetOrder.BUILD_STRUCTURE) {
             selectedCategory = TargetCategory.CONSTRUCTION;
             selectedConstructionTargetId = targetIndex;
+        } else if (order == ValetOrder.CRAFT) {
+            selectedCategory = TargetCategory.CRAFT;
+            selectedCraftTargetIndex = targetIndex;
         }
         rebuildOrderEntries();
 
@@ -979,7 +1006,8 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         NONE,
         ORE,
         WOOD,
-        CONSTRUCTION
+        CONSTRUCTION,
+        CRAFT
     }
 
     private static final class OrderEntry {

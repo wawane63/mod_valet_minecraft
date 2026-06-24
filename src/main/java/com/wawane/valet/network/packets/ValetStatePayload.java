@@ -3,6 +3,7 @@ package com.wawane.valet.network.packets;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetWoodTarget;
+import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
@@ -19,6 +20,7 @@ public record ValetStatePayload(
         int mineTargetIndex,
         int woodTargetIndex,
         int constructionTargetId,
+        int craftTargetIndex,
         int level,
         int xp,
         int nextLevelXp,
@@ -48,6 +50,7 @@ public record ValetStatePayload(
                 getCurrentMineTargetIndex(villager),
                 getCurrentWoodTargetIndex(villager),
                 ValetOrders.getConstructionTargetId(villager),
+                getCurrentCraftTargetIndex(villager),
                 ValetProgress.getLevel(villager),
                 ValetProgress.getXp(villager),
                 ValetProgress.getNextLevelXp(villager),
@@ -73,6 +76,7 @@ public record ValetStatePayload(
         int mineTargetIndex = buf.readInt();
         int woodTargetIndex = buf.readInt();
         int constructionTargetId = buf.readInt();
+        int craftTargetIndex = buf.readInt();
         int level = buf.readInt();
         int xp = buf.readInt();
         int nextLevelXp = buf.readInt();
@@ -94,7 +98,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readString(32));
+        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readString(32));
     }
 
     public void write(PacketByteBuf buf) {
@@ -103,6 +107,7 @@ public record ValetStatePayload(
         buf.writeInt(mineTargetIndex);
         buf.writeInt(woodTargetIndex);
         buf.writeInt(constructionTargetId);
+        buf.writeInt(craftTargetIndex);
         buf.writeInt(level);
         buf.writeInt(xp);
         buf.writeInt(nextLevelXp);
@@ -142,6 +147,11 @@ public record ValetStatePayload(
 
     private static int getCurrentWoodTargetIndex(VillagerEntity villager) {
         ValetWoodTarget target = ValetOrders.getWoodTarget(villager);
+        return target == null ? -1 : target.ordinal();
+    }
+
+    private static int getCurrentCraftTargetIndex(VillagerEntity villager) {
+        ValetCraftTarget target = ValetOrders.getCraftTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 

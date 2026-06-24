@@ -14,10 +14,12 @@ public final class ValetOrders {
     private static final String MINE_TARGET_KEY = "ValetMineTarget";
     private static final String WOOD_TARGET_KEY = "ValetWoodTarget";
     private static final String CONSTRUCTION_TARGET_KEY = "ValetConstructionTarget";
+    private static final String CRAFT_TARGET_KEY = "ValetCraftTarget";
     private static final Map<UUID, ValetOrder> ORDERS = new ConcurrentHashMap<>();
     private static final Map<UUID, ValetMineTarget> MINE_TARGETS = new ConcurrentHashMap<>();
     private static final Map<UUID, ValetWoodTarget> WOOD_TARGETS = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> CONSTRUCTION_TARGETS = new ConcurrentHashMap<>();
+    private static final Map<UUID, ValetCraftTarget> CRAFT_TARGETS = new ConcurrentHashMap<>();
 
     private ValetOrders() {
     }
@@ -41,6 +43,9 @@ public final class ValetOrders {
             if (order != ValetOrder.BUILD_STRUCTURE) {
                 CONSTRUCTION_TARGETS.remove(uuid);
             }
+            if (order != ValetOrder.CRAFT) {
+                CRAFT_TARGETS.remove(uuid);
+            }
         }
     }
 
@@ -49,7 +54,8 @@ public final class ValetOrders {
         return ORDERS.containsKey(uuid)
                 || MINE_TARGETS.containsKey(uuid)
                 || WOOD_TARGETS.containsKey(uuid)
-                || CONSTRUCTION_TARGETS.containsKey(uuid);
+                || CONSTRUCTION_TARGETS.containsKey(uuid)
+                || CRAFT_TARGETS.containsKey(uuid);
     }
 
     public static boolean hasNbt(NbtCompound nbt) {
@@ -57,7 +63,8 @@ public final class ValetOrders {
                 || nbt.contains(DATA_VERSION_KEY)
                 || nbt.contains(MINE_TARGET_KEY)
                 || nbt.contains(WOOD_TARGET_KEY)
-                || nbt.contains(CONSTRUCTION_TARGET_KEY);
+                || nbt.contains(CONSTRUCTION_TARGET_KEY)
+                || nbt.contains(CRAFT_TARGET_KEY);
     }
 
     public static void clear(UUID uuid) {
@@ -65,6 +72,7 @@ public final class ValetOrders {
         MINE_TARGETS.remove(uuid);
         WOOD_TARGETS.remove(uuid);
         CONSTRUCTION_TARGETS.remove(uuid);
+        CRAFT_TARGETS.remove(uuid);
     }
 
     public static void clearAll() {
@@ -72,6 +80,7 @@ public final class ValetOrders {
         MINE_TARGETS.clear();
         WOOD_TARGETS.clear();
         CONSTRUCTION_TARGETS.clear();
+        CRAFT_TARGETS.clear();
     }
 
     public static ValetMineTarget getMineTarget(VillagerEntity villager) {
@@ -86,6 +95,10 @@ public final class ValetOrders {
         return CONSTRUCTION_TARGETS.getOrDefault(villager.getUuid(), -1);
     }
 
+    public static ValetCraftTarget getCraftTarget(VillagerEntity villager) {
+        return CRAFT_TARGETS.get(villager.getUuid());
+    }
+
     public static void setMineTarget(VillagerEntity villager, ValetMineTarget target) {
         if (target == null) {
             set(villager, ValetOrder.NONE);
@@ -96,6 +109,7 @@ public final class ValetOrders {
         MINE_TARGETS.put(villager.getUuid(), target);
         WOOD_TARGETS.remove(villager.getUuid());
         CONSTRUCTION_TARGETS.remove(villager.getUuid());
+        CRAFT_TARGETS.remove(villager.getUuid());
     }
 
     public static void setWoodTarget(VillagerEntity villager, ValetWoodTarget target) {
@@ -108,6 +122,7 @@ public final class ValetOrders {
         WOOD_TARGETS.put(villager.getUuid(), target);
         MINE_TARGETS.remove(villager.getUuid());
         CONSTRUCTION_TARGETS.remove(villager.getUuid());
+        CRAFT_TARGETS.remove(villager.getUuid());
     }
 
     public static void setConstructionTarget(VillagerEntity villager, int constructionId) {
@@ -120,6 +135,20 @@ public final class ValetOrders {
         CONSTRUCTION_TARGETS.put(villager.getUuid(), constructionId);
         MINE_TARGETS.remove(villager.getUuid());
         WOOD_TARGETS.remove(villager.getUuid());
+        CRAFT_TARGETS.remove(villager.getUuid());
+    }
+
+    public static void setCraftTarget(VillagerEntity villager, ValetCraftTarget target) {
+        if (target == null) {
+            set(villager, ValetOrder.NONE);
+            return;
+        }
+
+        ORDERS.put(villager.getUuid(), ValetOrder.CRAFT);
+        CRAFT_TARGETS.put(villager.getUuid(), target);
+        MINE_TARGETS.remove(villager.getUuid());
+        WOOD_TARGETS.remove(villager.getUuid());
+        CONSTRUCTION_TARGETS.remove(villager.getUuid());
     }
 
     public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
@@ -130,6 +159,7 @@ public final class ValetOrders {
             nbt.remove(MINE_TARGET_KEY);
             nbt.remove(WOOD_TARGET_KEY);
             nbt.remove(CONSTRUCTION_TARGET_KEY);
+            nbt.remove(CRAFT_TARGET_KEY);
             return;
         }
 
@@ -144,6 +174,7 @@ public final class ValetOrders {
             }
             nbt.remove(WOOD_TARGET_KEY);
             nbt.remove(CONSTRUCTION_TARGET_KEY);
+            nbt.remove(CRAFT_TARGET_KEY);
         } else if (order == ValetOrder.CHOP_WOOD) {
             ValetWoodTarget target = getWoodTarget(villager);
             if (target == null) {
@@ -153,6 +184,7 @@ public final class ValetOrders {
             }
             nbt.remove(MINE_TARGET_KEY);
             nbt.remove(CONSTRUCTION_TARGET_KEY);
+            nbt.remove(CRAFT_TARGET_KEY);
         } else if (order == ValetOrder.BUILD_STRUCTURE) {
             int constructionId = getConstructionTargetId(villager);
             if (constructionId < 0) {
@@ -162,6 +194,17 @@ public final class ValetOrders {
             }
             nbt.remove(MINE_TARGET_KEY);
             nbt.remove(WOOD_TARGET_KEY);
+            nbt.remove(CRAFT_TARGET_KEY);
+        } else if (order == ValetOrder.CRAFT) {
+            ValetCraftTarget target = getCraftTarget(villager);
+            if (target == null) {
+                nbt.remove(CRAFT_TARGET_KEY);
+            } else {
+                nbt.putString(CRAFT_TARGET_KEY, target.name());
+            }
+            nbt.remove(MINE_TARGET_KEY);
+            nbt.remove(WOOD_TARGET_KEY);
+            nbt.remove(CONSTRUCTION_TARGET_KEY);
         }
     }
 
@@ -179,6 +222,8 @@ public final class ValetOrders {
                 setWoodTarget(villager, ValetWoodTarget.valueOf(nbt.getString(WOOD_TARGET_KEY)));
             } else if (order == ValetOrder.BUILD_STRUCTURE && nbt.contains(CONSTRUCTION_TARGET_KEY)) {
                 setConstructionTarget(villager, nbt.getInt(CONSTRUCTION_TARGET_KEY));
+            } else if (order == ValetOrder.CRAFT && nbt.contains(CRAFT_TARGET_KEY)) {
+                setCraftTarget(villager, ValetCraftTarget.valueOf(nbt.getString(CRAFT_TARGET_KEY)));
             } else {
                 set(villager, order);
             }

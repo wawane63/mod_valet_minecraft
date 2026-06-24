@@ -17,17 +17,17 @@ public final class ValetStateMachine {
         return State.FIND_TARGET;
     }
 
-    public static State interruptedPathState(PathPurpose purpose, boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
+    public static State interruptedPathState(PathPurpose purpose, boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
         return switch (purpose) {
             case CHEST -> State.RETURNING;
             case HOME -> State.RETURNING_HOME;
-            case BUILD -> State.FIND_TARGET;
-            case ORE -> interruptedWorkState(hasConstructionOrder, hasMiningOrder, hasInventorySpace, hasInventoryItems);
+            case BUILD, CRAFT -> State.FIND_TARGET;
+            case ORE -> interruptedWorkState(hasConstructionOrder, hasMiningOrder, hasCraftOrder, hasInventorySpace, hasInventoryItems);
         };
     }
 
-    public static State interruptedWorkState(boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
-        if (hasConstructionOrder || hasMiningOrder && hasInventorySpace) {
+    public static State interruptedWorkState(boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
+        if (hasConstructionOrder || hasCraftOrder || hasMiningOrder && hasInventorySpace) {
             return State.FIND_TARGET;
         }
         return hasInventoryItems ? State.RETURNING : State.RETURNING_HOME;
@@ -39,6 +39,7 @@ public final class ValetStateMachine {
         EXECUTING_PATH,
         MINING,
         PLACING,
+        CRAFTING,
         COLLECTING,
         RETURNING_HOME,
         RETURNING,
@@ -48,6 +49,7 @@ public final class ValetStateMachine {
     public enum PathPurpose {
         ORE,
         BUILD,
+        CRAFT,
         CHEST,
         HOME
     }

@@ -8,6 +8,7 @@ import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
+import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMiningScanner;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetPerk;
@@ -100,6 +101,7 @@ public final class ValetNetworking {
                     buf.writeInt(getCurrentMineTargetIndex(villager));
                     buf.writeInt(getCurrentWoodTargetIndex(villager));
                     buf.writeInt(ValetOrders.getConstructionTargetId(villager));
+                    buf.writeInt(getCurrentCraftTargetIndex(villager));
                     for (int count : oreCounts) {
                         buf.writeInt(count);
                     }
@@ -127,6 +129,7 @@ public final class ValetNetworking {
                             getCurrentMineTargetIndex(villager),
                             getCurrentWoodTargetIndex(villager),
                             ValetOrders.getConstructionTargetId(villager),
+                            getCurrentCraftTargetIndex(villager),
                             oreCounts,
                             woodCounts,
                             constructions,
@@ -164,6 +167,11 @@ public final class ValetNetworking {
 
     private static int getCurrentWoodTargetIndex(VillagerEntity villager) {
         ValetWoodTarget target = ValetOrders.getWoodTarget(villager);
+        return target == null ? -1 : target.ordinal();
+    }
+
+    private static int getCurrentCraftTargetIndex(VillagerEntity villager) {
+        ValetCraftTarget target = ValetOrders.getCraftTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
@@ -288,6 +296,22 @@ public final class ValetNetworking {
                 ValetMod.LOGGER.info("Valet {} order set to build {}", villager.getUuid(), targetIndex);
                 giveBlueprintItem(player, villager, blueprint);
                 player.sendMessage(Text.translatable("message.valet.construction_target_set", blueprint.name()), true);
+                finishOrderInteraction(player, villager);
+                sendValetState(player, villager);
+                return;
+            }
+
+            if (order == ValetOrder.CRAFT) {
+                ValetCraftTarget target = ValetCraftTarget.fromIndex(targetIndex);
+                if (target == null) {
+                    sendValetState(player, villager);
+                    return;
+                }
+
+                ValetOrders.setCraftTarget(villager, target);
+                ValetWorkGoal.requestRestart(villager);
+                ValetMod.LOGGER.info("Valet {} order set to craft {}", villager.getUuid(), target.name());
+                player.sendMessage(Text.translatable("message.valet.craft_target_set", Text.translatable(target.getTranslationKey())), true);
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;

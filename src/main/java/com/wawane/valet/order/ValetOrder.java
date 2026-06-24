@@ -4,7 +4,8 @@ public enum ValetOrder {
     NONE("none", "order.valet.none"),
     MINE_ORES("mine_ores", "order.valet.mine_ores"),
     CHOP_WOOD("chop_wood", "order.valet.chop_wood"),
-    BUILD_STRUCTURE("build_structure", "order.valet.build_structure");
+    BUILD_STRUCTURE("build_structure", "order.valet.build_structure"),
+    CRAFT("craft", "order.valet.craft");
 
     private final String id;
     private final String translationKey;

@@ -14,6 +14,8 @@ import com.wawane.valet.ai.tasks.ConstructionRuntimeTask;
 import com.wawane.valet.ai.tasks.LogisticsRuntimeTask;
 import com.wawane.valet.ai.tasks.MiningRuntimeTask;
 import com.wawane.valet.ai.tasks.combat.CombatRuntimeTask;
+import com.wawane.valet.ai.tasks.crafting.CraftingRuntimeTask;
+import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
@@ -113,6 +115,7 @@ public class ValetWorkGoal extends Goal {
     private final ConstructionRuntimeTask constructionTask;
     private final LogisticsRuntimeTask logisticsTask;
     private final CombatRuntimeTask combatTask;
+    private final CraftingRuntimeTask craftingTask;
     private State state = State.FIND_TARGET;
     private PathPurpose pathPurpose = PathPurpose.ORE;
     private List<BlockPos> path = List.of();
@@ -132,6 +135,7 @@ public class ValetWorkGoal extends Goal {
         this.constructionTask = new ConstructionRuntimeTask(new ConstructionControl());
         this.logisticsTask = new LogisticsRuntimeTask(new LogisticsControl());
         this.combatTask = new CombatRuntimeTask(new CombatControl());
+        this.craftingTask = new CraftingRuntimeTask(new CraftingControl());
         setControls(EnumSet.of(Control.MOVE, Control.LOOK));
     }
 
@@ -214,6 +218,7 @@ public class ValetWorkGoal extends Goal {
             case EXECUTING_PATH -> executePath(world);
             case MINING -> miningTask.tickMining(world);
             case PLACING -> constructionTask.tickPlacing(world);
+            case CRAFTING -> craftingTask.tickCrafting(world);
             case COLLECTING -> miningTask.tickCollecting(world);
             case RETURNING -> logisticsTask.returnToChest(world);
             case RETURNING_HOME -> logisticsTask.returnToWorkstation(world);
@@ -231,6 +236,7 @@ public class ValetWorkGoal extends Goal {
                 + " path=" + pathPurpose + ":" + pathIndex + "/" + path.size()
                 + " " + miningTask.debugSummary()
                 + " " + constructionTask.debugSummary()
+                + " " + craftingTask.debugSummary()
                 + " " + logisticsTask.debugSummary()
                 + " " + combatTask.debugSummary();
     }
@@ -252,8 +258,12 @@ public class ValetWorkGoal extends Goal {
         return ValetOrders.get(villager) == ValetOrder.BUILD_STRUCTURE && ValetOrders.getConstructionTargetId(villager) >= 0;
     }
 
+    private boolean hasCraftOrder() {
+        return ValetOrders.get(villager) == ValetOrder.CRAFT && ValetOrders.getCraftTarget(villager) != null;
+    }
+
     private boolean hasActiveOrder() {
-        return hasMiningOrder() || hasConstructionOrder();
+        return hasMiningOrder() || hasConstructionOrder() || hasCraftOrder();
     }
 
     private boolean hasWorkOrigin() {
@@ -281,6 +291,9 @@ public class ValetWorkGoal extends Goal {
 
     private boolean shouldReturnToChestBeforeWork() {
         if (hasConstructionOrder()) {
+            return false;
+        }
+        if (hasCraftOrder()) {
             return false;
         }
         if (hasInventoryItems() || state == State.RETURNING || isExecuting(PathPurpose.CHEST)) {
@@ -314,6 +327,16 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
+        if (hasCraftOrder()) {
+            if (shouldPreemptForCraftOrder()) {
+                clearPathState();
+                clearMiningState();
+                clearVeinState();
+                state = State.FIND_TARGET;
+            }
+            return;
+        }
+
         if (state == State.IDLE || state == State.RETURNING_HOME || state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST) || isExecuting(PathPurpose.HOME)) {
             return;
         }
@@ -339,9 +362,23 @@ public class ValetWorkGoal extends Goal {
                 || isExecuting(PathPurpose.CHEST);
     }
 
+    private boolean shouldPreemptForCraftOrder() {
+        if (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST)) {
+            return !hasInventoryItems();
+        }
+        return state == State.IDLE
+                || state == State.RETURNING_HOME
+                || isExecuting(PathPurpose.HOME);
+    }
+
     private void findTarget(ServerWorld world) {
         if (hasConstructionOrder()) {
             constructionTask.findTarget(world);
+            return;
+        }
+
+        if (hasCraftOrder()) {
+            craftingTask.findTarget(world);
             return;
         }
 
@@ -356,6 +393,8 @@ public class ValetWorkGoal extends Goal {
                 state = State.DEPOSITING;
             } else if (pathPurpose == PathPurpose.BUILD) {
                 state = State.PLACING;
+            } else if (pathPurpose == PathPurpose.CRAFT) {
+                state = State.CRAFTING;
             } else {
                 state = State.IDLE;
             }
@@ -795,6 +834,10 @@ public class ValetWorkGoal extends Goal {
         return NATURAL_PATH_BLOCKS.contains(blockState.getBlock());
     }
 
+    private boolean canMineCraftResource(ServerWorld world, BlockPos pos, BlockState blockState) {
+        return canMineBaseBlock(world, pos, blockState) && !hasFallingBlockDirectlyAbove(world, pos);
+    }
+
     private boolean canMineBaseBlock(ServerWorld world, BlockPos pos, BlockState blockState) {
         return !blockState.isAir()
                 && blockState.getFluidState().isEmpty()
@@ -1056,11 +1099,11 @@ public class ValetWorkGoal extends Goal {
     }
 
     private State interruptedPathState() {
-        return ValetStateMachine.interruptedPathState(pathPurpose, hasConstructionOrder(), hasMiningOrder(), hasInventorySpace(), hasInventoryItems());
+        return ValetStateMachine.interruptedPathState(pathPurpose, hasConstructionOrder(), hasMiningOrder(), hasCraftOrder(), hasInventorySpace(), hasInventoryItems());
     }
 
     private State interruptedWorkState() {
-        return ValetStateMachine.interruptedWorkState(hasConstructionOrder(), hasMiningOrder(), hasInventorySpace(), hasInventoryItems());
+        return ValetStateMachine.interruptedWorkState(hasConstructionOrder(), hasMiningOrder(), hasCraftOrder(), hasInventorySpace(), hasInventoryItems());
     }
 
     private void holdConversationPosition() {
@@ -1108,6 +1151,7 @@ public class ValetWorkGoal extends Goal {
         villager.getNavigation().stop();
         miningTask.clearTarget();
         logisticsTask.clearChestTarget();
+        craftingTask.clearTarget();
         clearBuildState();
     }
 
@@ -1243,6 +1287,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public boolean hasCraftOrder() {
+            return ValetWorkGoal.this.hasCraftOrder();
+        }
+
+        @Override
         public boolean hasInventorySpace() {
             return ValetWorkGoal.this.hasInventorySpace();
         }
@@ -1352,6 +1401,133 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int actionDelayTicks() {
             return ValetWorkGoal.this.actionDelayTicks();
+        }
+
+        @Override
+        public void animateChestUse(ServerWorld world, BlockPos pos) {
+            ValetWorkGoal.this.animateChestUse(world, pos);
+        }
+
+        @Override
+        public void setState(State nextState) {
+            state = nextState;
+        }
+
+        @Override
+        public void setDelayTicks(int ticks) {
+            delayTicks = ticks;
+        }
+    }
+
+    private final class CraftingControl implements CraftingRuntimeTask.Control {
+        @Override
+        public VillagerEntity villager() {
+            return villager;
+        }
+
+        @Override
+        public ValetCraftTarget getCraftTarget() {
+            return ValetOrders.getCraftTarget(villager);
+        }
+
+        @Override
+        public BlockPos getWorkOrigin(ServerWorld world) {
+            return ValetWorkGoal.this.getWorkOrigin(world);
+        }
+
+        @Override
+        public BlockPos currentStandPos(ServerWorld world) {
+            return ValetWorkGoal.this.currentStandPos(world);
+        }
+
+        @Override
+        public Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock, PathPurpose purpose) {
+            return ValetWorkGoal.this.findStandGoals(world, targetBlock, purpose);
+        }
+
+        @Override
+        public List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals) {
+            return ValetWorkGoal.this.planPathToAdjacent(world, purpose, targetBlock, goals);
+        }
+
+        @Override
+        public void startPath(PathPurpose purpose, List<BlockPos> path) {
+            ValetWorkGoal.this.startPath(purpose, path);
+        }
+
+        @Override
+        public void clearPathState() {
+            ValetWorkGoal.this.clearPathState();
+        }
+
+        @Override
+        public boolean canReachTargetFromStand(BlockPos targetBlock, BlockPos stand) {
+            return ValetWorkGoal.this.canReachTargetFromStand(targetBlock, stand);
+        }
+
+        @Override
+        public boolean canMineCraftResource(ServerWorld world, BlockPos pos, BlockState blockState) {
+            return ValetWorkGoal.this.canMineCraftResource(world, pos, blockState);
+        }
+
+        @Override
+        public ItemStack getToolForBlock(BlockState blockState) {
+            return ValetWorkGoal.this.getToolForBlock(blockState);
+        }
+
+        @Override
+        public boolean canStoreAllDrops(List<ItemStack> drops) {
+            return ValetWorkGoal.this.canStoreAllDrops(drops);
+        }
+
+        @Override
+        public void collectDrops(List<ItemStack> drops) {
+            ValetWorkGoal.this.collectDrops(drops);
+        }
+
+        @Override
+        public void animateMining(ServerWorld world, BlockPos miningPos, BlockState miningState) {
+            ValetWorkGoal.this.animateMining(world, miningPos, miningState);
+        }
+
+        @Override
+        public boolean hasInventoryItems() {
+            return ValetWorkGoal.this.hasInventoryItems();
+        }
+
+        @Override
+        public boolean hasInventorySpace() {
+            return ValetWorkGoal.this.hasInventorySpace();
+        }
+
+        @Override
+        public int getUsableInventorySlots(Inventory inventory) {
+            return ValetWorkGoal.this.getUsableInventorySlots(inventory);
+        }
+
+        @Override
+        public int actionDelayTicks() {
+            return ValetWorkGoal.this.actionDelayTicks();
+        }
+
+        @Override
+        public int noTargetDelayTicks() {
+            return settings.noTargetDelayTicks();
+        }
+
+        @Override
+        public int mineRadius() {
+            return ValetWorkGoal.this.mineRadius();
+        }
+
+        @Override
+        public int mineVerticalRadius() {
+            return ValetWorkGoal.this.mineVerticalRadius();
+        }
+
+        @Override
+        public int materialRadius() {
+            return ValetWorkGoal.this.materialRadius();
         }
 
         @Override

@@ -31,7 +31,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasConstructionOrder()) {
+        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasConstructionOrder() && !control.hasCraftOrder()) {
             ValetDebug.record(control.villager(), "logistics no_items");
             control.setState(State.RETURNING_HOME);
             return;
@@ -95,6 +95,11 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
+        if (control.hasCraftOrder()) {
+            control.setState(State.FIND_TARGET);
+            return;
+        }
+
         if (control.hasMiningOrder()) {
             control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
             return;
@@ -138,7 +143,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        control.setState(control.hasConstructionOrder() || control.hasMiningOrder() && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
+        control.setState(control.hasConstructionOrder() || control.hasCraftOrder() || control.hasMiningOrder() && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
         control.setDelayTicks(4);
     }
 
@@ -213,6 +218,8 @@ public final class LogisticsRuntimeTask {
         boolean hasMiningOrder();
 
         boolean hasConstructionOrder();
+
+        boolean hasCraftOrder();
 
         boolean hasInventorySpace();
 

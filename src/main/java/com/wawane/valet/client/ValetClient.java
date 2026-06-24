@@ -19,7 +19,7 @@ public class ValetClient implements ClientModInitializer {
             ValetStatePayload payload = ValetStatePayload.read(buf);
             client.execute(() -> {
                 if (client.currentScreen instanceof ValetOrdersScreen screen && screen.getValetEntityId() == payload.valetEntityId()) {
-                    screen.applyServerState(payload.orderIndex(), payload.mineTargetIndex(), payload.woodTargetIndex(), payload.constructionTargetId(), payload.level(), payload.xp(), payload.nextLevelXp(), payload.pendingPerks(), payload.perks(), payload.combatPerks(), payload.swordLevel(), payload.swordXp(), payload.swordNextLevelXp(), payload.swordPendingPerks(), payload.bowLevel(), payload.bowXp(), payload.bowNextLevelXp(), payload.bowPendingPerks(), payload.allyAwareness(), payload.valetName());
+                    screen.applyServerState(payload.orderIndex(), payload.mineTargetIndex(), payload.woodTargetIndex(), payload.constructionTargetId(), payload.craftTargetIndex(), payload.level(), payload.xp(), payload.nextLevelXp(), payload.pendingPerks(), payload.perks(), payload.combatPerks(), payload.swordLevel(), payload.swordXp(), payload.swordNextLevelXp(), payload.swordPendingPerks(), payload.bowLevel(), payload.bowXp(), payload.bowNextLevelXp(), payload.bowPendingPerks(), payload.allyAwareness(), payload.valetName());
                 }
             });
         });
