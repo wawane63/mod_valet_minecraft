@@ -8,6 +8,7 @@ import com.wawane.valet.construction.ConstructionBeaconBlock;
 import com.wawane.valet.construction.ValetConstructionMarkers;
 import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.ai.ValetWorkGoal;
+import com.wawane.valet.combat.InfiniteArrowChestBlock;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
@@ -56,6 +57,7 @@ public class ValetMod implements ModInitializer {
     public static final Identifier VALET_WORKSTATION_ID = id("valet_workstation");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
+    public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
     public static final RegistryKey<PointOfInterestType> VALET_POI_KEY = RegistryKey.of(
             RegistryKeys.POINT_OF_INTEREST_TYPE,
             VALET_WORKSTATION_ID
@@ -95,6 +97,18 @@ public class ValetMod implements ModInitializer {
             Registries.ITEM,
             CONSTRUCTION_BLUEPRINT_ID,
             new ConstructionBlueprintItem(CONSTRUCTION_BLUEPRINT, new Item.Settings().maxCount(1))
+    );
+
+    public static final Block INFINITE_ARROW_CHEST = Registry.register(
+            Registries.BLOCK,
+            INFINITE_ARROW_CHEST_ID,
+            new InfiniteArrowChestBlock(FabricBlockSettings.copyOf(Blocks.CHEST).strength(2.5F))
+    );
+
+    public static final Item INFINITE_ARROW_CHEST_ITEM = Registry.register(
+            Registries.ITEM,
+            INFINITE_ARROW_CHEST_ID,
+            new BlockItem(INFINITE_ARROW_CHEST, new Item.Settings())
     );
 
     public static final BlockEntityType<ConstructionBlueprintBlockEntity> CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY = Registry.register(
@@ -137,6 +151,7 @@ public class ValetMod implements ModInitializer {
     public void onInitialize() {
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> entries.add(VALET_WORKSTATION_ITEM));
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> entries.add(CONSTRUCTION_BEACON_ITEM));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.FUNCTIONAL).register(entries -> entries.add(INFINITE_ARROW_CHEST_ITEM));
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());

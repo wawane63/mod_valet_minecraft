@@ -1,6 +1,8 @@
 package com.wawane.valet.ai.core;
 
 import com.wawane.valet.progress.ValetPerk;
+import com.wawane.valet.progress.ValetCombatPerk;
+import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.inventory.Inventory;
@@ -31,6 +33,10 @@ public final class ValetWorkSettings {
     private static final float COMBAT_ATTACK_DAMAGE = 4.0F;
     private static final int COMBAT_ATTACK_COOLDOWN_TICKS = 22;
     private static final int COMBAT_ATTACK_COOLDOWN_BONUS = 4;
+    private static final float COMBAT_ARROW_DAMAGE = 3.0F;
+    private static final int COMBAT_ARROW_COOLDOWN_TICKS = 30;
+    private static final int COMBAT_ARROW_COOLDOWN_BONUS = 5;
+    private static final int COMBAT_ARROW_RESTOCK_COUNT = 16;
 
     private final VillagerEntity villager;
 
@@ -98,17 +104,43 @@ public final class ValetWorkSettings {
         return COMBAT_ATTACK_RANGE_SQUARED;
     }
 
+    public double combatRangedAttackRangeSquared() {
+        double range = combatSearchRadius();
+        return range * range;
+    }
+
     public double combatMoveSpeed() {
         return ValetProgress.hasPerk(villager, ValetPerk.SPEED) ? COMBAT_MOVE_SPEED + COMBAT_MOVE_SPEED_BONUS : COMBAT_MOVE_SPEED;
     }
 
     public float combatAttackDamage() {
-        return COMBAT_ATTACK_DAMAGE;
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_STRENGTH)
+                ? COMBAT_ATTACK_DAMAGE + 1.0F
+                : COMBAT_ATTACK_DAMAGE;
     }
 
     public int combatAttackCooldownTicks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.SPEED)
+        int cooldown = ValetProgress.hasPerk(villager, ValetPerk.SPEED)
                 ? Math.max(1, COMBAT_ATTACK_COOLDOWN_TICKS - COMBAT_ATTACK_COOLDOWN_BONUS)
                 : COMBAT_ATTACK_COOLDOWN_TICKS;
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_RECOVERY)
+                ? Math.max(1, cooldown - 4)
+                : cooldown;
+    }
+
+    public float combatArrowDamage() {
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_STRENGTH)
+                ? COMBAT_ARROW_DAMAGE + 1.0F
+                : COMBAT_ARROW_DAMAGE;
+    }
+
+    public int combatArrowCooldownTicks() {
+        return ValetProgress.hasPerk(villager, ValetPerk.SPEED)
+                ? Math.max(1, COMBAT_ARROW_COOLDOWN_TICKS - COMBAT_ARROW_COOLDOWN_BONUS)
+                : COMBAT_ARROW_COOLDOWN_TICKS;
+    }
+
+    public int combatArrowRestockCount() {
+        return COMBAT_ARROW_RESTOCK_COUNT;
     }
 }

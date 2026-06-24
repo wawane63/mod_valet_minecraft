@@ -13,3 +13,5 @@ run/
 logs/
 crash-reports/
 local.properties
+codex_backups/
+tools/

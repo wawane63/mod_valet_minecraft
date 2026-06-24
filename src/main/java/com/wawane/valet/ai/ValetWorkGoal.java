@@ -21,6 +21,9 @@ import com.wawane.valet.order.ValetWoodTarget;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.DoorBlock;
+import net.minecraft.block.StairsBlock;
+import net.minecraft.block.enums.DoubleBlockHalf;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.brain.MemoryModuleType;
 import net.minecraft.entity.ItemEntity;
@@ -51,7 +54,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ValetWorkGoal extends Goal {
     private static final Set<UUID> RESTART_REQUESTS = ConcurrentHashMap.newKeySet();
     private static final int PASSAGE_HEIGHT = 2;
-    private static final int STAIR_CLEARANCE_HEIGHT = 4;
     private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 80;
     private static final int BUILD_HORIZONTAL_REACH = 4;
     private static final int BUILD_VERTICAL_REACH = 6;
@@ -119,6 +121,9 @@ public class ValetWorkGoal extends Goal {
     private int navigationStepTicks;
     private int delayTicks;
     private String activeOrderKey = "";
+    private BlockPos animatedContainerPos;
+    private Block animatedContainerBlock;
+    private int animatedContainerCloseTicks;
 
     public ValetWorkGoal(VillagerEntity villager) {
         this.villager = villager;
@@ -160,6 +165,7 @@ public class ValetWorkGoal extends Goal {
         clearPathState();
         clearMiningState();
         clearVeinState();
+        closeAnimatedContainerNow();
         villager.getNavigation().stop();
     }
 
@@ -169,6 +175,7 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
+        tickAnimatedContainer(world);
         constructionTask.tickCooldown();
         miningTask.tickCooldown();
         String currentOrderKey = currentOrderKey();
@@ -261,6 +268,7 @@ public class ValetWorkGoal extends Goal {
         state = chooseStartState();
         delayTicks = 0;
         activeOrderKey = currentOrderKey();
+        closeAnimatedContainerNow();
         clearPathState();
         miningTask.clearAll();
         ValetMod.LOGGER.info("Valet {} goal {} order {}", villager.getUuid(), action, activeOrderKey);
@@ -354,25 +362,26 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
+        BlockPos current = currentStandPos(world);
         BlockPos next = path.get(pathIndex);
-        if (hasReachedPathStep(next)) {
+        if (hasReachedPathStep(current, next)) {
             clearNavigationStep();
             pathIndex++;
             delayTicks = actionDelayTicks();
             return;
         }
 
-        BlockPos obstruction = findMovementObstruction(world, villager.getBlockPos(), next);
+        BlockPos obstruction = findMovementObstruction(world, current, next);
         if (obstruction != null) {
             miningTask.beginMining(world, obstruction, false);
             return;
         }
 
-        if (!canTraverseStep(world, villager.getBlockPos(), next)) {
+        if (!canTraverseStep(world, current, next)) {
             ValetDebug.record(villager, "path blocked purpose=" + pathPurpose
-                    + " from=" + ValetDebug.shortPos(villager.getBlockPos())
+                    + " from=" + ValetDebug.shortPos(current)
                     + " next=" + ValetDebug.shortPos(next)
-                    + " blocked=" + describeBlockedStep(world, villager.getBlockPos(), next));
+                    + " blocked=" + describeBlockedStep(world, current, next));
             if (pathPurpose == PathPurpose.ORE) {
                 miningTask.rememberCurrentTarget();
             }
@@ -382,11 +391,12 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
+        openDoorsForStep(world, current, next);
         moveToPathStep(next);
     }
 
     private List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals) {
-        BlockPos start = villager.getBlockPos();
+        BlockPos start = currentStandPos(world);
         if (goals.isEmpty()) {
             return List.of();
         }
@@ -418,8 +428,8 @@ public class ValetWorkGoal extends Goal {
         ValetDebug.record(villager, "path start purpose=" + purpose + " len=" + nextPath.size());
     }
 
-    private boolean hasReachedPathStep(BlockPos step) {
-        return villager.getBlockPos().equals(step);
+    private boolean hasReachedPathStep(BlockPos current, BlockPos step) {
+        return current.equals(step);
     }
 
     private void moveToPathStep(BlockPos step) {
@@ -484,7 +494,8 @@ public class ValetWorkGoal extends Goal {
 
     private boolean isNearWorkstation(ServerWorld world, BlockPos workOrigin) {
         Set<BlockPos> goals = findStandGoals(world, workOrigin, PathPurpose.HOME);
-        return goals.contains(villager.getBlockPos()) || squaredDistance(villager.getBlockPos(), workOrigin) <= 4;
+        BlockPos current = currentStandPos(world);
+        return goals.contains(current) || squaredDistance(current, workOrigin) <= 4;
     }
 
     private boolean canReachTargetFromStand(BlockPos targetBlock, BlockPos stand) {
@@ -680,36 +691,72 @@ public class ValetWorkGoal extends Goal {
     }
 
     private List<BlockPos> movementClearancePositions(BlockPos from, BlockPos to) {
-        List<BlockPos> positions = standClearancePositions(to);
-        if (from.getY() != to.getY()) {
-            BlockPos lower = from.getY() < to.getY() ? from : to;
-            for (int y = 0; y < STAIR_CLEARANCE_HEIGHT; y++) {
-                addUnique(positions, lower.up(y));
-            }
-        }
-        return positions;
-    }
-
-    private void addUnique(List<BlockPos> positions, BlockPos pos) {
-        if (!positions.contains(pos)) {
-            positions.add(pos);
-        }
+        return standClearancePositions(to);
     }
 
     private boolean isPassableTunnelSpace(ServerWorld world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
         return blockState.isAir()
+                || isDoorPassage(blockState)
                 || blockState.isOf(Blocks.TORCH)
                 || blockState.isOf(Blocks.WALL_TORCH)
                 || blockState.getFluidState().isEmpty() && blockState.getCollisionShape(world, pos).isEmpty();
     }
 
+    private boolean isDoorPassage(BlockState blockState) {
+        return blockState.getBlock() instanceof DoorBlock && blockState.getFluidState().isEmpty();
+    }
+
+    private void openDoorsForStep(ServerWorld world, BlockPos from, BlockPos to) {
+        for (BlockPos pos : movementClearancePositions(from, to)) {
+            openDoorAt(world, pos);
+        }
+    }
+
+    private void openDoorAt(ServerWorld world, BlockPos pos) {
+        BlockState state = world.getBlockState(pos);
+        if (!(state.getBlock() instanceof DoorBlock) || !state.contains(DoorBlock.OPEN)) {
+            return;
+        }
+
+        BlockPos lowerPos = state.contains(DoorBlock.HALF) && state.get(DoorBlock.HALF) == DoubleBlockHalf.UPPER ? pos.down() : pos;
+        BlockState lowerState = world.getBlockState(lowerPos);
+        BlockState upperState = world.getBlockState(lowerPos.up());
+        boolean opened = false;
+        if (lowerState.getBlock() instanceof DoorBlock && lowerState.contains(DoorBlock.OPEN) && !lowerState.get(DoorBlock.OPEN)) {
+            world.setBlockState(lowerPos, lowerState.with(DoorBlock.OPEN, true), Block.NOTIFY_ALL);
+            opened = true;
+        }
+        if (upperState.getBlock() instanceof DoorBlock && upperState.contains(DoorBlock.OPEN) && !upperState.get(DoorBlock.OPEN)) {
+            world.setBlockState(lowerPos.up(), upperState.with(DoorBlock.OPEN, true), Block.NOTIFY_ALL);
+            opened = true;
+        }
+        if (opened) {
+            world.playSound(null, lowerPos, SoundEvents.BLOCK_WOODEN_DOOR_OPEN, SoundCategory.BLOCKS, 0.7F, 1.0F);
+            ValetDebug.record(villager, "path door_open pos=" + ValetDebug.shortPos(lowerPos));
+        }
+    }
+
     private boolean canStandOn(ServerWorld world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
+        if (blockState.isOf(Blocks.DIRT_PATH)) {
+            return blockState.getFluidState().isEmpty();
+        }
+        if (blockState.getBlock() instanceof StairsBlock) {
+            return blockState.getFluidState().isEmpty();
+        }
         return !isPassableTunnelSpace(world, pos)
                 && blockState.getFluidState().isEmpty()
                 && blockState.getHardness(world, pos) >= 0.0F
                 && blockState.isSideSolidFullSquare(world, pos, Direction.UP);
+    }
+
+    private BlockPos currentStandPos(ServerWorld world) {
+        BlockPos current = villager.getBlockPos();
+        if (canStandOn(world, current) && isPassableTunnelSpace(world, current.up())) {
+            return current.up();
+        }
+        return current;
     }
 
     private boolean canMinePathBlock(ServerWorld world, BlockPos pos, BlockState blockState, PathPurpose purpose) {
@@ -751,6 +798,7 @@ public class ValetWorkGoal extends Goal {
     private boolean canMineBaseBlock(ServerWorld world, BlockPos pos, BlockState blockState) {
         return !blockState.isAir()
                 && blockState.getFluidState().isEmpty()
+                && !wouldExposeFluid(world, pos)
                 && !blockState.isOf(ValetMod.VALET_WORKSTATION)
                 && !blockState.isOf(ValetMod.CONSTRUCTION_BEACON)
                 && !blockState.isOf(ValetMod.CONSTRUCTION_BLUEPRINT)
@@ -758,6 +806,15 @@ public class ValetWorkGoal extends Goal {
                 && !blockState.isOf(Blocks.TRAPPED_CHEST)
                 && !blockState.isOf(Blocks.BARREL)
                 && blockState.getHardness(world, pos) >= 0.0F;
+    }
+
+    private boolean wouldExposeFluid(ServerWorld world, BlockPos pos) {
+        for (Direction direction : Direction.values()) {
+            if (!world.getFluidState(pos.offset(direction)).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasFallingBlockDirectlyAbove(ServerWorld world, BlockPos pos) {
@@ -859,10 +916,57 @@ public class ValetWorkGoal extends Goal {
         villager.getLookControl().lookAt(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
         BlockState blockState = world.getBlockState(pos);
         if (blockState.isOf(Blocks.BARREL)) {
+            openAnimatedContainer(world, pos, blockState);
             world.playSound(null, pos, SoundEvents.BLOCK_BARREL_OPEN, SoundCategory.BLOCKS, 0.6F, 1.0F);
-        } else {
+        } else if (blockState.isOf(Blocks.CHEST) || blockState.isOf(Blocks.TRAPPED_CHEST)) {
+            openAnimatedContainer(world, pos, blockState);
             world.playSound(null, pos, SoundEvents.BLOCK_CHEST_OPEN, SoundCategory.BLOCKS, 0.6F, 1.0F);
         }
+    }
+
+    private void openAnimatedContainer(ServerWorld world, BlockPos pos, BlockState blockState) {
+        world.addSyncedBlockEvent(pos, blockState.getBlock(), 1, 1);
+        animatedContainerPos = pos.toImmutable();
+        animatedContainerBlock = blockState.getBlock();
+        animatedContainerCloseTicks = 20;
+    }
+
+    private void tickAnimatedContainer(ServerWorld world) {
+        if (animatedContainerCloseTicks <= 0 || animatedContainerPos == null || animatedContainerBlock == null) {
+            return;
+        }
+
+        animatedContainerCloseTicks--;
+        if (animatedContainerCloseTicks > 0) {
+            return;
+        }
+
+        BlockState blockState = world.getBlockState(animatedContainerPos);
+        if (blockState.isOf(animatedContainerBlock)) {
+            world.addSyncedBlockEvent(animatedContainerPos, animatedContainerBlock, 1, 0);
+            if (blockState.isOf(Blocks.BARREL)) {
+                world.playSound(null, animatedContainerPos, SoundEvents.BLOCK_BARREL_CLOSE, SoundCategory.BLOCKS, 0.5F, 1.0F);
+            } else {
+                world.playSound(null, animatedContainerPos, SoundEvents.BLOCK_CHEST_CLOSE, SoundCategory.BLOCKS, 0.5F, 1.0F);
+            }
+        }
+        closeAnimatedContainer();
+    }
+
+    private void closeAnimatedContainer() {
+        animatedContainerPos = null;
+        animatedContainerBlock = null;
+        animatedContainerCloseTicks = 0;
+    }
+
+    private void closeAnimatedContainerNow() {
+        if (animatedContainerPos != null
+                && animatedContainerBlock != null
+                && villager.getWorld() instanceof ServerWorld world
+                && world.getBlockState(animatedContainerPos).isOf(animatedContainerBlock)) {
+            world.addSyncedBlockEvent(animatedContainerPos, animatedContainerBlock, 1, 0);
+        }
+        closeAnimatedContainer();
     }
 
     private boolean matchesSelectedTarget(ServerWorld world, BlockPos pos, BlockState blockState) {
@@ -939,7 +1043,8 @@ public class ValetWorkGoal extends Goal {
     private boolean hasInventoryItems() {
         Inventory inventory = villager.getInventory();
         for (int slot = 0; slot < inventory.size(); slot++) {
-            if (!inventory.getStack(slot).isEmpty()) {
+            ItemStack stack = inventory.getStack(slot);
+            if (!stack.isEmpty() && !stack.isOf(Items.ARROW)) {
                 return true;
             }
         }
@@ -1025,6 +1130,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public BlockPos getWorkOrigin(ServerWorld world) {
+            return ValetWorkGoal.this.getWorkOrigin(world);
+        }
+
+        @Override
         public boolean isDefenseEnabled() {
             return true;
         }
@@ -1045,6 +1155,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public double combatRangedAttackRangeSquared() {
+            return settings.combatRangedAttackRangeSquared();
+        }
+
+        @Override
         public double combatMoveSpeed() {
             return settings.combatMoveSpeed();
         }
@@ -1057,6 +1172,36 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int combatAttackCooldownTicks() {
             return settings.combatAttackCooldownTicks();
+        }
+
+        @Override
+        public float combatArrowDamage() {
+            return settings.combatArrowDamage();
+        }
+
+        @Override
+        public int combatArrowCooldownTicks() {
+            return settings.combatArrowCooldownTicks();
+        }
+
+        @Override
+        public int combatArrowRestockCount() {
+            return settings.combatArrowRestockCount();
+        }
+
+        @Override
+        public int chestRadius() {
+            return ValetWorkGoal.this.chestRadius();
+        }
+
+        @Override
+        public int getUsableInventorySlots(Inventory inventory) {
+            return ValetWorkGoal.this.getUsableInventorySlots(inventory);
+        }
+
+        @Override
+        public void animateChestUse(ServerWorld world, BlockPos pos) {
+            ValetWorkGoal.this.animateChestUse(world, pos);
         }
 
         @Override

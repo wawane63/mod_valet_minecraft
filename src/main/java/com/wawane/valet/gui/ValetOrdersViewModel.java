@@ -4,6 +4,7 @@ import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
+import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetPerk;
 
 import java.util.Arrays;
@@ -23,6 +24,16 @@ public record ValetOrdersViewModel(
         int nextLevelXp,
         int pendingPerks,
         boolean[] perks,
+        boolean[] combatPerks,
+        int swordLevel,
+        int swordXp,
+        int swordNextLevelXp,
+        int swordPendingPerks,
+        int bowLevel,
+        int bowXp,
+        int bowNextLevelXp,
+        int bowPendingPerks,
+        boolean allyAwareness,
         String valetName
 ) {
     public ValetOrdersViewModel {
@@ -30,6 +41,7 @@ public record ValetOrdersViewModel(
         woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
         constructions = List.copyOf(constructions);
         perks = Arrays.copyOf(perks, ValetPerk.values().length);
+        combatPerks = Arrays.copyOf(combatPerks, ValetCombatPerk.values().length);
         valetName = valetName == null ? "" : valetName;
     }
 
@@ -37,6 +49,10 @@ public record ValetOrdersViewModel(
         boolean[] perks = new boolean[ValetPerk.values().length];
         for (ValetPerk perk : ValetPerk.values()) {
             perks[perk.ordinal()] = handler.hasPerk(perk);
+        }
+        boolean[] combatPerks = new boolean[ValetCombatPerk.values().length];
+        for (ValetCombatPerk perk : ValetCombatPerk.values()) {
+            combatPerks[perk.ordinal()] = handler.hasCombatPerk(perk);
         }
         int[] oreCounts = new int[ValetMineTarget.values().length];
         for (ValetMineTarget target : ValetMineTarget.values()) {
@@ -61,6 +77,16 @@ public record ValetOrdersViewModel(
                 handler.getNextLevelXp(),
                 handler.getPendingPerks(),
                 perks,
+                combatPerks,
+                handler.getSwordLevel(),
+                handler.getSwordXp(),
+                handler.getSwordNextLevelXp(),
+                handler.getSwordPendingPerks(),
+                handler.getBowLevel(),
+                handler.getBowXp(),
+                handler.getBowNextLevelXp(),
+                handler.getBowPendingPerks(),
+                handler.hasAllyAwareness(),
                 handler.getValetName()
         );
     }
@@ -80,6 +106,11 @@ public record ValetOrdersViewModel(
         return index >= 0 && index < perks.length && perks[index];
     }
 
+    public boolean hasCombatPerk(ValetCombatPerk perk) {
+        int index = perk.ordinal();
+        return index >= 0 && index < combatPerks.length && combatPerks[index];
+    }
+
     @Override
     public int[] oreCounts() {
         return Arrays.copyOf(oreCounts, oreCounts.length);
@@ -93,5 +124,10 @@ public record ValetOrdersViewModel(
     @Override
     public boolean[] perks() {
         return Arrays.copyOf(perks, perks.length);
+    }
+
+    @Override
+    public boolean[] combatPerks() {
+        return Arrays.copyOf(combatPerks, combatPerks.length);
     }
 }

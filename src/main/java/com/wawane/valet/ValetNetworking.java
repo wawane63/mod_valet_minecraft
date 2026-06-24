@@ -11,7 +11,11 @@ import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetMiningScanner;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetPerk;
+import com.wawane.valet.progress.ValetCombatPerk;
+import com.wawane.valet.progress.ValetCombatProgress;
+import com.wawane.valet.progress.ValetCombatSkillTree;
 import com.wawane.valet.progress.ValetProgress;
+import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
@@ -47,6 +51,7 @@ import java.util.List;
 public final class ValetNetworking {
     public static final Identifier SET_ORDER_PACKET_ID = ValetMod.id("set_order");
     public static final Identifier CHOOSE_PERK_PACKET_ID = ValetMod.id("choose_perk");
+    public static final Identifier CHOOSE_COMBAT_PERK_PACKET_ID = ValetMod.id("choose_combat_perk");
     public static final Identifier RENAME_PACKET_ID = ValetMod.id("rename_valet");
     public static final Identifier DELETE_CONSTRUCTION_PACKET_ID = ValetMod.id("delete_construction");
     public static final Identifier VALET_STATE_PACKET_ID = ValetMod.id("valet_state");
@@ -58,6 +63,7 @@ public final class ValetNetworking {
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(SET_ORDER_PACKET_ID, ValetNetworking::setValetOrder);
         ServerPlayNetworking.registerGlobalReceiver(CHOOSE_PERK_PACKET_ID, ValetNetworking::chooseValetPerk);
+        ServerPlayNetworking.registerGlobalReceiver(CHOOSE_COMBAT_PERK_PACKET_ID, ValetNetworking::chooseValetCombatPerk);
         ServerPlayNetworking.registerGlobalReceiver(RENAME_PACKET_ID, ValetNetworking::renameValet);
         ServerPlayNetworking.registerGlobalReceiver(DELETE_CONSTRUCTION_PACKET_ID, ValetNetworking::deleteConstruction);
     }
@@ -129,6 +135,16 @@ public final class ValetNetworking {
                             ValetProgress.getNextLevelXp(villager),
                             ValetProgress.getPendingPerks(villager),
                             ValetProgress.getPerks(villager),
+                            ValetCombatProgress.getPerks(villager),
+                            ValetCombatProgress.getLevel(villager, ValetCombatSkillTree.SWORD),
+                            ValetCombatProgress.getXp(villager, ValetCombatSkillTree.SWORD),
+                            ValetCombatProgress.getNextLevelXp(villager, ValetCombatSkillTree.SWORD),
+                            ValetCombatProgress.getPendingPerks(villager, ValetCombatSkillTree.SWORD),
+                            ValetCombatProgress.getLevel(villager, ValetCombatSkillTree.BOW),
+                            ValetCombatProgress.getXp(villager, ValetCombatSkillTree.BOW),
+                            ValetCombatProgress.getNextLevelXp(villager, ValetCombatSkillTree.BOW),
+                            ValetCombatProgress.getPendingPerks(villager, ValetCombatSkillTree.BOW),
+                            ValetCombatProgress.hasPerk(villager, ValetCombatPerk.ALLY_AWARENESS),
                             getValetName(villager)
                     );
                 }
@@ -159,7 +175,20 @@ public final class ValetNetworking {
         for (boolean perk : ValetProgress.getPerks(villager)) {
             buf.writeBoolean(perk);
         }
+        for (boolean perk : ValetCombatProgress.getPerks(villager)) {
+            buf.writeBoolean(perk);
+        }
+        writeCombatSkill(villager, ValetCombatSkillTree.SWORD, buf);
+        writeCombatSkill(villager, ValetCombatSkillTree.BOW, buf);
+        buf.writeBoolean(ValetCombatProgress.hasPerk(villager, ValetCombatPerk.ALLY_AWARENESS));
         buf.writeString(getValetName(villager), 32);
+    }
+
+    private static void writeCombatSkill(VillagerEntity villager, ValetCombatSkillTree tree, PacketByteBuf buf) {
+        buf.writeInt(ValetCombatProgress.getLevel(villager, tree));
+        buf.writeInt(ValetCombatProgress.getXp(villager, tree));
+        buf.writeInt(ValetCombatProgress.getNextLevelXp(villager, tree));
+        buf.writeInt(ValetCombatProgress.getPendingPerks(villager, tree));
     }
 
     private static void sendValetState(ServerPlayerEntity player, VillagerEntity villager) {
@@ -339,6 +368,27 @@ public final class ValetNetworking {
 
             ValetPerk perk = payload.perk();
             if (ValetProgress.choosePerk(villager, perk)) {
+                ValetWorkGoal.requestRestart(villager);
+                player.sendMessage(Text.translatable("message.valet.perk_set", Text.translatable(perk.getTranslationKey())), true);
+            }
+            sendValetState(player, villager);
+        });
+    }
+
+    private static void chooseValetCombatPerk(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
+        ChooseCombatPerkPayload payload = ChooseCombatPerkPayload.read(buf);
+        server.execute(() -> {
+            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
+            if (!(entity instanceof VillagerEntity villager)) {
+                return;
+            }
+
+            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+                return;
+            }
+
+            ValetCombatPerk perk = payload.perk();
+            if (ValetCombatProgress.choosePerk(villager, perk)) {
                 ValetWorkGoal.requestRestart(villager);
                 player.sendMessage(Text.translatable("message.valet.perk_set", Text.translatable(perk.getTranslationKey())), true);
             }

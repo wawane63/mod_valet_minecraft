@@ -6,6 +6,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 
@@ -35,6 +36,9 @@ public final class ValetInventoryTransfer {
         for (int slot = 0; slot < sourceInventory.size(); slot++) {
             ItemStack sourceStack = sourceInventory.getStack(slot);
             if (sourceStack.isEmpty()) {
+                continue;
+            }
+            if (sourceStack.isOf(Items.ARROW)) {
                 continue;
             }
 

@@ -5,7 +5,9 @@ import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
+import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetPerk;
+import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
@@ -27,7 +29,7 @@ import java.util.List;
 
 public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private static final int SCREEN_WIDTH = 360;
-    private static final int SCREEN_HEIGHT = 286;
+    private static final int SCREEN_HEIGHT = 350;
     private static final int PANEL_MARGIN = 9;
     private static final int PANEL_TOP = 19;
     private static final int LEFT_WIDTH = 128;
@@ -50,6 +52,10 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private ButtonWidget renameButton;
     private ButtonWidget buildConstructionButton;
     private ButtonWidget deleteConstructionButton;
+    private ButtonWidget generalPageButton;
+    private ButtonWidget swordPageButton;
+    private ButtonWidget bowPageButton;
+    private RightPage selectedRightPage = RightPage.GENERAL;
     private TargetCategory selectedCategory = TargetCategory.NONE;
     private int selectedMineTargetIndex = -1;
     private int selectedWoodTargetIndex = -1;
@@ -58,10 +64,21 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private int localXp;
     private int localNextLevelXp;
     private int localPendingPerks;
+    private int localSwordLevel;
+    private int localSwordXp;
+    private int localSwordNextLevelXp;
+    private int localSwordPendingPerks;
+    private int localBowLevel;
+    private int localBowXp;
+    private int localBowNextLevelXp;
+    private int localBowPendingPerks;
+    private boolean localAllyAwareness;
     private int orderScroll;
     private final boolean[] localPerks = new boolean[ValetPerk.values().length];
+    private final boolean[] localCombatPerks = new boolean[ValetCombatPerk.values().length];
     private String localValetName;
     private ValetPerk selectedPerk = ValetPerk.SPEED;
+    private ValetCombatPerk selectedCombatPerk = ValetCombatPerk.SWORD_STRENGTH;
 
     public ValetOrdersScreen(ValetOrdersScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -78,6 +95,18 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         localXp = viewModel.xp();
         localNextLevelXp = viewModel.nextLevelXp();
         localPendingPerks = viewModel.pendingPerks();
+        localSwordLevel = viewModel.swordLevel();
+        localSwordXp = viewModel.swordXp();
+        localSwordNextLevelXp = viewModel.swordNextLevelXp();
+        localSwordPendingPerks = viewModel.swordPendingPerks();
+        localBowLevel = viewModel.bowLevel();
+        localBowXp = viewModel.bowXp();
+        localBowNextLevelXp = viewModel.bowNextLevelXp();
+        localBowPendingPerks = viewModel.bowPendingPerks();
+        localAllyAwareness = viewModel.allyAwareness();
+        for (ValetCombatPerk perk : ValetCombatPerk.values()) {
+            localCombatPerks[perk.ordinal()] = viewModel.hasCombatPerk(perk);
+        }
         for (ValetPerk perk : ValetPerk.values()) {
             localPerks[perk.ordinal()] = viewModel.hasPerk(perk);
         }
@@ -105,6 +134,16 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         deleteConstructionButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
                 .dimensions(rightLeft + 143, top + 42, 52, 18)
                 .build());
+        generalPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
+                .dimensions(rightLeft + 10, top + 132, 58, 18)
+                .build());
+        swordPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_sword"), button -> selectRightPage(RightPage.SWORD))
+                .dimensions(rightLeft + 72, top + 132, 58, 18)
+                .build());
+        bowPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
+                .dimensions(rightLeft + 134, top + 132, 58, 18)
+                .build());
+        updatePageButtons();
         updateConstructionButtons();
     }
 
@@ -115,8 +154,13 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         drawPanel(context, getRightPanelLeft(), getPanelTop(), RIGHT_WIDTH, PANEL_HEIGHT);
         drawOrderPanel(context, mouseX, mouseY);
         drawInfoPanel(context);
-        drawPerkTree(context, mouseX, mouseY);
-        drawPerkDetails(context, mouseX, mouseY);
+        if (selectedRightPage == RightPage.GENERAL) {
+            drawPerkTree(context, mouseX, mouseY);
+            drawPerkDetails(context, mouseX, mouseY);
+        } else {
+            drawCombatTalentTree(context, mouseX, mouseY, selectedRightPage);
+            drawCombatTalentDetails(context, mouseX, mouseY, selectedRightPage);
+        }
     }
 
     private void drawOrderPanel(DrawContext context, int mouseX, int mouseY) {
@@ -152,8 +196,92 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         context.drawText(textRenderer, Text.translatable("screen.valet.level", localLevel), left + 10, top + 93, 0x202020, false);
         drawXpBar(context, left + 10, top + 108);
 
-        context.drawText(textRenderer, Text.translatable("screen.valet.skill_tree"), left + 10, top + 134, 0x303030, false);
-        context.drawText(textRenderer, Text.translatable("screen.valet.pending_points", localPendingPerks), left + RIGHT_WIDTH - 72, top + 134, localPendingPerks > 0 ? 0x8A5A00 : 0x606060, false);
+        Text pageTitle = selectedRightPage == RightPage.GENERAL
+                ? Text.translatable("screen.valet.skill_tree")
+                : Text.translatable(selectedRightPage == RightPage.SWORD ? "screen.valet.sword_tree" : "screen.valet.bow_tree");
+        int points = selectedRightPage == RightPage.GENERAL ? localPendingPerks : getCombatPendingPoints(selectedRightPage);
+        context.drawText(textRenderer, pageTitle, left + 10, top + 158, 0x303030, false);
+        context.drawText(textRenderer, Text.translatable("screen.valet.pending_points", points), left + RIGHT_WIDTH - 72, top + 158, points > 0 ? 0x8A5A00 : 0x606060, false);
+    }
+
+    private void drawCombatTalentTree(DrawContext context, int mouseX, int mouseY, RightPage page) {
+        int left = getRightPanelLeft();
+        int top = getPanelTop();
+        drawCombatSkillHeader(context, page, left + 10, top + 198);
+
+        CombatPerkNode first = getCombatNode(page == RightPage.SWORD ? ValetCombatPerk.SWORD_STRENGTH : ValetCombatPerk.BOW_STRENGTH);
+        CombatPerkNode second = getCombatNode(page == RightPage.SWORD ? ValetCombatPerk.SWORD_RECOVERY : ValetCombatPerk.ALLY_AWARENESS);
+        drawCombatConnection(context, first, second);
+        drawCombatPerkNode(context, first, mouseX, mouseY);
+        drawCombatPerkNode(context, second, mouseX, mouseY);
+    }
+
+    private void drawCombatSkillHeader(DrawContext context, RightPage page, int left, int top) {
+        boolean sword = page == RightPage.SWORD;
+        int level = sword ? localSwordLevel : localBowLevel;
+        int xp = sword ? localSwordXp : localBowXp;
+        int nextLevelXp = sword ? localSwordNextLevelXp : localBowNextLevelXp;
+        int color = sword ? 0xFFB84A3D : 0xFF3E7FB5;
+        Text label = Text.translatable(sword ? "screen.valet.skill_sword" : "screen.valet.skill_bow")
+                .copy()
+                .append(" ")
+                .append(Text.translatable("screen.valet.level", level));
+
+        context.drawText(textRenderer, label, left, top, 0x303030, false);
+        int barTop = top + 13;
+        int maxXp = Math.max(1, nextLevelXp);
+        int fillWidth = Math.min(XP_BAR_WIDTH, Math.max(0, xp) * XP_BAR_WIDTH / maxXp);
+        context.fill(left, barTop, left + XP_BAR_WIDTH, barTop + XP_BAR_HEIGHT, 0xFF4C4C4C);
+        context.fill(left + 1, barTop + 1, left + XP_BAR_WIDTH - 1, barTop + XP_BAR_HEIGHT - 1, 0xFF222222);
+        context.fill(left + 1, barTop + 1, left + 1 + fillWidth, barTop + XP_BAR_HEIGHT - 1, color);
+        context.drawText(textRenderer, Text.translatable("screen.valet.xp", xp, nextLevelXp), left, barTop + 13, 0x4A4030, false);
+    }
+
+    private void drawCombatPerkNode(DrawContext context, CombatPerkNode node, int mouseX, int mouseY) {
+        boolean owned = hasLocalCombatPerk(node.perk);
+        boolean hovered = isInside(mouseX, mouseY, node.left, node.top, NODE_SIZE, NODE_SIZE);
+        boolean selected = selectedCombatPerk == node.perk;
+        int pending = getCombatPendingPoints(getPageForCombatPerk(node.perk));
+        int border = owned ? 0xFFFFD36B : pending > 0 ? 0xFF7F9CCB : 0xFF555555;
+        int fill = owned ? 0xFFB9872D : pending > 0 ? 0xFF505C72 : 0xFF767676;
+
+        if (hovered || selected) {
+            border = 0xFFFFFFFF;
+        }
+
+        drawInset(context, node.left, node.top, NODE_SIZE, NODE_SIZE, border);
+        context.fill(node.left + 3, node.top + 3, node.left + NODE_SIZE - 3, node.top + NODE_SIZE - 3, fill);
+        context.drawCenteredTextWithShadow(textRenderer, getCombatPerkIcon(node.perk, owned), node.left + NODE_SIZE / 2, node.top + 10, 0xFFFFFF);
+    }
+
+    private void drawCombatConnection(DrawContext context, CombatPerkNode from, CombatPerkNode to) {
+        int color = hasLocalCombatPerk(from.perk) && hasLocalCombatPerk(to.perk) ? 0xFFD39A35 : 0xFF555555;
+        int x1 = from.centerX();
+        int y1 = from.centerY();
+        int x2 = to.centerX();
+        int y2 = to.centerY();
+        int midX = (x1 + x2) / 2;
+
+        context.fill(Math.min(x1, midX), y1 - 1, Math.max(x1, midX) + 1, y1 + 1, color);
+        context.fill(midX - 1, Math.min(y1, y2), midX + 1, Math.max(y1, y2) + 1, color);
+        context.fill(Math.min(midX, x2), y2 - 1, Math.max(midX, x2) + 1, y2 + 1, color);
+    }
+
+    private void drawCombatTalentDetails(DrawContext context, int mouseX, int mouseY, RightPage page) {
+        ValetCombatPerk perk = getHoveredCombatPerk(mouseX, mouseY, page);
+        if (perk == null) {
+            perk = combatPerkBelongsToPage(selectedCombatPerk, page) ? selectedCombatPerk : getDefaultCombatPerk(page);
+        }
+
+        int left = getRightPanelLeft() + 10;
+        int top = getPanelTop() + 284;
+        int width = RIGHT_WIDTH - 20;
+        drawInset(context, left, top, width, 36, 0xFFB8B19E);
+        context.drawText(textRenderer, Text.translatable(perk.getTranslationKey()), left + 7, top + 6, 0x202020, false);
+        context.drawText(textRenderer, Text.translatable(perk.getDescriptionKey()), left + 7, top + 18, 0x4A4030, false);
+
+        Text status = getCombatPerkStatus(perk);
+        context.drawText(textRenderer, status, left + width - textRenderer.getWidth(status) - 7, top + 6, hasLocalCombatPerk(perk) ? 0x8A5A00 : 0x555555, false);
     }
 
     private void drawPerkTree(DrawContext context, int mouseX, int mouseY) {
@@ -213,7 +341,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         }
 
         int left = getRightPanelLeft() + 10;
-        int top = getPanelTop() + 222;
+        int top = getPanelTop() + 284;
         int width = RIGHT_WIDTH - 20;
         drawInset(context, left, top, width, 36, 0xFFB8B19E);
         context.drawText(textRenderer, Text.translatable(perk.getTranslationKey()), left + 7, top + 6, 0x202020, false);
@@ -363,13 +491,24 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         int left = getRightPanelLeft();
         int top = getPanelTop();
         return switch (perk) {
-            case SPEED -> new PerkNode(perk, left + 20, top + 166);
-            case VISION -> new PerkNode(perk, left + 65, top + 150);
-            case STORAGE -> new PerkNode(perk, left + 65, top + 183);
-            case PATHING -> new PerkNode(perk, left + 110, top + 137);
-            case VEIN -> new PerkNode(perk, left + 110, top + 166);
-            case HAUL -> new PerkNode(perk, left + 110, top + 196);
-            case LIGHTING -> new PerkNode(perk, left + 155, top + 166);
+            case SPEED -> new PerkNode(perk, left + 20, top + 211);
+            case VISION -> new PerkNode(perk, left + 65, top + 195);
+            case STORAGE -> new PerkNode(perk, left + 65, top + 228);
+            case PATHING -> new PerkNode(perk, left + 110, top + 182);
+            case VEIN -> new PerkNode(perk, left + 110, top + 211);
+            case HAUL -> new PerkNode(perk, left + 110, top + 241);
+            case LIGHTING -> new PerkNode(perk, left + 155, top + 211);
+        };
+    }
+
+    private CombatPerkNode getCombatNode(ValetCombatPerk perk) {
+        int left = getRightPanelLeft();
+        int top = getPanelTop();
+        return switch (perk) {
+            case SWORD_STRENGTH -> new CombatPerkNode(perk, left + 55, top + 238);
+            case SWORD_RECOVERY -> new CombatPerkNode(perk, left + 125, top + 238);
+            case BOW_STRENGTH -> new CombatPerkNode(perk, left + 55, top + 238);
+            case ALLY_AWARENESS -> new CombatPerkNode(perk, left + 125, top + 238);
         };
     }
 
@@ -383,7 +522,47 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return null;
     }
 
+    private ValetCombatPerk getHoveredCombatPerk(int mouseX, int mouseY, RightPage page) {
+        for (ValetCombatPerk perk : ValetCombatPerk.values()) {
+            if (!combatPerkBelongsToPage(perk, page)) {
+                continue;
+            }
+            CombatPerkNode node = getCombatNode(perk);
+            if (isInside(mouseX, mouseY, node.left, node.top, NODE_SIZE, NODE_SIZE)) {
+                return perk;
+            }
+        }
+        return null;
+    }
+
+    private ValetCombatPerk getDefaultCombatPerk(RightPage page) {
+        return page == RightPage.SWORD ? ValetCombatPerk.SWORD_STRENGTH : ValetCombatPerk.BOW_STRENGTH;
+    }
+
+    private boolean combatPerkBelongsToPage(ValetCombatPerk perk, RightPage page) {
+        return switch (page) {
+            case SWORD -> perk == ValetCombatPerk.SWORD_STRENGTH || perk == ValetCombatPerk.SWORD_RECOVERY;
+            case BOW -> perk == ValetCombatPerk.BOW_STRENGTH || perk == ValetCombatPerk.ALLY_AWARENESS;
+            case GENERAL -> false;
+        };
+    }
+
+    private RightPage getPageForCombatPerk(ValetCombatPerk perk) {
+        return switch (perk) {
+            case SWORD_STRENGTH, SWORD_RECOVERY -> RightPage.SWORD;
+            case BOW_STRENGTH, ALLY_AWARENESS -> RightPage.BOW;
+        };
+    }
+
     private Text getPerkIcon(ValetPerk perk, boolean owned) {
+        if (owned) {
+            return Text.literal("*");
+        }
+
+        return Text.literal(perk.getIcon());
+    }
+
+    private Text getCombatPerkIcon(ValetCombatPerk perk, boolean owned) {
         if (owned) {
             return Text.literal("*");
         }
@@ -401,6 +580,16 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return Text.translatable("screen.valet.perk_no_points");
     }
 
+    private Text getCombatPerkStatus(ValetCombatPerk perk) {
+        if (hasLocalCombatPerk(perk)) {
+            return Text.translatable("screen.valet.perk_owned");
+        }
+        if (getCombatPendingPoints(getPageForCombatPerk(perk)) > 0) {
+            return Text.translatable("screen.valet.perk_learn");
+        }
+        return Text.translatable("screen.valet.perk_no_points");
+    }
+
     private String getPerkDescriptionKey(ValetPerk perk) {
         return perk.getDescriptionKey();
     }
@@ -411,6 +600,23 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
 
     private void setLocalPerk(ValetPerk perk) {
         localPerks[perk.ordinal()] = true;
+    }
+
+    private boolean hasLocalCombatPerk(ValetCombatPerk perk) {
+        int index = perk.ordinal();
+        return index >= 0 && index < localCombatPerks.length && localCombatPerks[index];
+    }
+
+    private void setLocalCombatPerk(ValetCombatPerk perk) {
+        localCombatPerks[perk.ordinal()] = true;
+    }
+
+    private int getCombatPendingPoints(RightPage page) {
+        return switch (page) {
+            case SWORD -> localSwordPendingPerks;
+            case BOW -> localBowPendingPerks;
+            case GENERAL -> localPendingPerks;
+        };
     }
 
     private int getLeftPanelLeft() {
@@ -491,13 +697,24 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             }
         }
 
-        ValetPerk hoveredPerk = getHoveredPerk((int) mouseX, (int) mouseY);
-        if (hoveredPerk != null) {
-            selectedPerk = hoveredPerk;
-            if (localPendingPerks > 0 && !hasLocalPerk(hoveredPerk)) {
-                sendPerkSelection(hoveredPerk);
+        if (selectedRightPage == RightPage.GENERAL) {
+            ValetPerk hoveredPerk = getHoveredPerk((int) mouseX, (int) mouseY);
+            if (hoveredPerk != null) {
+                selectedPerk = hoveredPerk;
+                if (localPendingPerks > 0 && !hasLocalPerk(hoveredPerk)) {
+                    sendPerkSelection(hoveredPerk);
+                }
+                return true;
             }
-            return true;
+        } else {
+            ValetCombatPerk hoveredPerk = getHoveredCombatPerk((int) mouseX, (int) mouseY, selectedRightPage);
+            if (hoveredPerk != null) {
+                selectedCombatPerk = hoveredPerk;
+                if (getCombatPendingPoints(selectedRightPage) > 0 && !hasLocalCombatPerk(hoveredPerk)) {
+                    sendCombatPerkSelection(hoveredPerk);
+                }
+                return true;
+            }
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
@@ -516,7 +733,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int constructionTargetId, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, String valetName) {
+    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int constructionTargetId, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
         selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : TargetCategory.NONE;
         selectedMineTargetIndex = mineTargetIndex;
@@ -526,8 +743,20 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         localXp = xp;
         localNextLevelXp = nextLevelXp;
         localPendingPerks = pendingPerks;
+        localSwordLevel = swordLevel;
+        localSwordXp = swordXp;
+        localSwordNextLevelXp = swordNextLevelXp;
+        localSwordPendingPerks = swordPendingPerks;
+        localBowLevel = bowLevel;
+        localBowXp = bowXp;
+        localBowNextLevelXp = bowNextLevelXp;
+        localBowPendingPerks = bowPendingPerks;
+        localAllyAwareness = allyAwareness;
         for (ValetPerk perk : ValetPerk.values()) {
             localPerks[perk.ordinal()] = perk.ordinal() < perks.length && perks[perk.ordinal()];
+        }
+        for (ValetCombatPerk perk : ValetCombatPerk.values()) {
+            localCombatPerks[perk.ordinal()] = perk.ordinal() < combatPerks.length && combatPerks[perk.ordinal()];
         }
         localValetName = valetName;
         if (nameField != null) {
@@ -607,6 +836,24 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         ClientPlayNetworking.send(ValetNetworking.CHOOSE_PERK_PACKET_ID, buf);
     }
 
+    private void sendCombatPerkSelection(ValetCombatPerk perk) {
+        RightPage page = getPageForCombatPerk(perk);
+        if (getCombatPendingPoints(page) <= 0 || hasLocalCombatPerk(perk)) {
+            return;
+        }
+
+        setLocalCombatPerk(perk);
+        if (page == RightPage.SWORD) {
+            localSwordPendingPerks = Math.max(0, localSwordPendingPerks - 1);
+        } else if (page == RightPage.BOW) {
+            localBowPendingPerks = Math.max(0, localBowPendingPerks - 1);
+        }
+
+        PacketByteBuf buf = PacketByteBufs.create();
+        new ChooseCombatPerkPayload(viewModel.valetEntityId(), perk).write(buf);
+        ClientPlayNetworking.send(ValetNetworking.CHOOSE_COMBAT_PERK_PACKET_ID, buf);
+    }
+
     private void sendRename() {
         if (nameField == null) {
             return;
@@ -644,8 +891,32 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         ClientPlayNetworking.send(ValetNetworking.DELETE_CONSTRUCTION_PACKET_ID, buf);
     }
 
+    private void selectRightPage(RightPage page) {
+        selectedRightPage = page;
+        if (page != RightPage.GENERAL && !combatPerkBelongsToPage(selectedCombatPerk, page)) {
+            selectedCombatPerk = getDefaultCombatPerk(page);
+        }
+        updatePageButtons();
+        updateConstructionButtons();
+    }
+
+    private void updatePageButtons() {
+        updatePageButton(generalPageButton, RightPage.GENERAL, "screen.valet.page_general");
+        updatePageButton(swordPageButton, RightPage.SWORD, "screen.valet.page_sword");
+        updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow");
+    }
+
+    private void updatePageButton(ButtonWidget button, RightPage page, String translationKey) {
+        if (button == null) {
+            return;
+        }
+
+        button.active = selectedRightPage != page;
+        button.setMessage(Text.literal(selectedRightPage == page ? "> " : "").append(Text.translatable(translationKey)));
+    }
+
     private void updateConstructionButtons() {
-        boolean hasSelectedConstruction = selectedCategory == TargetCategory.CONSTRUCTION && getSelectedConstruction() != null;
+        boolean hasSelectedConstruction = selectedRightPage == RightPage.GENERAL && selectedCategory == TargetCategory.CONSTRUCTION && getSelectedConstruction() != null;
         if (buildConstructionButton != null) {
             buildConstructionButton.visible = hasSelectedConstruction;
             buildConstructionButton.active = hasSelectedConstruction;
@@ -698,6 +969,12 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return mouseX >= left && mouseX < left + width && mouseY >= top && mouseY < top + height;
     }
 
+    private enum RightPage {
+        GENERAL,
+        SWORD,
+        BOW
+    }
+
     private enum TargetCategory {
         NONE,
         ORE,
@@ -726,6 +1003,26 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
 
         private static OrderEntry category(TargetCategory category, Text label) {
             return new OrderEntry(ValetOrder.NONE, -1, label, category, true);
+        }
+    }
+
+    private static final class CombatPerkNode {
+        private final ValetCombatPerk perk;
+        private final int left;
+        private final int top;
+
+        private CombatPerkNode(ValetCombatPerk perk, int left, int top) {
+            this.perk = perk;
+            this.left = left;
+            this.top = top;
+        }
+
+        private int centerX() {
+            return left + NODE_SIZE / 2;
+        }
+
+        private int centerY() {
+            return top + NODE_SIZE / 2;
         }
     }
 
