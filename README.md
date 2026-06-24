@@ -2,6 +2,14 @@
 
 Mod Fabric 1.20.1 qui ajoute le metier de villageois `Valet`.
 
+## Versions disponibles
+
+| Version | Theme | Code GitHub |
+| --- | --- | --- |
+| 0.1.0 | Recolte | [`v0.1.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.0) |
+| 0.1.1 | Combat | [`v0.1.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.1) |
+| 0.1.2 | Craft | [`v0.1.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.2) |
+
 ## Depart
 
 - Place un `Poste de valet`.
