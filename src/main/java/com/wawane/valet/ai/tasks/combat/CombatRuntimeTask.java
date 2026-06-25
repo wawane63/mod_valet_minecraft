@@ -11,6 +11,8 @@ import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.projectile.ArrowEntity;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
@@ -83,6 +85,7 @@ public final class CombatRuntimeTask {
             control.onCombatStarted(target);
         }
 
+        applyDefensePerk();
         fight(world, target);
         return true;
     }
@@ -147,7 +150,8 @@ public final class CombatRuntimeTask {
 
     private void shootArrow(ServerWorld world, LivingEntity target) {
         VillagerEntity villager = control.villager();
-        if (!ValetInventoryTransfer.takeOneItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory()))) {
+        boolean savedArrow = control.combatCanRecycleArrow() && villager.getRandom().nextFloat() < 0.5F;
+        if (!savedArrow && !ValetInventoryTransfer.takeOneItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory()))) {
             return;
         }
 
@@ -172,7 +176,14 @@ public final class CombatRuntimeTask {
         addCombatXp(villager, ValetCombatSkillTree.BOW, BOW_XP_PER_SHOT);
         attackCooldownTicks = control.combatArrowCooldownTicks();
         ValetDebug.record(villager, "combat arrow target=" + ValetDebug.shortPos(target.getBlockPos())
-                + " arrows=" + countInventoryItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory())));
+                + " arrows=" + countInventoryItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory()))
+                + " saved=" + savedArrow);
+    }
+
+    private void applyDefensePerk() {
+        if (control.combatHasDefense()) {
+            control.villager().addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 40, 0, true, false));
+        }
     }
 
     private void chaseTarget(LivingEntity target) {
@@ -470,6 +481,10 @@ public final class CombatRuntimeTask {
         int combatArrowCooldownTicks();
 
         int combatArrowRestockCount();
+
+        boolean combatHasDefense();
+
+        boolean combatCanRecycleArrow();
 
         int chestRadius();
 

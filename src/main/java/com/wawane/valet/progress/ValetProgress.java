@@ -93,7 +93,7 @@ public final class ValetProgress {
     public static boolean choosePerk(VillagerEntity villager, ValetPerk perk) {
         Data data = data(villager);
         normalize(data);
-        if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk)) {
+        if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk) || !canChoosePerk(data, perk)) {
             return false;
         }
 
@@ -150,6 +150,14 @@ public final class ValetProgress {
         data.level = Math.max(1, data.level);
         data.xp = Math.max(0, data.xp);
         data.pendingPerks = Math.max(0, data.pendingPerks);
+    }
+
+    private static boolean canChoosePerk(Data data, ValetPerk perk) {
+        return switch (perk) {
+            case SPEED -> true;
+            case VISION, MOVEMENT -> data.perks[ValetPerk.SPEED.ordinal()];
+            default -> true;
+        };
     }
 
     private static final class Data {

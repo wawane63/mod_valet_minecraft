@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ValetWorkDriver {
     private static final int PLAYER_WORK_SCAN_RADIUS = 96;
+    private static final int VALET_DISCOVERY_INTERVAL_TICKS = 20;
     private static final Map<UUID, Runtime> RUNTIMES = new ConcurrentHashMap<>();
 
     private ValetWorkDriver() {
@@ -23,6 +24,17 @@ public final class ValetWorkDriver {
 
     public static void tick(ServerWorld world) {
         Set<UUID> seen = new HashSet<>();
+        for (Runtime runtime : RUNTIMES.values()) {
+            if (runtime.villager.getWorld() == world && isValet(runtime.villager) && isNearAnyPlayer(world, runtime.villager)) {
+                seen.add(runtime.villager.getUuid());
+                tickVillager(runtime.villager);
+            }
+        }
+
+        if (world.getTime() % VALET_DISCOVERY_INTERVAL_TICKS != 0) {
+            return;
+        }
+
         for (ServerPlayerEntity player : world.getPlayers()) {
             Box searchBox = Box.from(player.getPos()).expand(PLAYER_WORK_SCAN_RADIUS);
             for (VillagerEntity villager : world.getEntitiesByClass(VillagerEntity.class, searchBox, ValetWorkDriver::isValet)) {
@@ -61,6 +73,16 @@ public final class ValetWorkDriver {
     private static boolean isValet(VillagerEntity villager) {
         return !villager.isRemoved()
                 && villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION;
+    }
+
+    private static boolean isNearAnyPlayer(ServerWorld world, VillagerEntity villager) {
+        double maxDistanceSquared = PLAYER_WORK_SCAN_RADIUS * PLAYER_WORK_SCAN_RADIUS;
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            if (player.squaredDistanceTo(villager) <= maxDistanceSquared) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void tickVillager(VillagerEntity villager) {

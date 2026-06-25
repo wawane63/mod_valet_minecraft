@@ -32,6 +32,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.screen.ScreenHandler;
@@ -109,6 +110,7 @@ public final class ValetNetworking {
                         buf.writeInt(count);
                     }
                     writeConstructions(constructions, buf);
+                    writeValetInventory(villager.getInventory(), buf);
                     writeValetProgress(villager, buf);
                 }
 
@@ -133,6 +135,7 @@ public final class ValetNetworking {
                             oreCounts,
                             woodCounts,
                             constructions,
+                            copyInventory(villager.getInventory()),
                             ValetProgress.getLevel(villager),
                             ValetProgress.getXp(villager),
                             ValetProgress.getNextLevelXp(villager),
@@ -201,7 +204,7 @@ public final class ValetNetworking {
 
     private static void sendValetState(ServerPlayerEntity player, VillagerEntity villager) {
         PacketByteBuf buf = PacketByteBufs.create();
-        ValetStatePayload.from(villager).write(buf);
+        ValetStatePayload.from(player.getServerWorld(), villager).write(buf);
         ServerPlayNetworking.send(player, VALET_STATE_PACKET_ID, buf);
     }
 
@@ -210,6 +213,21 @@ public final class ValetNetworking {
         for (ValetConstructionBlueprint blueprint : blueprints) {
             buf.writeNbt(blueprint.writeNbt());
         }
+    }
+
+    private static void writeValetInventory(Inventory inventory, PacketByteBuf buf) {
+        buf.writeInt(inventory.size());
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            buf.writeItemStack(inventory.getStack(slot));
+        }
+    }
+
+    private static List<ItemStack> copyInventory(Inventory inventory) {
+        List<ItemStack> result = new java.util.ArrayList<>(inventory.size());
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            result.add(inventory.getStack(slot).copy());
+        }
+        return result;
     }
 
     private static void setValetOrder(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {

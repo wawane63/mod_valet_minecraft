@@ -22,6 +22,7 @@ import java.util.Set;
 
 public final class MiningRuntimeTask {
     private static final int FAILED_TARGET_MEMORY_TICKS = 400;
+    private static final int MAX_PATH_FAILURES_BEFORE_BACKOFF = 6;
 
     private final Control control;
     private BlockPos targetOrePos;
@@ -30,6 +31,7 @@ public final class MiningRuntimeTask {
     private boolean miningOre;
     private boolean miningBonusResource;
     private boolean veinExhausted;
+    private int pathFailures;
     private final List<BlockPos> veinTargets = new ArrayList<>();
     private final Map<BlockPos, Integer> failedTargets = new HashMap<>();
 
@@ -111,15 +113,24 @@ public final class MiningRuntimeTask {
 
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.ORE, targetOrePos, goals);
         if (path.isEmpty()) {
+            pathFailures++;
             rememberFailedTarget(targetOrePos);
             ValetDebug.record(control.villager(), "mine no_path target=" + ValetDebug.shortPos(targetOrePos));
             removeFromCurrentVein(targetOrePos);
             targetOrePos = null;
+            if (pathFailures >= MAX_PATH_FAILURES_BEFORE_BACKOFF) {
+                clearVeinState();
+                pathFailures = 0;
+                control.setState(State.RETURNING);
+                control.setDelayTicks(control.noTargetDelayTicks());
+                return;
+            }
             control.setState(control.interruptedWorkState());
-            control.setDelayTicks(10);
+            control.setDelayTicks(30);
             return;
         }
 
+        pathFailures = 0;
         control.startPath(PathPurpose.ORE, path);
     }
 
@@ -255,6 +266,7 @@ public final class MiningRuntimeTask {
     public void clearVeinState() {
         veinTargets.clear();
         veinExhausted = false;
+        pathFailures = 0;
     }
 
     public void clearAll() {

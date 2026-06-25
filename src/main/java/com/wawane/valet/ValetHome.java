@@ -32,8 +32,12 @@ public final class ValetHome {
         Optional<GlobalPos> jobSite = villager.getBrain().getOptionalMemory(MemoryModuleType.JOB_SITE);
         if (jobSite.isPresent() && jobSite.get().getDimension().equals(world.getRegistryKey())) {
             BlockPos pos = jobSite.get().getPos();
-            set(villager, jobSite.get());
-            return pos;
+            if (isValidWorkstation(world, pos)) {
+                set(villager, jobSite.get());
+                return pos;
+            }
+            villager.getBrain().forget(MemoryModuleType.JOB_SITE);
+            HOMES.remove(villager.getUuid());
         }
         GlobalPos home = HOMES.get(villager.getUuid());
         if (home == null || !home.getDimension().equals(world.getRegistryKey())) {
@@ -46,6 +50,11 @@ public final class ValetHome {
             villager.getBrain().remember(MemoryModuleType.JOB_SITE, recoveredHome);
             set(villager, recoveredHome);
             return workstation;
+        }
+        if (!isValidWorkstation(world, home.getPos())) {
+            HOMES.remove(villager.getUuid());
+            villager.getBrain().forget(MemoryModuleType.JOB_SITE);
+            return getOrRecover(world, villager, villager.getBlockPos());
         }
         villager.getBrain().remember(MemoryModuleType.JOB_SITE, home);
         return home.getPos();
@@ -78,11 +87,15 @@ public final class ValetHome {
 
     private static BlockPos findNearbyWorkstation(ServerWorld world, BlockPos origin) {
         for (BlockPos pos : BlockPos.iterateOutwards(origin, WORKSTATION_RECOVERY_RADIUS, WORKSTATION_RECOVERY_VERTICAL_RADIUS, WORKSTATION_RECOVERY_RADIUS)) {
-            if (world.getBlockState(pos).isOf(ValetMod.VALET_WORKSTATION)) {
+            if (isValidWorkstation(world, pos)) {
                 return pos.toImmutable();
             }
         }
         return null;
+    }
+
+    private static boolean isValidWorkstation(ServerWorld world, BlockPos pos) {
+        return world.getBlockState(pos).isOf(ValetMod.VALET_WORKSTATION);
     }
 
     public static boolean hasData(VillagerEntity villager) {

@@ -6,7 +6,9 @@ import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetPerk;
+import net.minecraft.item.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,6 +22,7 @@ public record ValetOrdersViewModel(
         int[] oreCounts,
         int[] woodCounts,
         List<ValetConstructionBlueprint> constructions,
+        List<ItemStack> valetInventory,
         int level,
         int xp,
         int nextLevelXp,
@@ -41,6 +44,7 @@ public record ValetOrdersViewModel(
         oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
         woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
         constructions = List.copyOf(constructions);
+        valetInventory = copyInventory(valetInventory);
         perks = Arrays.copyOf(perks, ValetPerk.values().length);
         combatPerks = Arrays.copyOf(combatPerks, ValetCombatPerk.values().length);
         valetName = valetName == null ? "" : valetName;
@@ -74,6 +78,7 @@ public record ValetOrdersViewModel(
                 oreCounts,
                 woodCounts,
                 handler.getConstructions(),
+                handler.getValetInventory(),
                 handler.getLevel(),
                 handler.getXp(),
                 handler.getNextLevelXp(),
@@ -124,6 +129,11 @@ public record ValetOrdersViewModel(
     }
 
     @Override
+    public List<ItemStack> valetInventory() {
+        return copyInventory(valetInventory);
+    }
+
+    @Override
     public boolean[] perks() {
         return Arrays.copyOf(perks, perks.length);
     }
@@ -131,5 +141,13 @@ public record ValetOrdersViewModel(
     @Override
     public boolean[] combatPerks() {
         return Arrays.copyOf(combatPerks, combatPerks.length);
+    }
+
+    private static List<ItemStack> copyInventory(List<ItemStack> stacks) {
+        List<ItemStack> result = new ArrayList<>(stacks.size());
+        for (ItemStack stack : stacks) {
+            result.add(stack.copy());
+        }
+        return List.copyOf(result);
     }
 }

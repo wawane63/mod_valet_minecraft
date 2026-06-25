@@ -28,6 +28,7 @@ public final class ValetDebug {
     private static final int ACTIONBAR_INTERVAL_TICKS = 20;
     private static final Set<UUID> VIEWERS = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, String> LAST_EVENTS = new ConcurrentHashMap<>();
+    private static volatile boolean verboseLog;
 
     private ValetDebug() {
     }
@@ -62,7 +63,9 @@ public final class ValetDebug {
     public static void record(VillagerEntity villager, String message) {
         String line = shortUuid(villager.getUuid()) + " " + shortPos(villager.getBlockPos()) + " " + message;
         LAST_EVENTS.put(villager.getUuid(), line);
-        ValetMod.LOGGER.info("[valet-debug] {}", line);
+        if (verboseLog) {
+            ValetMod.LOGGER.info("[valet-debug] {}", line);
+        }
     }
 
     public static void clear(UUID uuid) {
@@ -91,6 +94,12 @@ public final class ValetDebug {
                     ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
                     VIEWERS.remove(player.getUuid());
                     context.getSource().sendFeedback(() -> Text.literal("Valet debug OFF").formatted(Formatting.GRAY), false);
+                    return Command.SINGLE_SUCCESS;
+                }))
+                .then(literal("log").executes(context -> {
+                    verboseLog = !verboseLog;
+                    boolean enabled = verboseLog;
+                    context.getSource().sendFeedback(() -> Text.literal("Valet debug log " + (enabled ? "ON" : "OFF")).formatted(enabled ? Formatting.GREEN : Formatting.GRAY), false);
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("dump").executes(context -> {

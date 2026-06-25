@@ -3,6 +3,7 @@ package com.wawane.valet.progress;
 public enum ValetPerk {
     SPEED("perk.valet.speed", "ValetPerkSpeed", ">"),
     VISION("perk.valet.vision", "ValetPerkVision", "O"),
+    MOVEMENT("perk.valet.movement", "ValetPerkMovement", "M"),
     STORAGE("perk.valet.storage", "ValetPerkStorage", "#"),
     PATHING("perk.valet.pathing", "ValetPerkPathing", "P"),
     VEIN("perk.valet.vein", "ValetPerkVein", "F"),

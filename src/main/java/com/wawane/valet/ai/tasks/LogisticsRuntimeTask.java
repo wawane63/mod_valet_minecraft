@@ -40,7 +40,7 @@ public final class LogisticsRuntimeTask {
         chestPos = findBestContainer(world, workOrigin);
         if (chestPos == null) {
             ValetDebug.record(control.villager(), "logistics no_chest");
-            control.setState(State.RETURNING_HOME);
+            control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
         }
@@ -54,7 +54,7 @@ public final class LogisticsRuntimeTask {
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CHEST, chestPos, goals);
         if (path.isEmpty()) {
             ValetDebug.record(control.villager(), "logistics no_chest_path pos=" + ValetDebug.shortPos(chestPos));
-            control.setState(State.RETURNING);
+            control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
             control.setDelayTicks(20);
             return;
         }
@@ -153,6 +153,11 @@ public final class LogisticsRuntimeTask {
 
     public String debugSummary() {
         return "chest=" + shortPos(chestPos);
+    }
+
+    private boolean canResumeWorkWithoutDepositing() {
+        return control.hasInventorySpace()
+                && (control.hasMiningOrder() || control.hasConstructionOrder() || control.hasCraftOrder());
     }
 
     private BlockPos findNearestContainer(ServerWorld world, BlockPos origin) {

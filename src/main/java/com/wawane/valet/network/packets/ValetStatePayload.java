@@ -1,6 +1,7 @@
 package com.wawane.valet.network.packets;
 
 import com.wawane.valet.order.ValetMineTarget;
+import com.wawane.valet.order.ValetMiningScanner;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.order.ValetCraftTarget;
@@ -10,9 +11,14 @@ import com.wawane.valet.progress.ValetCombatSkillTree;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.server.world.ServerWorld;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public record ValetStatePayload(
         int valetEntityId,
@@ -21,6 +27,9 @@ public record ValetStatePayload(
         int woodTargetIndex,
         int constructionTargetId,
         int craftTargetIndex,
+        int[] oreCounts,
+        int[] woodCounts,
+        List<ItemStack> valetInventory,
         int level,
         int xp,
         int nextLevelXp,
@@ -39,11 +48,14 @@ public record ValetStatePayload(
         String valetName
 ) {
     public ValetStatePayload {
+        oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
+        woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
+        valetInventory = copyInventory(valetInventory);
         perks = Arrays.copyOf(perks, ValetPerk.values().length);
         combatPerks = Arrays.copyOf(combatPerks, ValetCombatPerk.values().length);
     }
 
-    public static ValetStatePayload from(VillagerEntity villager) {
+    public static ValetStatePayload from(ServerWorld world, VillagerEntity villager) {
         return new ValetStatePayload(
                 villager.getId(),
                 ValetOrders.get(villager).ordinal(),
@@ -51,6 +63,9 @@ public record ValetStatePayload(
                 getCurrentWoodTargetIndex(villager),
                 ValetOrders.getConstructionTargetId(villager),
                 getCurrentCraftTargetIndex(villager),
+                ValetMiningScanner.countNearbyOres(world, villager),
+                ValetMiningScanner.countNearbyWood(world, villager),
+                copyInventory(villager.getInventory()),
                 ValetProgress.getLevel(villager),
                 ValetProgress.getXp(villager),
                 ValetProgress.getNextLevelXp(villager),
@@ -77,6 +92,9 @@ public record ValetStatePayload(
         int woodTargetIndex = buf.readInt();
         int constructionTargetId = buf.readInt();
         int craftTargetIndex = buf.readInt();
+        int[] oreCounts = readOreCounts(buf);
+        int[] woodCounts = readWoodCounts(buf);
+        List<ItemStack> valetInventory = readInventory(buf);
         int level = buf.readInt();
         int xp = buf.readInt();
         int nextLevelXp = buf.readInt();
@@ -98,7 +116,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readString(32));
+        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readString(32));
     }
 
     public void write(PacketByteBuf buf) {
@@ -108,6 +126,16 @@ public record ValetStatePayload(
         buf.writeInt(woodTargetIndex);
         buf.writeInt(constructionTargetId);
         buf.writeInt(craftTargetIndex);
+        for (int count : oreCounts) {
+            buf.writeInt(count);
+        }
+        for (int count : woodCounts) {
+            buf.writeInt(count);
+        }
+        buf.writeInt(valetInventory.size());
+        for (ItemStack stack : valetInventory) {
+            buf.writeItemStack(stack);
+        }
         buf.writeInt(level);
         buf.writeInt(xp);
         buf.writeInt(nextLevelXp);
@@ -128,6 +156,21 @@ public record ValetStatePayload(
         buf.writeInt(bowPendingPerks);
         buf.writeBoolean(allyAwareness);
         buf.writeString(valetName, 32);
+    }
+
+    @Override
+    public int[] oreCounts() {
+        return Arrays.copyOf(oreCounts, oreCounts.length);
+    }
+
+    @Override
+    public int[] woodCounts() {
+        return Arrays.copyOf(woodCounts, woodCounts.length);
+    }
+
+    @Override
+    public List<ItemStack> valetInventory() {
+        return copyInventory(valetInventory);
     }
 
     @Override
@@ -153,6 +196,47 @@ public record ValetStatePayload(
     private static int getCurrentCraftTargetIndex(VillagerEntity villager) {
         ValetCraftTarget target = ValetOrders.getCraftTarget(villager);
         return target == null ? -1 : target.ordinal();
+    }
+
+    private static int[] readOreCounts(PacketByteBuf buf) {
+        int[] counts = new int[ValetMineTarget.values().length];
+        for (int i = 0; i < counts.length; i++) {
+            counts[i] = buf.readInt();
+        }
+        return counts;
+    }
+
+    private static int[] readWoodCounts(PacketByteBuf buf) {
+        int[] counts = new int[ValetWoodTarget.values().length];
+        for (int i = 0; i < counts.length; i++) {
+            counts[i] = buf.readInt();
+        }
+        return counts;
+    }
+
+    private static List<ItemStack> readInventory(PacketByteBuf buf) {
+        int count = Math.max(0, buf.readInt());
+        List<ItemStack> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            result.add(buf.readItemStack());
+        }
+        return result;
+    }
+
+    private static List<ItemStack> copyInventory(Inventory inventory) {
+        List<ItemStack> result = new ArrayList<>(inventory.size());
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            result.add(inventory.getStack(slot).copy());
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<ItemStack> copyInventory(List<ItemStack> stacks) {
+        List<ItemStack> result = new ArrayList<>(stacks.size());
+        for (ItemStack stack : stacks) {
+            result.add(stack.copy());
+        }
+        return List.copyOf(result);
     }
 
     private static String getValetName(VillagerEntity villager) {

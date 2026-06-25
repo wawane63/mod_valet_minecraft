@@ -11,18 +11,22 @@ public final class ValetWorkSettings {
     private static final int CHEST_RADIUS = 10;
     private static final int MINE_RADIUS = 18;
     private static final int MINE_VERTICAL_RADIUS = 12;
-    private static final int MAX_PATH_NODES = 18000;
-    private static final int MAX_PATH_LENGTH = 96;
-    private static final int NO_TARGET_DELAY_TICKS = 80;
+    private static final int MAX_PATH_NODES = 4500;
+    private static final int MAX_PATH_LENGTH = 80;
+    private static final int NO_TARGET_DELAY_TICKS = 120;
     private static final int MAX_VEIN_BLOCKS = 96;
     private static final int BASE_INVENTORY_SLOTS = 4;
     private static final int STORAGE_PERK_BONUS_SLOTS = 4;
     private static final int CHEST_RADIUS_BONUS = 8;
-    private static final int MAX_PATH_NODES_BONUS = 9000;
-    private static final int MAX_PATH_LENGTH_BONUS = 48;
+    private static final int MAX_PATH_NODES_BONUS = 2500;
+    private static final int MAX_PATH_LENGTH_BONUS = 32;
     private static final int MAX_VEIN_BLOCKS_BONUS = 64;
     private static final int MONSTER_SPAWN_BLOCK_LIGHT = 0;
     private static final int COMFORT_TORCH_BLOCK_LIGHT = 7;
+    private static final int BASE_ACTION_DELAY_TICKS = 3;
+    private static final int FAST_ACTION_DELAY_TICKS = 0;
+    private static final int BASE_PATH_STEP_DELAY_TICKS = 1;
+    private static final int FAST_PATH_STEP_DELAY_TICKS = 0;
     private static final int BUILD_MATERIAL_RADIUS_BONUS = 16;
     private static final double COMBAT_SEARCH_RADIUS = 8.0D;
     private static final double COMBAT_SEARCH_RADIUS_BONUS = 4.0D;
@@ -31,11 +35,11 @@ public final class ValetWorkSettings {
     private static final double COMBAT_MOVE_SPEED = 1.0D;
     private static final double COMBAT_MOVE_SPEED_BONUS = 0.15D;
     private static final float COMBAT_ATTACK_DAMAGE = 4.0F;
-    private static final int COMBAT_ATTACK_COOLDOWN_TICKS = 22;
-    private static final int COMBAT_ATTACK_COOLDOWN_BONUS = 4;
+    private static final int COMBAT_ATTACK_COOLDOWN_TICKS = 28;
+    private static final int COMBAT_ATTACK_COOLDOWN_BONUS = 8;
     private static final float COMBAT_ARROW_DAMAGE = 3.0F;
-    private static final int COMBAT_ARROW_COOLDOWN_TICKS = 30;
-    private static final int COMBAT_ARROW_COOLDOWN_BONUS = 5;
+    private static final int COMBAT_ARROW_COOLDOWN_TICKS = 36;
+    private static final int COMBAT_ARROW_COOLDOWN_BONUS = 10;
     private static final int COMBAT_ARROW_RESTOCK_COUNT = 16;
 
     private final VillagerEntity villager;
@@ -53,7 +57,11 @@ public final class ValetWorkSettings {
     }
 
     public int actionDelayTicks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.SPEED) ? 0 : 1;
+        return ValetProgress.hasPerk(villager, ValetPerk.SPEED) ? FAST_ACTION_DELAY_TICKS : BASE_ACTION_DELAY_TICKS;
+    }
+
+    public int pathStepDelayTicks() {
+        return ValetProgress.hasPerk(villager, ValetPerk.MOVEMENT) ? FAST_PATH_STEP_DELAY_TICKS : BASE_PATH_STEP_DELAY_TICKS;
     }
 
     public int chestRadius() {
@@ -110,7 +118,7 @@ public final class ValetWorkSettings {
     }
 
     public double combatMoveSpeed() {
-        return ValetProgress.hasPerk(villager, ValetPerk.SPEED) ? COMBAT_MOVE_SPEED + COMBAT_MOVE_SPEED_BONUS : COMBAT_MOVE_SPEED;
+        return ValetProgress.hasPerk(villager, ValetPerk.MOVEMENT) ? COMBAT_MOVE_SPEED + COMBAT_MOVE_SPEED_BONUS : COMBAT_MOVE_SPEED;
     }
 
     public float combatAttackDamage() {
@@ -120,12 +128,9 @@ public final class ValetWorkSettings {
     }
 
     public int combatAttackCooldownTicks() {
-        int cooldown = ValetProgress.hasPerk(villager, ValetPerk.SPEED)
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_RECOVERY)
                 ? Math.max(1, COMBAT_ATTACK_COOLDOWN_TICKS - COMBAT_ATTACK_COOLDOWN_BONUS)
                 : COMBAT_ATTACK_COOLDOWN_TICKS;
-        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_RECOVERY)
-                ? Math.max(1, cooldown - 4)
-                : cooldown;
     }
 
     public float combatArrowDamage() {
@@ -135,9 +140,17 @@ public final class ValetWorkSettings {
     }
 
     public int combatArrowCooldownTicks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.SPEED)
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_QUICK_SHOT)
                 ? Math.max(1, COMBAT_ARROW_COOLDOWN_TICKS - COMBAT_ARROW_COOLDOWN_BONUS)
                 : COMBAT_ARROW_COOLDOWN_TICKS;
+    }
+
+    public boolean combatHasDefense() {
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_DEFENSE);
+    }
+
+    public boolean combatCanRecycleArrow() {
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_RECYCLE_ARROW);
     }
 
     public int combatArrowRestockCount() {

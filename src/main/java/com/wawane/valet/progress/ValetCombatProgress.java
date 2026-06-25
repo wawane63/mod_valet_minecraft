@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ValetCombatProgress {
     public static final int DATA_VERSION = 1;
-    private static final boolean TEST_ENABLE_ALLY_AWARENESS = true;
     private static final String DATA_VERSION_KEY = "ValetCombatProgressDataVersion";
     private static final Map<UUID, Data> DATA = new ConcurrentHashMap<>();
 
@@ -60,9 +59,6 @@ public final class ValetCombatProgress {
         if (perk == null) {
             return false;
         }
-        if (TEST_ENABLE_ALLY_AWARENESS && perk == ValetCombatPerk.ALLY_AWARENESS) {
-            return true;
-        }
         return data(villager).perks[perk.ordinal()];
     }
 
@@ -82,7 +78,7 @@ public final class ValetCombatProgress {
         Data data = data(villager);
         SkillData skillData = data.skills[perk.getTree().ordinal()];
         normalize(skillData);
-        if (skillData.pendingPerks <= 0) {
+        if (skillData.pendingPerks <= 0 || !canChoosePerk(data, perk)) {
             return false;
         }
 
@@ -196,6 +192,15 @@ public final class ValetCombatProgress {
 
     private static String pendingPerksKey(ValetCombatSkillTree tree) {
         return "Valet" + tree.getNbtPrefix() + "PendingPerks";
+    }
+
+    private static boolean canChoosePerk(Data data, ValetCombatPerk perk) {
+        return switch (perk) {
+            case SWORD_STRENGTH, ALLY_AWARENESS -> true;
+            case SWORD_RECOVERY, SWORD_DEFENSE -> data.perks[ValetCombatPerk.SWORD_STRENGTH.ordinal()];
+            case BOW_QUICK_SHOT, BOW_STRENGTH -> data.perks[ValetCombatPerk.ALLY_AWARENESS.ordinal()];
+            case BOW_RECYCLE_ARROW -> data.perks[ValetCombatPerk.BOW_STRENGTH.ordinal()];
+        };
     }
 
     private static final class Data {

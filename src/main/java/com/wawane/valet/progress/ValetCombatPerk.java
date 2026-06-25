@@ -4,7 +4,10 @@ public enum ValetCombatPerk {
     SWORD_STRENGTH(ValetCombatSkillTree.SWORD, "perk.valet_combat.sword_strength", "ValetCombatPerkSwordStrength", "+"),
     SWORD_RECOVERY(ValetCombatSkillTree.SWORD, "perk.valet_combat.sword_recovery", "ValetCombatPerkSwordRecovery", "R"),
     BOW_STRENGTH(ValetCombatSkillTree.BOW, "perk.valet_combat.bow_strength", "ValetCombatPerkBowStrength", "+"),
-    ALLY_AWARENESS(ValetCombatSkillTree.BOW, "perk.valet_combat.ally_awareness", "ValetCombatPerkAllyAwareness", "A");
+    ALLY_AWARENESS(ValetCombatSkillTree.BOW, "perk.valet_combat.ally_awareness", "ValetCombatPerkAllyAwareness", "A"),
+    SWORD_DEFENSE(ValetCombatSkillTree.SWORD, "perk.valet_combat.sword_defense", "ValetCombatPerkSwordDefense", "D"),
+    BOW_QUICK_SHOT(ValetCombatSkillTree.BOW, "perk.valet_combat.bow_quick_shot", "ValetCombatPerkBowQuickShot", "R"),
+    BOW_RECYCLE_ARROW(ValetCombatSkillTree.BOW, "perk.valet_combat.bow_recycle_arrow", "ValetCombatPerkBowRecycleArrow", "50");
 
     private final ValetCombatSkillTree tree;
     private final String translationKey;

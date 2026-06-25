@@ -296,14 +296,17 @@ public class ValetWorkGoal extends Goal {
         if (hasCraftOrder()) {
             return false;
         }
-        if (hasInventoryItems() || state == State.RETURNING || isExecuting(PathPurpose.CHEST)) {
+        if (state == State.RETURNING || isExecuting(PathPurpose.CHEST)) {
             return true;
         }
         if (hasMiningOrder() && villager.getWorld() instanceof ServerWorld world) {
+            if (!hasInventorySpace()) {
+                return true;
+            }
             BlockPos workOrigin = getKnownWorkOrigin(world);
             return workOrigin != null && squaredDistance(villager.getBlockPos(), workOrigin) > 64;
         }
-        return false;
+        return hasInventoryItems();
     }
 
     private void updatePassiveState() {
@@ -348,6 +351,9 @@ public class ValetWorkGoal extends Goal {
 
     private boolean shouldPreemptForMiningOrder() {
         if (state == State.IDLE || state == State.RETURNING_HOME || isExecuting(PathPurpose.HOME)) {
+            return true;
+        }
+        if (hasInventorySpace() && (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST))) {
             return true;
         }
         return false;
@@ -406,7 +412,7 @@ public class ValetWorkGoal extends Goal {
         if (hasReachedPathStep(current, next)) {
             clearNavigationStep();
             pathIndex++;
-            delayTicks = actionDelayTicks();
+            delayTicks = pathStepDelayTicks();
             return;
         }
 
@@ -503,12 +509,19 @@ public class ValetWorkGoal extends Goal {
                 targetBlock.getZ() + 2
         )) {
             BlockPos stand = pos.toImmutable();
-            if (!stand.equals(targetBlock) && canReachTargetFromStand(targetBlock, stand) && canPrepareStand(world, stand, purpose)) {
+            if (!stand.equals(targetBlock)
+                    && !wouldMineOwnSupport(targetBlock, stand, purpose)
+                    && canReachTargetFromStand(targetBlock, stand)
+                    && canPrepareStand(world, stand, purpose)) {
                 goals.add(stand);
             }
         }
 
         return goals;
+    }
+
+    private boolean wouldMineOwnSupport(BlockPos targetBlock, BlockPos stand, PathPurpose purpose) {
+        return (purpose == PathPurpose.ORE || purpose == PathPurpose.CRAFT) && stand.down().equals(targetBlock);
     }
 
     private Set<BlockPos> findBuildStandGoals(ServerWorld world, BlockPos targetBlock) {
@@ -805,6 +818,9 @@ public class ValetWorkGoal extends Goal {
         if (purpose == PathPurpose.ORE && ValetOrders.get(villager) == ValetOrder.MINE_ORES) {
             return canMineWorkBlock(world, pos, blockState);
         }
+        if (purpose == PathPurpose.ORE && ValetOrders.get(villager) == ValetOrder.CHOP_WOOD) {
+            return canMineWorkBlock(world, pos, blockState);
+        }
         return false;
     }
 
@@ -819,6 +835,10 @@ public class ValetWorkGoal extends Goal {
 
         Block block = blockState.getBlock();
         if (FALLING_PATH_BLOCKS.contains(block)) {
+            return true;
+        }
+
+        if (ValetOrders.get(villager) == ValetOrder.CHOP_WOOD && isTreeCrownBlock(blockState)) {
             return true;
         }
 
@@ -878,6 +898,10 @@ public class ValetWorkGoal extends Goal {
 
     private int actionDelayTicks() {
         return settings.actionDelayTicks();
+    }
+
+    private int pathStepDelayTicks() {
+        return settings.pathStepDelayTicks();
     }
 
     private int chestRadius() {
@@ -1029,7 +1053,16 @@ public class ValetWorkGoal extends Goal {
         return ORE_TAGS.stream().anyMatch(blockState::isIn) || blockState.isIn(BlockTags.LOGS);
     }
 
+    private boolean isTreeCrownBlock(BlockState blockState) {
+        return blockState.isIn(BlockTags.LEAVES)
+                || blockState.isOf(Blocks.NETHER_WART_BLOCK)
+                || blockState.isOf(Blocks.WARPED_WART_BLOCK);
+    }
+
     private ItemStack getToolForBlock(BlockState blockState) {
+        if (isTreeCrownBlock(blockState)) {
+            return new ItemStack(Items.IRON_HOE);
+        }
         if (blockState.isIn(BlockTags.AXE_MINEABLE)) {
             return new ItemStack(Items.IRON_AXE);
         }
@@ -1231,6 +1264,16 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int combatArrowRestockCount() {
             return settings.combatArrowRestockCount();
+        }
+
+        @Override
+        public boolean combatHasDefense() {
+            return settings.combatHasDefense();
+        }
+
+        @Override
+        public boolean combatCanRecycleArrow() {
+            return settings.combatCanRecycleArrow();
         }
 
         @Override

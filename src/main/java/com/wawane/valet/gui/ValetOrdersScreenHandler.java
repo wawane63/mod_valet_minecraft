@@ -36,6 +36,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     private final int[] oreCounts;
     private final int[] woodCounts;
     private final List<ValetConstructionBlueprint> constructions;
+    private final List<ItemStack> valetInventory;
     private final int level;
     private final int xp;
     private final int nextLevelXp;
@@ -54,14 +55,14 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     private final String valetName;
 
     public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, PacketByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUuid(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readString(32));
+        this(syncId, inventory, buf.readInt(), buf.readUuid(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readString(32));
     }
 
     public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), World.OVERWORLD.getValue(), ValetOrder.NONE.ordinal(), -1, -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), World.OVERWORLD.getValue(), ValetOrder.NONE.ordinal(), -1, -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
     }
 
-    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -74,6 +75,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         this.oreCounts = oreCounts;
         this.woodCounts = woodCounts;
         this.constructions = constructions;
+        this.valetInventory = copyInventory(valetInventory);
         this.level = level;
         this.xp = xp;
         this.nextLevelXp = nextLevelXp;
@@ -142,6 +144,10 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
 
     public List<ValetConstructionBlueprint> getConstructions() {
         return constructions;
+    }
+
+    public List<ItemStack> getValetInventory() {
+        return copyInventory(valetInventory);
     }
 
     public int getLevel() {
@@ -273,6 +279,23 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
             if (nbt != null) {
                 result.add(ValetConstructionBlueprint.readNbt(nbt));
             }
+        }
+        return result;
+    }
+
+    private static List<ItemStack> readInventory(PacketByteBuf buf) {
+        int count = Math.max(0, buf.readInt());
+        List<ItemStack> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            result.add(buf.readItemStack());
+        }
+        return result;
+    }
+
+    private static List<ItemStack> copyInventory(List<ItemStack> stacks) {
+        List<ItemStack> result = new ArrayList<>(stacks.size());
+        for (ItemStack stack : stacks) {
+            result.add(stack.copy());
         }
         return result;
     }

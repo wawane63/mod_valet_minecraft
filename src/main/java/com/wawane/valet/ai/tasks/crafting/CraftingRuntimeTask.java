@@ -7,6 +7,7 @@ import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
+import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -16,7 +17,6 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
@@ -86,7 +86,7 @@ public final class CraftingRuntimeTask {
         }
 
         BlockState current = world.getBlockState(targetPos);
-        if (!matchesResource(current, action) || !control.canMineCraftResource(world, targetPos, current)) {
+        if (!matchesResource(world, targetPos, current, action) || !control.canMineCraftResource(world, targetPos, current)) {
             ValetDebug.record(control.villager(), "craft target_changed pos=" + ValetDebug.shortPos(targetPos));
             clearTarget();
             control.setState(State.FIND_TARGET);
@@ -226,7 +226,7 @@ public final class CraftingRuntimeTask {
         for (BlockPos pos : BlockPos.iterateOutwards(origin, control.mineRadius(), control.mineVerticalRadius(), control.mineRadius())) {
             BlockPos immutable = pos.toImmutable();
             BlockState blockState = world.getBlockState(immutable);
-            if (!matchesResource(blockState, resourceAction) || !control.canMineCraftResource(world, immutable, blockState)) {
+            if (!matchesResource(world, immutable, blockState, resourceAction) || !control.canMineCraftResource(world, immutable, blockState)) {
                 continue;
             }
 
@@ -357,10 +357,13 @@ public final class CraftingRuntimeTask {
                 || countItem(inventory, Items.STICK, slots) < 2 && !hasWoodForSticks(inventory, slots);
     }
 
-    private boolean matchesResource(BlockState blockState, Action resourceAction) {
+    private boolean matchesResource(ServerWorld world, BlockPos pos, BlockState blockState, Action resourceAction) {
         return switch (resourceAction) {
             case MINE_COBBLESTONE -> blockState.isOf(Blocks.STONE);
-            case MINE_LOG -> blockState.isIn(BlockTags.LOGS);
+            case MINE_LOG -> {
+                ValetWoodTarget target = ValetWoodTarget.fromState(blockState);
+                yield target != null && target.matchesNaturalTree(world, pos);
+            }
             case NONE, CRAFT_AT_WORKSTATION -> false;
         };
     }
