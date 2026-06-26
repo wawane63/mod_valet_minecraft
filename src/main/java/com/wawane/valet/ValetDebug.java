@@ -26,9 +26,12 @@ import static net.minecraft.server.command.CommandManager.literal;
 public final class ValetDebug {
     private static final int RANGE = 96;
     private static final int ACTIONBAR_INTERVAL_TICKS = 20;
+    private static final int LOG_REPEAT_INTERVAL_TICKS = 40;
     private static final Set<UUID> VIEWERS = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, String> LAST_EVENTS = new ConcurrentHashMap<>();
-    private static volatile boolean verboseLog;
+    private static final Map<UUID, String> LAST_LOG_LINES = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> LAST_LOG_TICKS = new ConcurrentHashMap<>();
+    private static volatile boolean verboseLog = true;
 
     private ValetDebug() {
     }
@@ -63,7 +66,7 @@ public final class ValetDebug {
     public static void record(VillagerEntity villager, String message) {
         String line = shortUuid(villager.getUuid()) + " " + shortPos(villager.getBlockPos()) + " " + message;
         LAST_EVENTS.put(villager.getUuid(), line);
-        if (verboseLog) {
+        if (shouldWriteLog(villager, line)) {
             ValetMod.LOGGER.info("[valet-debug] {}", line);
         }
     }
@@ -71,11 +74,15 @@ public final class ValetDebug {
     public static void clear(UUID uuid) {
         VIEWERS.remove(uuid);
         LAST_EVENTS.remove(uuid);
+        LAST_LOG_LINES.remove(uuid);
+        LAST_LOG_TICKS.remove(uuid);
     }
 
     public static void clearAll() {
         VIEWERS.clear();
         LAST_EVENTS.clear();
+        LAST_LOG_LINES.clear();
+        LAST_LOG_TICKS.clear();
     }
 
     public static String shortPos(BlockPos pos) {
@@ -87,6 +94,7 @@ public final class ValetDebug {
                 .then(literal("on").executes(context -> {
                     ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
                     VIEWERS.add(player.getUuid());
+                    verboseLog = true;
                     context.getSource().sendFeedback(() -> Text.literal("Valet debug ON").formatted(Formatting.GREEN), false);
                     return Command.SINGLE_SUCCESS;
                 }))
@@ -97,9 +105,8 @@ public final class ValetDebug {
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("log").executes(context -> {
-                    verboseLog = !verboseLog;
-                    boolean enabled = verboseLog;
-                    context.getSource().sendFeedback(() -> Text.literal("Valet debug log " + (enabled ? "ON" : "OFF")).formatted(enabled ? Formatting.GREEN : Formatting.GRAY), false);
+                    verboseLog = true;
+                    context.getSource().sendFeedback(() -> Text.literal("Valet debug log always ON").formatted(Formatting.GREEN), false);
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("dump").executes(context -> {
@@ -130,6 +137,24 @@ public final class ValetDebug {
         return player.getServerWorld().getEntitiesByClass(VillagerEntity.class, searchBox, ValetDebug::isDebugTarget)
                 .stream()
                 .min(Comparator.comparingDouble(player::squaredDistanceTo));
+    }
+
+    private static boolean shouldWriteLog(VillagerEntity villager, String line) {
+        if (!verboseLog) {
+            return false;
+        }
+
+        long tick = villager.getWorld() instanceof ServerWorld world ? world.getTime() : 0L;
+        UUID uuid = villager.getUuid();
+        String previous = LAST_LOG_LINES.get(uuid);
+        long previousTick = LAST_LOG_TICKS.getOrDefault(uuid, Long.MIN_VALUE);
+        if (line.equals(previous) && tick - previousTick < LOG_REPEAT_INTERVAL_TICKS) {
+            return false;
+        }
+
+        LAST_LOG_LINES.put(uuid, line);
+        LAST_LOG_TICKS.put(uuid, tick);
+        return true;
     }
 
     private static boolean isDebugTarget(VillagerEntity villager) {

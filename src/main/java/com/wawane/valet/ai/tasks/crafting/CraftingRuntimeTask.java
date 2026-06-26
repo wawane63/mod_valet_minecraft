@@ -24,12 +24,15 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
 public final class CraftingRuntimeTask {
+    private static final int MAX_RESOURCE_PATH_CANDIDATES = 32;
     private final Control control;
     private BlockPos targetPos;
     private BlockState targetState;
@@ -177,7 +180,9 @@ public final class CraftingRuntimeTask {
         if (path.isEmpty()) {
             ValetDebug.record(control.villager(), "craft no_workstation_path pos=" + ValetDebug.shortPos(workOrigin));
             clearTarget();
-            control.setDelayTicks(20);
+            control.clearPathState();
+            control.setState(State.RETURNING_HOME);
+            control.setDelayTicks(4);
             return;
         }
         control.startPath(PathPurpose.CRAFT, path);
@@ -220,9 +225,8 @@ public final class CraftingRuntimeTask {
     }
 
     private ResourceTarget findReachableResource(ServerWorld world, BlockPos origin, Action resourceAction) {
-        ResourceTarget nearest = null;
-        double nearestDistance = Double.MAX_VALUE;
         BlockPos currentStand = control.currentStandPos(world);
+        List<ResourceCandidate> candidates = new ArrayList<>();
         for (BlockPos pos : BlockPos.iterateOutwards(origin, control.mineRadius(), control.mineVerticalRadius(), control.mineRadius())) {
             BlockPos immutable = pos.toImmutable();
             BlockState blockState = world.getBlockState(immutable);
@@ -230,22 +234,38 @@ public final class CraftingRuntimeTask {
                 continue;
             }
 
-            Set<BlockPos> goals = control.findStandGoals(world, immutable, PathPurpose.CRAFT);
-            List<BlockPos> path = List.of();
-            if (!goals.contains(currentStand)) {
-                path = control.planPathToAdjacent(world, PathPurpose.CRAFT, immutable, goals);
-                if (path.isEmpty()) {
-                    continue;
-                }
+            if (!currentStand.down().equals(immutable) && control.canReachTargetFromStand(immutable, currentStand)) {
+                return new ResourceTarget(immutable, blockState, List.of());
             }
 
-            double distance = squaredDistance(origin, immutable);
-            if (distance < nearestDistance) {
-                nearest = new ResourceTarget(immutable, blockState, path);
-                nearestDistance = distance;
+            candidates.add(new ResourceCandidate(
+                    immutable,
+                    blockState,
+                    squaredDistance(currentStand, immutable),
+                    squaredDistance(origin, immutable)
+            ));
+        }
+
+        candidates.sort(Comparator
+                .comparingDouble(ResourceCandidate::distanceFromCurrent)
+                .thenComparingDouble(ResourceCandidate::distanceFromOrigin));
+
+        int attempts = Math.min(candidates.size(), MAX_RESOURCE_PATH_CANDIDATES);
+        for (int index = 0; index < attempts; index++) {
+            ResourceCandidate candidate = candidates.get(index);
+            Set<BlockPos> goals = control.findStandGoals(world, candidate.pos(), PathPurpose.CRAFT);
+            if (goals.isEmpty()) {
+                continue;
+            }
+
+            List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CRAFT, candidate.pos(), goals);
+            if (!path.isEmpty()) {
+                return new ResourceTarget(candidate.pos(), candidate.state(), path);
             }
         }
-        return nearest;
+
+        ValetDebug.record(control.villager(), "craft no_resource_path action=" + resourceAction + " candidates=" + candidates.size() + " attempts=" + attempts);
+        return null;
     }
 
     private void restockFromNearbyCraftContainers(ServerWorld world) {
@@ -446,6 +466,9 @@ public final class CraftingRuntimeTask {
     }
 
     private record ResourceTarget(BlockPos pos, BlockState state, List<BlockPos> path) {
+    }
+
+    private record ResourceCandidate(BlockPos pos, BlockState state, double distanceFromCurrent, double distanceFromOrigin) {
     }
 
     public interface Control {

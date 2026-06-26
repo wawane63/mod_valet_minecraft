@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ValetHome {
     private static final int WORKSTATION_RECOVERY_RADIUS = 24;
-    private static final int WORKSTATION_RECOVERY_VERTICAL_RADIUS = 4;
+    private static final int WORKSTATION_RECOVERY_VERTICAL_RADIUS = 16;
     private static final String HOME_X_KEY = "ValetHomeX";
     private static final String HOME_Y_KEY = "ValetHomeY";
     private static final String HOME_Z_KEY = "ValetHomeZ";

@@ -372,9 +372,10 @@ public class ValetWorkGoal extends Goal {
         if (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST)) {
             return !hasInventoryItems();
         }
-        return state == State.IDLE
-                || state == State.RETURNING_HOME
-                || isExecuting(PathPurpose.HOME);
+        if (state == State.RETURNING_HOME || isExecuting(PathPurpose.HOME)) {
+            return !hasInventoryItems();
+        }
+        return state == State.IDLE;
     }
 
     private void findTarget(ServerWorld world) {
@@ -812,7 +813,7 @@ public class ValetWorkGoal extends Goal {
     }
 
     private boolean canMinePathBlock(ServerWorld world, BlockPos pos, BlockState blockState, PathPurpose purpose) {
-        if (purpose == PathPurpose.CHEST) {
+        if (purpose == PathPurpose.CHEST || purpose == PathPurpose.HOME || purpose == PathPurpose.CRAFT) {
             return canMineNaturalPathBlock(world, pos, blockState);
         }
         if (purpose == PathPurpose.ORE && ValetOrders.get(villager) == ValetOrder.MINE_ORES) {
@@ -1061,15 +1062,24 @@ public class ValetWorkGoal extends Goal {
 
     private ItemStack getToolForBlock(BlockState blockState) {
         if (isTreeCrownBlock(blockState)) {
-            return new ItemStack(Items.IRON_HOE);
+            return new ItemStack(Items.WOODEN_HOE);
         }
         if (blockState.isIn(BlockTags.AXE_MINEABLE)) {
-            return new ItemStack(Items.IRON_AXE);
+            return new ItemStack(Items.WOODEN_AXE);
         }
         if (blockState.isIn(BlockTags.SHOVEL_MINEABLE)) {
-            return new ItemStack(Items.IRON_SHOVEL);
+            return new ItemStack(Items.WOODEN_SHOVEL);
         }
-        return new ItemStack(Items.IRON_PICKAXE);
+        if (blockState.isIn(BlockTags.NEEDS_DIAMOND_TOOL)) {
+            return new ItemStack(Items.DIAMOND_PICKAXE);
+        }
+        if (blockState.isIn(BlockTags.NEEDS_IRON_TOOL)) {
+            return new ItemStack(Items.IRON_PICKAXE);
+        }
+        if (blockState.isIn(BlockTags.NEEDS_STONE_TOOL)) {
+            return new ItemStack(Items.STONE_PICKAXE);
+        }
+        return new ItemStack(Items.WOODEN_PICKAXE);
     }
 
     private BlockPos getWorkOrigin(ServerWorld world) {

@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.1.3 - Better UI + correctifs craft
+
+Bugs corriges :
+
+- Craft de pioche en pierre stabilise : plus de dependance implicite aux outils en fer.
+- Blocage apres minage de cobble corrige par meilleure transition vers le retour au poste.
+- Freeze serveur corrige en bornant la recherche de ressources craft a 32 candidats proches.
+- Debug actif par defaut et limite contre le spam de logs.
+- Recuperation verticale du poste et budgets de pathfinding corriges.
+
+Modifications structurelles :
+
+- Fenetre de competences agrandie et arbre repositionne avec depart en bas.
+- Reorganisation des perks ressources, epee et arc.
+- Ajout du bouton d'inventaire valet.
+- Ajout d'une logique de pathing craft/home capable de degager des blocs naturels.
+
+## 0.1.2 - Craft
+
+Bugs corriges :
+
+- Relance du meme ordre craft rendue fiable.
+- Detection des besoins de craft : cobblestone, bois, planches et sticks.
+- Restock depuis coffres proches pour les materiaux de craft.
+- Gestion des cas inventaire plein pendant craft/depot.
+
+Modifications structurelles :
+
+- Ajout de `CraftingRuntimeTask`.
+- Ajout de `ValetCraftTarget` et de l'ordre `CRAFT`.
+- Extension de `ValetStateMachine` avec `CRAFTING` et `PathPurpose.CRAFT`.
+- Ajout des payloads et de l'UI pour choisir un craft.
+
+## 0.1.1 - Combat
+
+Bugs corriges :
+
+- Animation d'attaque visible via paquet vanilla `EntityAnimationS2CPacket.SWING_MAIN_HAND`.
+- Rendu zombie-valet corrige pour eviter l'apparence rose/violette.
+- Synchronisation UI/progression combat corrigee apres choix de perk.
+
+Modifications structurelles :
+
+- Ajout de `CombatRuntimeTask`.
+- Ajout des perks et de la progression combat.
+- Ajout du coffre a fleches infinies.
+- Ajout des mixins de projectile/rendu necessaires au combat.
+
+## 0.1.0 - Recolte
+
+Bugs corriges :
+
+- Activation des ordres valet corrigee.
+- Redemarrage du goal a chaque changement d'ordre.
+- Navigation/path traversal de base retablie.
+
+Modifications structurelles :
+
+- Ajout du metier `Valet`.
+- Ajout des ordres initiaux recolte/minage/bois.
+- Ajout du depot vers coffre/baril.
+- Mise en place du goal principal `ValetWorkGoal`.
+
+## Journal technique detaille historique
+
 - `ValetOrdersScreenHandler.java`, `ValetOrdersScreen.java`, `ValetNetworking.java`: envoie les blueprints complets a l'UI, separe selection/preview de l'action `Plan`, et empeche la suppression de donner un blueprint; risque residuel faible, l'ouverture d'UI transporte plus de NBT pour les constructions.
 - `ConstructionBlueprintBlock.java`, `ConstructionBlueprintBlockEntity.java`, `ValetNetworking.java`: stocke l'UUID du valet dans le blueprint donne, reactive l'ordre construction a la pose, resynchronise le NBT du bloc pose, et retire les blueprints d'inventaire quand la construction est supprimee; corrige le chantier qui ne se lance pas apres pose.
 - `ConstructionBlueprintPlacementPreview.java`, `ValetClient.java`, `ValetOrdersScreen.java`: ajoute une preview hologramme avant pose du blueprint tenu et une mini-preview top-down dans l'UI valet; risque residuel faible, rendu limite a 6000 blocs.

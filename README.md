@@ -2,6 +2,8 @@
 
 Mod Fabric 1.20.1 qui ajoute le metier de villageois `Valet`.
 
+La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
+
 ## Versions disponibles
 
 | Version | Theme | Code GitHub |
@@ -9,6 +11,7 @@ Mod Fabric 1.20.1 qui ajoute le metier de villageois `Valet`.
 | 0.1.0 | Recolte | [`v0.1.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.0) |
 | 0.1.1 | Combat | [`v0.1.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.1) |
 | 0.1.2 | Craft | [`v0.1.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.2) |
+| 0.1.3 | Better UI + correctifs craft | [`v0.1.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.3) |
 
 ## Depart
 
@@ -24,12 +27,13 @@ Mod Fabric 1.20.1 qui ajoute le metier de villageois `Valet`.
 Prerequis :
 
 - JDK 17
-- Gradle
+- Gradle wrapper du repo
 
 Commande :
 
 ```powershell
-gradle build
+$env:JAVA_HOME=(Resolve-Path '.tools\jdk-17.0.19+10').Path
+.\gradlew.bat build
 ```
 
-Le `.jar` sera genere dans `build/libs/`.
+Le `.jar` est genere dans `build/libs/` et la tache `installClientJar` installe automatiquement la derniere version dans `%APPDATA%\.minecraft\mods`.

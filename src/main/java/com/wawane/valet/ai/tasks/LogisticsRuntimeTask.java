@@ -65,6 +65,7 @@ public final class LogisticsRuntimeTask {
     public void returnToWorkstation(ServerWorld world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
+            ValetDebug.record(control.villager(), "logistics no_work_origin_home");
             control.setDelayTicks(40);
             return;
         }
