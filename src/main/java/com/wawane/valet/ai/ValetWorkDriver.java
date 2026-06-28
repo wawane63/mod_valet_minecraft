@@ -1,18 +1,18 @@
 package com.wawane.valet.ai;
 
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.ai.core.ValetBlockReservations;
 import com.wawane.valet.ai.core.ValetOrderKey;
 import com.wawane.valet.order.ValetOrder;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Box;
-
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.phys.AABB;
 
 public final class ValetWorkDriver {
     private static final int PLAYER_WORK_SCAN_RADIUS = 96;
@@ -22,23 +22,23 @@ public final class ValetWorkDriver {
     private ValetWorkDriver() {
     }
 
-    public static void tick(ServerWorld world) {
+    public static void tick(ServerLevel world) {
         Set<UUID> seen = new HashSet<>();
         for (Runtime runtime : RUNTIMES.values()) {
-            if (runtime.villager.getWorld() == world && isValet(runtime.villager) && isNearAnyPlayer(world, runtime.villager)) {
-                seen.add(runtime.villager.getUuid());
+            if (runtime.villager.level() == world && isValet(runtime.villager) && isNearAnyPlayer(world, runtime.villager)) {
+                seen.add(runtime.villager.getUUID());
                 tickVillager(runtime.villager);
             }
         }
 
-        if (world.getTime() % VALET_DISCOVERY_INTERVAL_TICKS != 0) {
+        if (world.getGameTime() % VALET_DISCOVERY_INTERVAL_TICKS != 0) {
             return;
         }
 
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            Box searchBox = Box.from(player.getPos()).expand(PLAYER_WORK_SCAN_RADIUS);
-            for (VillagerEntity villager : world.getEntitiesByClass(VillagerEntity.class, searchBox, ValetWorkDriver::isValet)) {
-                if (seen.add(villager.getUuid())) {
+        for (ServerPlayer player : world.players()) {
+            AABB searchBox = AABB.unitCubeFromLowerCorner(player.position()).inflate(PLAYER_WORK_SCAN_RADIUS);
+            for (Villager villager : world.getEntitiesOfClass(Villager.class, searchBox, ValetWorkDriver::isValet)) {
+                if (seen.add(villager.getUUID())) {
                     tickVillager(villager);
                 }
             }
@@ -48,6 +48,7 @@ public final class ValetWorkDriver {
     public static void clear(UUID uuid) {
         Runtime runtime = RUNTIMES.remove(uuid);
         ValetWorkGoal.clearRestartRequest(uuid);
+        ValetBlockReservations.releaseAll(uuid);
         if (runtime != null && runtime.running) {
             runtime.goal.stop();
         }
@@ -60,33 +61,34 @@ public final class ValetWorkDriver {
             }
         }
         RUNTIMES.clear();
+        ValetBlockReservations.clearAll();
     }
 
-    public static String describe(VillagerEntity villager) {
-        Runtime runtime = RUNTIMES.get(villager.getUuid());
+    public static String describe(Villager villager) {
+        Runtime runtime = RUNTIMES.get(villager.getUUID());
         if (runtime == null) {
-            return shortUuid(villager.getUuid()) + " runtime=absent order=" + orderKey(villager);
+            return shortUuid(villager.getUUID()) + " runtime=absent order=" + orderKey(villager);
         }
-        return shortUuid(villager.getUuid()) + " running=" + runtime.running + " " + runtime.goal.debugSummary();
+        return shortUuid(villager.getUUID()) + " running=" + runtime.running + " " + runtime.goal.debugSummary();
     }
 
-    private static boolean isValet(VillagerEntity villager) {
+    private static boolean isValet(Villager villager) {
         return !villager.isRemoved()
-                && villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION;
+                && ValetMod.isValet(villager);
     }
 
-    private static boolean isNearAnyPlayer(ServerWorld world, VillagerEntity villager) {
+    private static boolean isNearAnyPlayer(ServerLevel world, Villager villager) {
         double maxDistanceSquared = PLAYER_WORK_SCAN_RADIUS * PLAYER_WORK_SCAN_RADIUS;
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (player.squaredDistanceTo(villager) <= maxDistanceSquared) {
+        for (ServerPlayer player : world.players()) {
+            if (player.distanceToSqr(villager) <= maxDistanceSquared) {
                 return true;
             }
         }
         return false;
     }
 
-    private static void tickVillager(VillagerEntity villager) {
-        Runtime runtime = RUNTIMES.compute(villager.getUuid(), (uuid, current) -> {
+    private static void tickVillager(Villager villager) {
+        Runtime runtime = RUNTIMES.compute(villager.getUUID(), (uuid, current) -> {
             if (current == null || current.villager != villager || current.villager.isRemoved()) {
                 return new Runtime(villager);
             }
@@ -98,7 +100,7 @@ public final class ValetWorkDriver {
             if (!orderKey.equals(runtime.orderKey)) {
                 runtime.goal.stop();
                 runtime.running = false;
-            } else if (runtime.goal.shouldContinue()) {
+            } else if (runtime.goal.canContinueToUse()) {
                 runtime.goal.tick();
                 return;
             } else {
@@ -107,7 +109,7 @@ public final class ValetWorkDriver {
             }
         }
 
-        if (runtime.goal.canStart()) {
+        if (runtime.goal.canUse()) {
             runtime.goal.start();
             runtime.running = true;
             runtime.orderKey = orderKey;
@@ -115,7 +117,7 @@ public final class ValetWorkDriver {
         }
     }
 
-    private static String orderKey(VillagerEntity villager) {
+    private static String orderKey(Villager villager) {
         return ValetOrderKey.of(villager);
     }
 
@@ -124,12 +126,12 @@ public final class ValetWorkDriver {
     }
 
     private static final class Runtime {
-        private final VillagerEntity villager;
+        private final Villager villager;
         private final ValetWorkGoal goal;
         private boolean running;
         private String orderKey = ValetOrder.NONE.getId();
 
-        private Runtime(VillagerEntity villager) {
+        private Runtime(Villager villager) {
             this.villager = villager;
             this.goal = new ValetWorkGoal(villager);
         }

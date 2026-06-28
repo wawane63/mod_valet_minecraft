@@ -6,28 +6,28 @@ import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.entity.projectile.ArrowEntity;
-import net.minecraft.entity.projectile.PersistentProjectileEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.EntityAnimationS2CPacket;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public final class CombatRuntimeTask {
     private static final double ARROW_CHEST_REACH_SQUARED = 5.0D;
@@ -45,7 +45,7 @@ public final class CombatRuntimeTask {
         this.control = control;
     }
 
-    public boolean tick(ServerWorld world) {
+    public boolean tick(ServerLevel world) {
         if (attackCooldownTicks > 0) {
             attackCooldownTicks--;
         }
@@ -92,7 +92,7 @@ public final class CombatRuntimeTask {
 
     public String debugSummary() {
         return control.isDefenseEnabled()
-                ? "combat=" + (target == null ? "ready" : ValetDebug.shortPos(target.getBlockPos()))
+                ? "combat=" + (target == null ? "ready" : ValetDebug.shortPos(target.blockPosition()))
                 + " arrows=" + countInventoryItem(control.villager().getInventory(), Items.ARROW, control.getUsableInventorySlots(control.villager().getInventory()))
                 + " arrowChest=" + shortPos(arrowChestPos)
                 + " sword=" + skillSummary(control.villager(), ValetCombatSkillTree.SWORD)
@@ -101,22 +101,22 @@ public final class CombatRuntimeTask {
                 : "combat=inactive";
     }
 
-    private void fight(ServerWorld world, LivingEntity target) {
-        VillagerEntity villager = control.villager();
-        villager.getLookControl().lookAt(target, 30.0F, 30.0F);
-        double distanceSquared = villager.squaredDistanceTo(target);
+    private void fight(ServerLevel world, LivingEntity target) {
+        Villager villager = control.villager();
+        villager.getLookControl().setLookAt(target, 30.0F, 30.0F);
+        double distanceSquared = villager.distanceToSqr(target);
 
         if (distanceSquared <= control.combatAttackRangeSquared()) {
             ensureWoodenSword();
             villager.getNavigation().stop();
-            if (attackCooldownTicks <= 0 && villager.canSee(target)) {
-                villager.swingHand(Hand.MAIN_HAND, true);
-                world.getChunkManager().sendToNearbyPlayers(
+            if (attackCooldownTicks <= 0 && villager.hasLineOfSight(target)) {
+                villager.swing(InteractionHand.MAIN_HAND, true);
+                world.getChunkSource().sendToTrackingPlayersAndSelf(
                         villager,
-                        new EntityAnimationS2CPacket(villager, EntityAnimationS2CPacket.SWING_MAIN_HAND)
+                        new ClientboundAnimatePacket(villager, ClientboundAnimatePacket.SWING_MAIN_HAND)
                 );
-                world.playSound(null, villager.getBlockPos(), SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
-                target.damage(world.getDamageSources().mobAttack(villager), control.combatAttackDamage());
+                world.playSound(null, villager.blockPosition(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 1.0F, 1.0F);
+                target.hurt(world.damageSources().mobAttack(villager), control.combatAttackDamage());
                 addCombatXp(villager, ValetCombatSkillTree.SWORD, SWORD_XP_PER_ATTACK);
                 attackCooldownTicks = control.combatAttackCooldownTicks();
             }
@@ -127,9 +127,9 @@ public final class CombatRuntimeTask {
             if (hasInventoryItem(Items.ARROW)) {
                 ensureBow();
                 villager.getNavigation().stop();
-                if (attackCooldownTicks <= 0 && villager.canSee(target)) {
+                if (attackCooldownTicks <= 0 && villager.hasLineOfSight(target)) {
                     if (hasAllyAwareness(villager) && hasAllyInArrowPath(world, villager, target)) {
-                        ValetDebug.record(villager, "combat arrow_blocked ally_in_line target=" + ValetDebug.shortPos(target.getBlockPos()));
+                        ValetDebug.record(villager, "combat arrow_blocked ally_in_line target=" + ValetDebug.shortPos(target.blockPosition()));
                         ensureWoodenSword();
                         chaseTarget(target);
                         return;
@@ -148,53 +148,53 @@ public final class CombatRuntimeTask {
         chaseTarget(target);
     }
 
-    private void shootArrow(ServerWorld world, LivingEntity target) {
-        VillagerEntity villager = control.villager();
+    private void shootArrow(ServerLevel world, LivingEntity target) {
+        Villager villager = control.villager();
         boolean savedArrow = control.combatCanRecycleArrow() && villager.getRandom().nextFloat() < 0.5F;
         if (!savedArrow && !ValetInventoryTransfer.takeOneItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory()))) {
             return;
         }
 
-        villager.swingHand(Hand.MAIN_HAND, true);
-        world.getChunkManager().sendToNearbyPlayers(
+        villager.swing(InteractionHand.MAIN_HAND, true);
+        world.getChunkSource().sendToTrackingPlayersAndSelf(
                 villager,
-                new EntityAnimationS2CPacket(villager, EntityAnimationS2CPacket.SWING_MAIN_HAND)
+                new ClientboundAnimatePacket(villager, ClientboundAnimatePacket.SWING_MAIN_HAND)
         );
 
-        ArrowEntity arrow = new ArrowEntity(world, villager);
-        arrow.pickupType = PersistentProjectileEntity.PickupPermission.DISALLOWED;
-        arrow.setDamage(control.combatArrowDamage());
+        Arrow arrow = new Arrow(world, villager, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
+        arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+        arrow.setBaseDamage(control.combatArrowDamage());
 
         double dx = target.getX() - villager.getX();
         double dz = target.getZ() - villager.getZ();
-        double dy = target.getBodyY(0.5D) - arrow.getY();
+        double dy = target.getY(0.5D) - arrow.getY();
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-        arrow.setVelocity(dx, dy + horizontalDistance * 0.2D, dz, 1.6F, 8.0F);
+        arrow.shoot(dx, dy + horizontalDistance * 0.2D, dz, 1.6F, 8.0F);
 
-        world.spawnEntity(arrow);
-        world.playSound(null, villager.getBlockPos(), SoundEvents.ENTITY_ARROW_SHOOT, SoundCategory.NEUTRAL, 1.0F, 1.0F);
+        world.addFreshEntity(arrow);
+        world.playSound(null, villager.blockPosition(), SoundEvents.ARROW_SHOOT, SoundSource.NEUTRAL, 1.0F, 1.0F);
         addCombatXp(villager, ValetCombatSkillTree.BOW, BOW_XP_PER_SHOT);
         attackCooldownTicks = control.combatArrowCooldownTicks();
-        ValetDebug.record(villager, "combat arrow target=" + ValetDebug.shortPos(target.getBlockPos())
+        ValetDebug.record(villager, "combat arrow target=" + ValetDebug.shortPos(target.blockPosition())
                 + " arrows=" + countInventoryItem(villager.getInventory(), Items.ARROW, control.getUsableInventorySlots(villager.getInventory()))
                 + " saved=" + savedArrow);
     }
 
     private void applyDefensePerk() {
         if (control.combatHasDefense()) {
-            control.villager().addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 40, 0, true, false));
+            control.villager().addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 40, 0, true, false));
         }
     }
 
     private void chaseTarget(LivingEntity target) {
-        VillagerEntity villager = control.villager();
-        if (pathRefreshTicks <= 0 || villager.getNavigation().isIdle()) {
-            villager.getNavigation().startMovingTo(target, control.combatMoveSpeed());
+        Villager villager = control.villager();
+        if (pathRefreshTicks <= 0 || villager.getNavigation().isDone()) {
+            villager.getNavigation().moveTo(target, control.combatMoveSpeed());
             pathRefreshTicks = 8;
         }
     }
 
-    private void addCombatXp(VillagerEntity villager, ValetCombatSkillTree tree, int amount) {
+    private void addCombatXp(Villager villager, ValetCombatSkillTree tree, int amount) {
         ValetCombatProgress.addXp(villager, tree, amount);
         ValetDebug.record(villager, "combat xp tree=" + tree.name().toLowerCase()
                 + " level=" + ValetCombatProgress.getLevel(villager, tree)
@@ -202,12 +202,12 @@ public final class CombatRuntimeTask {
                 + "/" + ValetCombatProgress.getNextLevelXp(villager, tree));
     }
 
-    private boolean hasAllyInArrowPath(ServerWorld world, VillagerEntity shooter, LivingEntity target) {
-        Vec3d start = new Vec3d(shooter.getX(), shooter.getEyeY() - 0.1D, shooter.getZ());
-        Vec3d end = new Vec3d(target.getX(), target.getBodyY(0.5D), target.getZ());
-        Box searchBox = new Box(start, end).expand(0.9D);
-        for (VillagerEntity ally : world.getEntitiesByClass(VillagerEntity.class, searchBox, ally -> isValetAlly(shooter, ally))) {
-            if (ally.getBoundingBox().expand(0.35D).raycast(start, end).isPresent()) {
+    private boolean hasAllyInArrowPath(ServerLevel world, Villager shooter, LivingEntity target) {
+        Vec3 start = new Vec3(shooter.getX(), shooter.getEyeY() - 0.1D, shooter.getZ());
+        Vec3 end = new Vec3(target.getX(), target.getY(0.5D), target.getZ());
+        AABB searchBox = new AABB(start, end).inflate(0.9D);
+        for (Villager ally : world.getEntitiesOfClass(Villager.class, searchBox, ally -> isValetAlly(shooter, ally))) {
+            if (ally.getBoundingBox().inflate(0.35D).clip(start, end).isPresent()) {
                 return true;
             }
         }
@@ -215,27 +215,27 @@ public final class CombatRuntimeTask {
     }
 
     public static boolean shouldProtectAllyFromProjectile(Entity owner, Entity hit) {
-        return owner instanceof VillagerEntity shooter
-                && hit instanceof VillagerEntity ally
+        return owner instanceof Villager shooter
+                && hit instanceof Villager ally
                 && hasAllyAwareness(shooter)
                 && isValetAlly(shooter, ally);
     }
 
-    private static boolean hasAllyAwareness(VillagerEntity villager) {
+    private static boolean hasAllyAwareness(Villager villager) {
         return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.ALLY_AWARENESS);
     }
 
-    private static boolean isValetAlly(VillagerEntity shooter, VillagerEntity ally) {
+    private static boolean isValetAlly(Villager shooter, Villager ally) {
         return ally != shooter
                 && ally.isAlive()
                 && !ally.isRemoved()
-                && ally.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION
-                && shooter.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION;
+                && ValetMod.isValet(ally)
+                && ValetMod.isValet(shooter);
     }
 
-    private boolean tryRestockArrows(ServerWorld world) {
-        VillagerEntity villager = control.villager();
-        Inventory inventory = villager.getInventory();
+    private boolean tryRestockArrows(ServerLevel world) {
+        Villager villager = control.villager();
+        Container inventory = villager.getInventory();
         int usableSlots = control.getUsableInventorySlots(inventory);
         if (countInventoryItem(inventory, Items.ARROW, usableSlots) >= control.combatArrowRestockCount()) {
             return false;
@@ -256,8 +256,8 @@ public final class CombatRuntimeTask {
         }
 
         ensureBow();
-        villager.getLookControl().lookAt(arrowChestPos.getX() + 0.5D, arrowChestPos.getY() + 0.5D, arrowChestPos.getZ() + 0.5D);
-        if (squaredDistance(villager.getBlockPos(), arrowChestPos) <= ARROW_CHEST_REACH_SQUARED) {
+        villager.getLookControl().setLookAt(arrowChestPos.getX() + 0.5D, arrowChestPos.getY() + 0.5D, arrowChestPos.getZ() + 0.5D);
+        if (squaredDistance(villager.blockPosition(), arrowChestPos) <= ARROW_CHEST_REACH_SQUARED) {
             int moved = takeArrowsFromContainer(world, arrowChestPos);
             if (moved > 0) {
                 control.animateChestUse(world, arrowChestPos);
@@ -267,8 +267,8 @@ public final class CombatRuntimeTask {
             return moved > 0;
         }
 
-        if (pathRefreshTicks <= 0 || villager.getNavigation().isIdle()) {
-            boolean moving = villager.getNavigation().startMovingTo(
+        if (pathRefreshTicks <= 0 || villager.getNavigation().isDone()) {
+            boolean moving = villager.getNavigation().moveTo(
                     arrowChestPos.getX() + 0.5D,
                     arrowChestPos.getY(),
                     arrowChestPos.getZ() + 0.5D,
@@ -284,9 +284,9 @@ public final class CombatRuntimeTask {
         return true;
     }
 
-    private int takeArrowsFromContainer(ServerWorld world, BlockPos containerPos) {
-        if (world.getBlockState(containerPos).isOf(ValetMod.INFINITE_ARROW_CHEST)) {
-            Inventory target = control.villager().getInventory();
+    private int takeArrowsFromContainer(ServerLevel world, BlockPos containerPos) {
+        if (world.getBlockState(containerPos).is(ValetMod.INFINITE_ARROW_CHEST)) {
+            Container target = control.villager().getInventory();
             int usableSlots = control.getUsableInventorySlots(target);
             int needed = control.combatArrowRestockCount() - countInventoryItem(target, Items.ARROW, usableSlots);
             if (needed <= 0) {
@@ -298,12 +298,12 @@ public final class CombatRuntimeTask {
             return needed - arrows.getCount();
         }
 
-        Inventory source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
+        Container source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
         if (source == null) {
             return 0;
         }
 
-        Inventory target = control.villager().getInventory();
+        Container target = control.villager().getInventory();
         int usableSlots = control.getUsableInventorySlots(target);
         int needed = control.combatArrowRestockCount() - countInventoryItem(target, Items.ARROW, usableSlots);
         if (needed <= 0) {
@@ -311,9 +311,9 @@ public final class CombatRuntimeTask {
         }
 
         int movedTotal = 0;
-        for (int slot = 0; slot < source.size() && needed > 0; slot++) {
-            ItemStack sourceStack = source.getStack(slot);
-            if (!sourceStack.isOf(Items.ARROW)) {
+        for (int slot = 0; slot < source.getContainerSize() && needed > 0; slot++) {
+            ItemStack sourceStack = source.getItem(slot);
+            if (!sourceStack.is(Items.ARROW)) {
                 continue;
             }
 
@@ -325,24 +325,24 @@ public final class CombatRuntimeTask {
                 break;
             }
 
-            sourceStack.decrement(moved);
+            sourceStack.shrink(moved);
             if (sourceStack.isEmpty()) {
-                source.setStack(slot, ItemStack.EMPTY);
+                source.setItem(slot, ItemStack.EMPTY);
             }
             movedTotal += moved;
             needed -= moved;
         }
 
         if (movedTotal > 0) {
-            source.markDirty();
-            target.markDirty();
+            source.setChanged();
+            target.setChanged();
         }
         return movedTotal;
     }
 
-    private BlockPos findBestArrowContainer(ServerWorld world) {
-        VillagerEntity villager = control.villager();
-        BlockPos nearVillager = findNearestArrowContainer(world, villager.getBlockPos());
+    private BlockPos findBestArrowContainer(ServerLevel world) {
+        Villager villager = control.villager();
+        BlockPos nearVillager = findNearestArrowContainer(world, villager.blockPosition());
         BlockPos workOrigin = control.getWorkOrigin(world);
         BlockPos nearWork = workOrigin == null ? null : findNearestArrowContainer(world, workOrigin);
         if (nearVillager == null) {
@@ -351,17 +351,17 @@ public final class CombatRuntimeTask {
         if (nearWork == null) {
             return nearVillager;
         }
-        return squaredDistance(villager.getBlockPos(), nearVillager) <= squaredDistance(villager.getBlockPos(), nearWork)
+        return squaredDistance(villager.blockPosition(), nearVillager) <= squaredDistance(villager.blockPosition(), nearWork)
                 ? nearVillager
                 : nearWork;
     }
 
-    private BlockPos findNearestArrowContainer(ServerWorld world, BlockPos origin) {
+    private BlockPos findNearestArrowContainer(ServerLevel world, BlockPos origin) {
         BlockPos nearest = null;
         double nearestDistance = Double.MAX_VALUE;
         int radius = control.chestRadius();
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, radius, 4, radius)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 4, radius)) {
+            BlockPos immutable = pos.immutable();
             if (!isArrowContainer(world, immutable)) {
                 continue;
             }
@@ -375,17 +375,17 @@ public final class CombatRuntimeTask {
         return nearest;
     }
 
-    private boolean isArrowContainer(ServerWorld world, BlockPos pos) {
+    private boolean isArrowContainer(ServerLevel world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
-        if (blockState.isOf(ValetMod.INFINITE_ARROW_CHEST)) {
+        if (blockState.is(ValetMod.INFINITE_ARROW_CHEST)) {
             return true;
         }
-        if (!blockState.isOf(Blocks.CHEST) && !blockState.isOf(Blocks.TRAPPED_CHEST) && !blockState.isOf(Blocks.BARREL)) {
+        if (!blockState.is(Blocks.CHEST) && !blockState.is(Blocks.TRAPPED_CHEST) && !blockState.is(Blocks.BARREL)) {
             return false;
         }
 
-        Inventory inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
-        return inventory != null && ValetInventoryTransfer.inventoryHasItem(inventory, Items.ARROW, inventory.size());
+        Container inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
+        return inventory != null && ValetInventoryTransfer.inventoryHasItem(inventory, Items.ARROW, inventory.getContainerSize());
     }
 
     private void clearTarget() {
@@ -411,26 +411,26 @@ public final class CombatRuntimeTask {
     }
 
     private void ensureHeldItem(Item item) {
-        VillagerEntity villager = control.villager();
-        if (villager.getEquippedStack(EquipmentSlot.MAINHAND).isOf(item)) {
+        Villager villager = control.villager();
+        if (villager.getItemBySlot(EquipmentSlot.MAINHAND).is(item)) {
             return;
         }
 
-        villager.equipStack(EquipmentSlot.MAINHAND, new ItemStack(item));
-        villager.setEquipmentDropChance(EquipmentSlot.MAINHAND, 0.0F);
+        villager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(item));
+        villager.setDropChance(EquipmentSlot.MAINHAND, 0.0F);
     }
 
     private boolean hasInventoryItem(Item item) {
-        Inventory inventory = control.villager().getInventory();
+        Container inventory = control.villager().getInventory();
         return ValetInventoryTransfer.inventoryHasItem(inventory, item, control.getUsableInventorySlots(inventory));
     }
 
-    private static int countInventoryItem(Inventory inventory, Item item, int maxSlots) {
+    private static int countInventoryItem(Container inventory, Item item, int maxSlots) {
         int count = 0;
-        int slots = Math.min(inventory.size(), Math.max(0, maxSlots));
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
         for (int slot = 0; slot < slots; slot++) {
-            ItemStack stack = inventory.getStack(slot);
-            if (stack.isOf(item)) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.is(item)) {
                 count += stack.getCount();
             }
         }
@@ -448,7 +448,7 @@ public final class CombatRuntimeTask {
         return pos == null ? "-" : ValetDebug.shortPos(pos);
     }
 
-    private static String skillSummary(VillagerEntity villager, ValetCombatSkillTree tree) {
+    private static String skillSummary(Villager villager, ValetCombatSkillTree tree) {
         return ValetCombatProgress.getLevel(villager, tree)
                 + ":" + ValetCombatProgress.getXp(villager, tree)
                 + "/" + ValetCombatProgress.getNextLevelXp(villager, tree)
@@ -456,9 +456,9 @@ public final class CombatRuntimeTask {
     }
 
     public interface Control {
-        VillagerEntity villager();
+        Villager villager();
 
-        BlockPos getWorkOrigin(ServerWorld world);
+        BlockPos getWorkOrigin(ServerLevel world);
 
         boolean isDefenseEnabled();
 
@@ -488,9 +488,9 @@ public final class CombatRuntimeTask {
 
         int chestRadius();
 
-        int getUsableInventorySlots(Inventory inventory);
+        int getUsableInventorySlots(Container inventory);
 
-        void animateChestUse(ServerWorld world, BlockPos pos);
+        void animateChestUse(ServerLevel world, BlockPos pos);
 
         void onCombatStarted(LivingEntity target);
 

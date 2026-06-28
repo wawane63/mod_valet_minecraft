@@ -1,19 +1,20 @@
 package com.wawane.valet.order;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.registry.tag.TagKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 
 public enum ValetMineTarget {
-    COAL("ore.valet.coal", BlockTags.COAL_ORES),
-    COPPER("ore.valet.copper", BlockTags.COPPER_ORES),
-    IRON("ore.valet.iron", BlockTags.IRON_ORES),
-    GOLD("ore.valet.gold", BlockTags.GOLD_ORES),
-    REDSTONE("ore.valet.redstone", BlockTags.REDSTONE_ORES),
-    LAPIS("ore.valet.lapis", BlockTags.LAPIS_ORES),
-    EMERALD("ore.valet.emerald", BlockTags.EMERALD_ORES),
-    DIAMOND("ore.valet.diamond", BlockTags.DIAMOND_ORES);
+    COAL("ore.valet.coal", oreTag("coal_ores")),
+    COPPER("ore.valet.copper", oreTag("copper_ores")),
+    IRON("ore.valet.iron", oreTag("iron_ores")),
+    GOLD("ore.valet.gold", oreTag("gold_ores")),
+    REDSTONE("ore.valet.redstone", oreTag("redstone_ores")),
+    LAPIS("ore.valet.lapis", oreTag("lapis_ores")),
+    EMERALD("ore.valet.emerald", oreTag("emerald_ores")),
+    DIAMOND("ore.valet.diamond", oreTag("diamond_ores"));
 
     private final String translationKey;
     private final TagKey<Block> tag;
@@ -28,7 +29,11 @@ public enum ValetMineTarget {
     }
 
     public boolean matches(BlockState state) {
-        return state.isIn(tag);
+        return state.is(tag);
+    }
+
+    public TagKey<Block> tag() {
+        return tag;
     }
 
     public static ValetMineTarget fromIndex(int index) {
@@ -37,5 +42,9 @@ public enum ValetMineTarget {
             return null;
         }
         return values[index];
+    }
+
+    private static TagKey<Block> oreTag(String path) {
+        return TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("minecraft", path));
     }
 }

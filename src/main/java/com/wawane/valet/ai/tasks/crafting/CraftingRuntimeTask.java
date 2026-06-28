@@ -9,27 +9,26 @@ import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.tag.ItemTags;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class CraftingRuntimeTask {
     private static final int MAX_RESOURCE_PATH_CANDIDATES = 32;
@@ -42,14 +41,14 @@ public final class CraftingRuntimeTask {
         this.control = control;
     }
 
-    public void findTarget(ServerWorld world) {
+    public void findTarget(ServerLevel world) {
         if (control.getCraftTarget() != ValetCraftTarget.STONE_PICKAXE) {
             ValetDebug.record(control.villager(), "craft no_target");
             control.setDelayTicks(40);
             return;
         }
 
-        Inventory inventory = control.villager().getInventory();
+        Container inventory = control.villager().getInventory();
         int slots = control.getUsableInventorySlots(inventory);
         restockFromNearbyCraftContainers(world);
         int cobblestone = countItem(inventory, Items.COBBLESTONE, slots);
@@ -61,15 +60,15 @@ public final class CraftingRuntimeTask {
         if (countItem(inventory, Items.STICK, slots) < 2 && !hasWoodForSticks(inventory, slots)) {
             startResourceStep(world, Action.MINE_LOG, "craft need=wood sticks="
                     + countItem(inventory, Items.STICK, slots)
-                    + "/2 planks=" + countMatching(inventory, stack -> stack.isIn(ItemTags.PLANKS), slots)
-                    + " logs=" + countMatching(inventory, stack -> stack.isIn(ItemTags.LOGS), slots));
+                    + "/2 planks=" + countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots)
+                    + " logs=" + countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots));
             return;
         }
 
         startWorkstationStep(world);
     }
 
-    public void tickCrafting(ServerWorld world) {
+    public void tickCrafting(ServerLevel world) {
         if (action == Action.CRAFT_AT_WORKSTATION) {
             craftAtWorkstation(world);
             return;
@@ -96,7 +95,7 @@ public final class CraftingRuntimeTask {
             return;
         }
 
-        List<ItemStack> drops = Block.getDroppedStacks(current, world, targetPos, world.getBlockEntity(targetPos), control.villager(), control.getToolForBlock(current));
+        List<ItemStack> drops = Block.getDrops(current, world, targetPos, world.getBlockEntity(targetPos), control.villager(), control.getToolForBlock(current));
         if (!control.canStoreAllDrops(drops)) {
             ValetDebug.record(control.villager(), "craft drops_no_space pos=" + ValetDebug.shortPos(targetPos));
             control.setState(State.RETURNING);
@@ -104,9 +103,9 @@ public final class CraftingRuntimeTask {
             return;
         }
 
-        control.villager().swingHand(Hand.MAIN_HAND);
+        control.villager().swing(InteractionHand.MAIN_HAND);
         control.animateMining(world, targetPos, current);
-        world.breakBlock(targetPos, false, control.villager());
+        world.destroyBlock(targetPos, false, control.villager());
         control.collectDrops(drops);
         ValetProgress.addXp(control.villager(), action == Action.MINE_LOG ? 3 : 2);
         ValetDebug.record(control.villager(), "craft gathered action=" + action + " pos=" + ValetDebug.shortPos(targetPos));
@@ -125,7 +124,7 @@ public final class CraftingRuntimeTask {
         return "craft=" + action + " target=" + shortPos(targetPos);
     }
 
-    private void startResourceStep(ServerWorld world, Action nextAction, String needDebug) {
+    private void startResourceStep(ServerLevel world, Action nextAction, String needDebug) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "craft no_workstation");
@@ -159,7 +158,7 @@ public final class CraftingRuntimeTask {
         control.startPath(PathPurpose.CRAFT, resource.path());
     }
 
-    private void startWorkstationStep(ServerWorld world) {
+    private void startWorkstationStep(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "craft no_workstation");
@@ -188,7 +187,7 @@ public final class CraftingRuntimeTask {
         control.startPath(PathPurpose.CRAFT, path);
     }
 
-    private void craftAtWorkstation(ServerWorld world) {
+    private void craftAtWorkstation(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null || !control.canReachTargetFromStand(workOrigin, control.currentStandPos(world))) {
             ValetDebug.record(control.villager(), "craft lost_workstation");
@@ -197,7 +196,7 @@ public final class CraftingRuntimeTask {
             return;
         }
 
-        Inventory inventory = control.villager().getInventory();
+        Container inventory = control.villager().getInventory();
         int slots = control.getUsableInventorySlots(inventory);
         craftPlanksFromLogs(inventory, slots);
         craftSticksFromPlanks(inventory, slots);
@@ -211,10 +210,10 @@ public final class CraftingRuntimeTask {
         consumeItem(inventory, Items.COBBLESTONE, 3, slots);
         consumeItem(inventory, Items.STICK, 2, slots);
         ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STONE_PICKAXE), slots);
-        inventory.markDirty();
-        control.villager().swingHand(Hand.MAIN_HAND);
-        control.villager().getLookControl().lookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
-        world.playSound(null, workOrigin, SoundEvents.BLOCK_WOOD_PLACE, SoundCategory.BLOCKS, 0.7F, 1.0F);
+        inventory.setChanged();
+        control.villager().swing(InteractionHand.MAIN_HAND);
+        control.villager().getLookControl().setLookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
+        world.playSound(null, workOrigin, SoundEvents.WOOD_PLACE, SoundSource.BLOCKS, 0.7F, 1.0F);
         ValetProgress.addXp(control.villager(), 12);
         ValetOrders.set(control.villager(), ValetOrder.NONE);
         ValetDebug.record(control.villager(), "craft done target=stone_pickaxe");
@@ -224,17 +223,17 @@ public final class CraftingRuntimeTask {
         control.setDelayTicks(control.actionDelayTicks());
     }
 
-    private ResourceTarget findReachableResource(ServerWorld world, BlockPos origin, Action resourceAction) {
+    private ResourceTarget findReachableResource(ServerLevel world, BlockPos origin, Action resourceAction) {
         BlockPos currentStand = control.currentStandPos(world);
         List<ResourceCandidate> candidates = new ArrayList<>();
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, control.mineRadius(), control.mineVerticalRadius(), control.mineRadius())) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, control.mineRadius(), control.mineVerticalRadius(), control.mineRadius())) {
+            BlockPos immutable = pos.immutable();
             BlockState blockState = world.getBlockState(immutable);
             if (!matchesResource(world, immutable, blockState, resourceAction) || !control.canMineCraftResource(world, immutable, blockState)) {
                 continue;
             }
 
-            if (!currentStand.down().equals(immutable) && control.canReachTargetFromStand(immutable, currentStand)) {
+            if (!currentStand.below().equals(immutable) && control.canReachTargetFromStand(immutable, currentStand)) {
                 return new ResourceTarget(immutable, blockState, List.of());
             }
 
@@ -268,19 +267,19 @@ public final class CraftingRuntimeTask {
         return null;
     }
 
-    private void restockFromNearbyCraftContainers(ServerWorld world) {
-        Inventory target = control.villager().getInventory();
+    private void restockFromNearbyCraftContainers(ServerLevel world) {
+        Container target = control.villager().getInventory();
         int targetSlots = control.getUsableInventorySlots(target);
         if (!needsCraftMaterials(target, targetSlots)) {
             return;
         }
 
         Set<BlockPos> containers = new LinkedHashSet<>();
-        collectCraftContainers(world, control.villager().getBlockPos(), containers);
+        collectCraftContainers(world, control.villager().blockPosition(), containers);
         collectCraftContainers(world, control.getWorkOrigin(world), containers);
 
         for (BlockPos containerPos : containers) {
-            Inventory source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
+            Container source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
             if (source == null) {
                 continue;
             }
@@ -296,60 +295,60 @@ public final class CraftingRuntimeTask {
         }
     }
 
-    private void collectCraftContainers(ServerWorld world, BlockPos origin, Set<BlockPos> containers) {
+    private void collectCraftContainers(ServerLevel world, BlockPos origin, Set<BlockPos> containers) {
         if (origin == null) {
             return;
         }
 
         int radius = control.materialRadius();
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, radius, 8, radius)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 8, radius)) {
+            BlockPos immutable = pos.immutable();
             if (isCraftContainer(world, immutable)) {
                 containers.add(immutable);
             }
         }
     }
 
-    private boolean isCraftContainer(ServerWorld world, BlockPos pos) {
+    private boolean isCraftContainer(ServerLevel world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
-        if (!blockState.isOf(Blocks.CHEST) && !blockState.isOf(Blocks.TRAPPED_CHEST) && !blockState.isOf(Blocks.BARREL)) {
+        if (!blockState.is(Blocks.CHEST) && !blockState.is(Blocks.TRAPPED_CHEST) && !blockState.is(Blocks.BARREL)) {
             return false;
         }
 
-        Inventory inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
-        return inventory != null && hasCraftMaterial(inventory, inventory.size());
+        Container inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
+        return inventory != null && hasCraftMaterial(inventory, inventory.getContainerSize());
     }
 
-    private boolean hasCraftMaterial(Inventory inventory, int slots) {
+    private boolean hasCraftMaterial(Container inventory, int slots) {
         return countItem(inventory, Items.COBBLESTONE, slots) > 0
                 || countItem(inventory, Items.STICK, slots) > 0
-                || countMatching(inventory, stack -> stack.isIn(ItemTags.PLANKS), slots) > 0
-                || countMatching(inventory, stack -> stack.isIn(ItemTags.LOGS), slots) > 0;
+                || countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) > 0
+                || countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots) > 0;
     }
 
-    private int takeCraftMaterialsFromContainer(Inventory source, Inventory target, int targetSlots) {
+    private int takeCraftMaterialsFromContainer(Container source, Container target, int targetSlots) {
         int moved = 0;
-        moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.isOf(Items.COBBLESTONE), Math.max(0, 3 - countItem(target, Items.COBBLESTONE, targetSlots)));
-        moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.isOf(Items.STICK), Math.max(0, 2 - countItem(target, Items.STICK, targetSlots)));
+        moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(Items.COBBLESTONE), Math.max(0, 3 - countItem(target, Items.COBBLESTONE, targetSlots)));
+        moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(Items.STICK), Math.max(0, 2 - countItem(target, Items.STICK, targetSlots)));
 
         if (countItem(target, Items.STICK, targetSlots) < 2 && !hasWoodForSticks(target, targetSlots)) {
-            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.isIn(ItemTags.PLANKS), 2);
+            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(ItemTags.PLANKS), 2);
         }
         if (countItem(target, Items.STICK, targetSlots) < 2 && !hasWoodForSticks(target, targetSlots)) {
-            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.isIn(ItemTags.LOGS), 1);
+            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(ItemTags.LOGS), 1);
         }
 
         if (moved > 0) {
-            source.markDirty();
-            target.markDirty();
+            source.setChanged();
+            target.setChanged();
         }
         return moved;
     }
 
-    private int takeMatchingFromContainer(Inventory source, Inventory target, int targetSlots, Predicate<ItemStack> predicate, int amount) {
+    private int takeMatchingFromContainer(Container source, Container target, int targetSlots, Predicate<ItemStack> predicate, int amount) {
         int movedTotal = 0;
-        for (int slot = 0; slot < source.size() && movedTotal < amount; slot++) {
-            ItemStack sourceStack = source.getStack(slot);
+        for (int slot = 0; slot < source.getContainerSize() && movedTotal < amount; slot++) {
+            ItemStack sourceStack = source.getItem(slot);
             if (sourceStack.isEmpty() || !predicate.test(sourceStack)) {
                 continue;
             }
@@ -363,23 +362,23 @@ public final class CraftingRuntimeTask {
                 break;
             }
 
-            sourceStack.decrement(moved);
+            sourceStack.shrink(moved);
             if (sourceStack.isEmpty()) {
-                source.setStack(slot, ItemStack.EMPTY);
+                source.setItem(slot, ItemStack.EMPTY);
             }
             movedTotal += moved;
         }
         return movedTotal;
     }
 
-    private boolean needsCraftMaterials(Inventory inventory, int slots) {
+    private boolean needsCraftMaterials(Container inventory, int slots) {
         return countItem(inventory, Items.COBBLESTONE, slots) < 3
                 || countItem(inventory, Items.STICK, slots) < 2 && !hasWoodForSticks(inventory, slots);
     }
 
-    private boolean matchesResource(ServerWorld world, BlockPos pos, BlockState blockState, Action resourceAction) {
+    private boolean matchesResource(ServerLevel world, BlockPos pos, BlockState blockState, Action resourceAction) {
         return switch (resourceAction) {
-            case MINE_COBBLESTONE -> blockState.isOf(Blocks.STONE);
+            case MINE_COBBLESTONE -> blockState.is(Blocks.STONE);
             case MINE_LOG -> {
                 ValetWoodTarget target = ValetWoodTarget.fromState(blockState);
                 yield target != null && target.matchesNaturalTree(world, pos);
@@ -388,35 +387,35 @@ public final class CraftingRuntimeTask {
         };
     }
 
-    private boolean hasWoodForSticks(Inventory inventory, int slots) {
+    private boolean hasWoodForSticks(Container inventory, int slots) {
         return countItem(inventory, Items.STICK, slots) >= 2
-                || countMatching(inventory, stack -> stack.isIn(ItemTags.PLANKS), slots) >= 2
-                || countMatching(inventory, stack -> stack.isIn(ItemTags.LOGS), slots) > 0;
+                || countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) >= 2
+                || countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots) > 0;
     }
 
-    private void craftPlanksFromLogs(Inventory inventory, int slots) {
+    private void craftPlanksFromLogs(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
-                && countMatching(inventory, stack -> stack.isIn(ItemTags.PLANKS), slots) < 2
-                && consumeMatching(inventory, stack -> stack.isIn(ItemTags.LOGS), 1, slots) == 1) {
+                && countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) < 2
+                && consumeMatching(inventory, stack -> stack.is(ItemTags.LOGS), 1, slots) == 1) {
             ValetInventoryTransfer.insertStack(inventory, new ItemStack(Blocks.OAK_PLANKS, 4), slots);
         }
     }
 
-    private void craftSticksFromPlanks(Inventory inventory, int slots) {
+    private void craftSticksFromPlanks(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
-                && consumeMatching(inventory, stack -> stack.isIn(ItemTags.PLANKS), 2, slots) == 2) {
+                && consumeMatching(inventory, stack -> stack.is(ItemTags.PLANKS), 2, slots) == 2) {
             ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STICK, 4), slots);
         }
     }
 
-    private int countItem(Inventory inventory, Item item, int slots) {
-        return countMatching(inventory, stack -> stack.isOf(item), slots);
+    private int countItem(Container inventory, Item item, int slots) {
+        return countMatching(inventory, stack -> stack.is(item), slots);
     }
 
-    private int countMatching(Inventory inventory, Predicate<ItemStack> predicate, int slots) {
+    private int countMatching(Container inventory, Predicate<ItemStack> predicate, int slots) {
         int total = 0;
-        for (int slot = 0; slot < Math.min(slots, inventory.size()); slot++) {
-            ItemStack stack = inventory.getStack(slot);
+        for (int slot = 0; slot < Math.min(slots, inventory.getContainerSize()); slot++) {
+            ItemStack stack = inventory.getItem(slot);
             if (!stack.isEmpty() && predicate.test(stack)) {
                 total += stack.getCount();
             }
@@ -424,26 +423,26 @@ public final class CraftingRuntimeTask {
         return total;
     }
 
-    private void consumeItem(Inventory inventory, Item item, int amount, int slots) {
-        consumeMatching(inventory, stack -> stack.isOf(item), amount, slots);
+    private void consumeItem(Container inventory, Item item, int amount, int slots) {
+        consumeMatching(inventory, stack -> stack.is(item), amount, slots);
     }
 
-    private int consumeMatching(Inventory inventory, Predicate<ItemStack> predicate, int amount, int slots) {
+    private int consumeMatching(Container inventory, Predicate<ItemStack> predicate, int amount, int slots) {
         int consumed = 0;
-        for (int slot = 0; slot < Math.min(slots, inventory.size()) && consumed < amount; slot++) {
-            ItemStack stack = inventory.getStack(slot);
+        for (int slot = 0; slot < Math.min(slots, inventory.getContainerSize()) && consumed < amount; slot++) {
+            ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty() || !predicate.test(stack)) {
                 continue;
             }
 
             int take = Math.min(amount - consumed, stack.getCount());
-            stack.decrement(take);
+            stack.shrink(take);
             consumed += take;
             if (stack.isEmpty()) {
-                inventory.setStack(slot, ItemStack.EMPTY);
+                inventory.setItem(slot, ItemStack.EMPTY);
             }
         }
-        inventory.markDirty();
+        inventory.setChanged();
         return consumed;
     }
 
@@ -472,17 +471,17 @@ public final class CraftingRuntimeTask {
     }
 
     public interface Control {
-        VillagerEntity villager();
+        Villager villager();
 
         ValetCraftTarget getCraftTarget();
 
-        BlockPos getWorkOrigin(ServerWorld world);
+        BlockPos getWorkOrigin(ServerLevel world);
 
-        BlockPos currentStandPos(ServerWorld world);
+        BlockPos currentStandPos(ServerLevel world);
 
-        Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock, PathPurpose purpose);
+        Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose);
 
-        List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
+        List<BlockPos> planPathToAdjacent(ServerLevel world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
 
         void startPath(PathPurpose purpose, List<BlockPos> path);
 
@@ -490,7 +489,7 @@ public final class CraftingRuntimeTask {
 
         boolean canReachTargetFromStand(BlockPos targetBlock, BlockPos stand);
 
-        boolean canMineCraftResource(ServerWorld world, BlockPos pos, BlockState blockState);
+        boolean canMineCraftResource(ServerLevel world, BlockPos pos, BlockState blockState);
 
         ItemStack getToolForBlock(BlockState blockState);
 
@@ -498,13 +497,13 @@ public final class CraftingRuntimeTask {
 
         void collectDrops(List<ItemStack> drops);
 
-        void animateMining(ServerWorld world, BlockPos miningPos, BlockState miningState);
+        void animateMining(ServerLevel world, BlockPos miningPos, BlockState miningState);
 
         boolean hasInventoryItems();
 
         boolean hasInventorySpace();
 
-        int getUsableInventorySlots(Inventory inventory);
+        int getUsableInventorySlots(Container inventory);
 
         int actionDelayTicks();
 
@@ -516,7 +515,7 @@ public final class CraftingRuntimeTask {
 
         int materialRadius();
 
-        void animateChestUse(ServerWorld world, BlockPos pos);
+        void animateChestUse(ServerLevel world, BlockPos pos);
 
         void setState(State state);
 

@@ -1,12 +1,11 @@
 package com.wawane.valet.progress;
 
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.nbt.NbtCompound;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetCombatProgress {
     public static final int DATA_VERSION = 1;
@@ -16,31 +15,31 @@ public final class ValetCombatProgress {
     private ValetCombatProgress() {
     }
 
-    public static int getLevel(VillagerEntity villager, ValetCombatSkillTree tree) {
+    public static int getLevel(Villager villager, ValetCombatSkillTree tree) {
         SkillData skillData = skillData(villager, tree);
         normalize(skillData);
         return skillData.level;
     }
 
-    public static int getXp(VillagerEntity villager, ValetCombatSkillTree tree) {
+    public static int getXp(Villager villager, ValetCombatSkillTree tree) {
         SkillData skillData = skillData(villager, tree);
         normalize(skillData);
         return skillData.xp;
     }
 
-    public static int getNextLevelXp(VillagerEntity villager, ValetCombatSkillTree tree) {
+    public static int getNextLevelXp(Villager villager, ValetCombatSkillTree tree) {
         SkillData skillData = skillData(villager, tree);
         normalize(skillData);
         return xpForNextLevel(skillData.level);
     }
 
-    public static int getPendingPerks(VillagerEntity villager, ValetCombatSkillTree tree) {
+    public static int getPendingPerks(Villager villager, ValetCombatSkillTree tree) {
         SkillData skillData = skillData(villager, tree);
         normalize(skillData);
         return skillData.pendingPerks;
     }
 
-    public static void addXp(VillagerEntity villager, ValetCombatSkillTree tree, int amount) {
+    public static void addXp(Villager villager, ValetCombatSkillTree tree, int amount) {
         if (amount <= 0 || tree == null) {
             return;
         }
@@ -55,14 +54,14 @@ public final class ValetCombatProgress {
         }
     }
 
-    public static boolean hasPerk(VillagerEntity villager, ValetCombatPerk perk) {
+    public static boolean hasPerk(Villager villager, ValetCombatPerk perk) {
         if (perk == null) {
             return false;
         }
         return data(villager).perks[perk.ordinal()];
     }
 
-    public static boolean[] getPerks(VillagerEntity villager) {
+    public static boolean[] getPerks(Villager villager) {
         boolean[] perks = Arrays.copyOf(data(villager).perks, ValetCombatPerk.values().length);
         for (ValetCombatPerk perk : ValetCombatPerk.values()) {
             perks[perk.ordinal()] = hasPerk(villager, perk);
@@ -70,7 +69,7 @@ public final class ValetCombatProgress {
         return perks;
     }
 
-    public static boolean choosePerk(VillagerEntity villager, ValetCombatPerk perk) {
+    public static boolean choosePerk(Villager villager, ValetCombatPerk perk) {
         if (perk == null || hasPerk(villager, perk)) {
             return false;
         }
@@ -87,11 +86,11 @@ public final class ValetCombatProgress {
         return true;
     }
 
-    public static boolean hasData(VillagerEntity villager) {
-        return DATA.containsKey(villager.getUuid());
+    public static boolean hasData(Villager villager) {
+        return DATA.containsKey(villager.getUUID());
     }
 
-    public static boolean hasNbt(NbtCompound nbt) {
+    public static boolean hasNbt(CompoundTag nbt) {
         if (nbt.contains(DATA_VERSION_KEY)) {
             return true;
         }
@@ -116,7 +115,7 @@ public final class ValetCombatProgress {
         DATA.clear();
     }
 
-    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void writeToNbt(Villager villager, CompoundTag nbt) {
         Data data = data(villager);
         nbt.putInt(DATA_VERSION_KEY, DATA_VERSION);
         for (ValetCombatSkillTree tree : ValetCombatSkillTree.values()) {
@@ -131,7 +130,7 @@ public final class ValetCombatProgress {
         }
     }
 
-    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void readFromNbt(Villager villager, CompoundTag nbt) {
         Data data = data(villager);
         if (!hasNbt(nbt)) {
             normalize(data);
@@ -141,18 +140,18 @@ public final class ValetCombatProgress {
         for (ValetCombatSkillTree tree : ValetCombatSkillTree.values()) {
             SkillData skillData = data.skills[tree.ordinal()];
             if (nbt.contains(levelKey(tree))) {
-                skillData.level = Math.max(1, nbt.getInt(levelKey(tree)));
+                skillData.level = Math.max(1, nbt.getIntOr(levelKey(tree), 1));
             }
             if (nbt.contains(xpKey(tree))) {
-                skillData.xp = Math.max(0, nbt.getInt(xpKey(tree)));
+                skillData.xp = Math.max(0, nbt.getIntOr(xpKey(tree), 0));
             }
             if (nbt.contains(pendingPerksKey(tree))) {
-                skillData.pendingPerks = Math.max(0, nbt.getInt(pendingPerksKey(tree)));
+                skillData.pendingPerks = Math.max(0, nbt.getIntOr(pendingPerksKey(tree), 0));
             }
         }
         for (ValetCombatPerk perk : ValetCombatPerk.values()) {
             if (nbt.contains(perk.getNbtKey())) {
-                data.perks[perk.ordinal()] = nbt.getBoolean(perk.getNbtKey());
+                data.perks[perk.ordinal()] = nbt.getBooleanOr(perk.getNbtKey(), false);
             }
         }
         normalize(data);
@@ -162,12 +161,12 @@ public final class ValetCombatProgress {
         return 30 + Math.max(0, level - 1) * 20;
     }
 
-    private static SkillData skillData(VillagerEntity villager, ValetCombatSkillTree tree) {
+    private static SkillData skillData(Villager villager, ValetCombatSkillTree tree) {
         return data(villager).skills[tree.ordinal()];
     }
 
-    private static Data data(VillagerEntity villager) {
-        return DATA.computeIfAbsent(villager.getUuid(), uuid -> new Data());
+    private static Data data(Villager villager) {
+        return DATA.computeIfAbsent(villager.getUUID(), uuid -> new Data());
     }
 
     private static void normalize(Data data) {

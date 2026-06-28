@@ -6,11 +6,10 @@ import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetPerk;
-import net.minecraft.item.ItemStack;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import net.minecraft.world.item.ItemStack;
 
 public record ValetOrdersViewModel(
         int valetEntityId,

@@ -1,28 +1,33 @@
 package com.wawane.valet.construction;
 
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.PersistentState;
-
+import com.mojang.serialization.Codec;
+import com.wawane.valet.ValetMod;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
-public final class ValetConstructionStorage extends PersistentState {
+public final class ValetConstructionStorage extends SavedData {
     private static final String KEY = "valet_constructions";
+    private static final Codec<ValetConstructionStorage> CODEC = CompoundTag.CODEC.xmap(ValetConstructionStorage::fromNbt, ValetConstructionStorage::saveToNbt);
+    private static final SavedDataType<ValetConstructionStorage> TYPE = new SavedDataType<>(
+            ValetMod.id(KEY),
+            ValetConstructionStorage::new,
+            CODEC,
+            DataFixTypes.LEVEL
+    );
     public static final int MAX_BLUEPRINTS = 64;
 
     private final List<ValetConstructionBlueprint> blueprints = new ArrayList<>();
     private int nextId = 1;
 
-    public static ValetConstructionStorage get(ServerWorld world) {
-        return world.getPersistentStateManager().getOrCreate(
-                ValetConstructionStorage::fromNbt,
-                ValetConstructionStorage::new,
-                KEY
-        );
+    public static ValetConstructionStorage get(ServerLevel world) {
+        return world.getDataStorage().computeIfAbsent(TYPE);
     }
 
     public ValetConstructionBlueprint addBlueprint(String name, int width, int height, int depth, List<ValetConstructionBlueprint.Entry> entries) {
@@ -33,14 +38,14 @@ public final class ValetConstructionStorage extends PersistentState {
         ValetConstructionBlueprint blueprint = new ValetConstructionBlueprint(nextId, name, width, height, depth, entries);
         nextId++;
         blueprints.add(blueprint);
-        markDirty();
+        setDirty();
         return blueprint;
     }
 
     public boolean removeBlueprint(int id) {
         boolean removed = blueprints.removeIf(blueprint -> blueprint.id() == id);
         if (removed) {
-            markDirty();
+            setDirty();
         }
         return removed;
     }
@@ -55,7 +60,7 @@ public final class ValetConstructionStorage extends PersistentState {
             ValetConstructionBlueprint blueprint = blueprints.get(i);
             if (blueprint.id() == id) {
                 blueprints.set(i, new ValetConstructionBlueprint(blueprint.id(), cleanName, blueprint.width(), blueprint.height(), blueprint.depth(), blueprint.entries()));
-                markDirty();
+                setDirty();
                 return true;
             }
         }
@@ -87,10 +92,10 @@ public final class ValetConstructionStorage extends PersistentState {
         return "Construction " + nextId;
     }
 
-    @Override
-    public NbtCompound writeNbt(NbtCompound nbt) {
+    private CompoundTag saveToNbt() {
+        CompoundTag nbt = new CompoundTag();
         nbt.putInt("NextId", nextId);
-        NbtList list = new NbtList();
+        ListTag list = new ListTag();
         for (ValetConstructionBlueprint blueprint : blueprints) {
             list.add(blueprint.writeNbt());
         }
@@ -98,12 +103,16 @@ public final class ValetConstructionStorage extends PersistentState {
         return nbt;
     }
 
-    private static ValetConstructionStorage fromNbt(NbtCompound nbt) {
+    private static ValetConstructionStorage fromNbt(CompoundTag nbt) {
         ValetConstructionStorage storage = new ValetConstructionStorage();
-        storage.nextId = Math.max(1, nbt.getInt("NextId"));
-        NbtList list = nbt.getList("Blueprints", NbtElement.COMPOUND_TYPE);
+        storage.nextId = Math.max(1, nbt.getIntOr("NextId", 1));
+        ListTag list = nbt.getListOrEmpty("Blueprints");
         for (int i = 0; i < list.size(); i++) {
-            ValetConstructionBlueprint blueprint = ValetConstructionBlueprint.readNbt(list.getCompound(i));
+            CompoundTag blueprintNbt = list.getCompound(i).orElse(null);
+            if (blueprintNbt == null) {
+                continue;
+            }
+            ValetConstructionBlueprint blueprint = ValetConstructionBlueprint.readNbt(blueprintNbt);
             storage.blueprints.add(blueprint);
             storage.nextId = Math.max(storage.nextId, blueprint.id() + 1);
         }

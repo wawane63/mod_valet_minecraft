@@ -1,5 +1,6 @@
 package com.wawane.valet.network.packets;
 
+import com.wawane.valet.ValetMod;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetMiningScanner;
 import com.wawane.valet.order.ValetOrders;
@@ -10,15 +11,16 @@ import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.server.world.ServerWorld;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.ItemStack;
 
 public record ValetStatePayload(
         int valetEntityId,
@@ -46,7 +48,10 @@ public record ValetStatePayload(
         int bowPendingPerks,
         boolean allyAwareness,
         String valetName
-) {
+) implements CustomPacketPayload {
+    public static final Type<ValetStatePayload> TYPE = new Type<>(ValetMod.id("valet_state"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ValetStatePayload> CODEC = StreamCodec.ofMember(ValetStatePayload::write, ValetStatePayload::read);
+
     public ValetStatePayload {
         oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
         woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
@@ -55,7 +60,7 @@ public record ValetStatePayload(
         combatPerks = Arrays.copyOf(combatPerks, ValetCombatPerk.values().length);
     }
 
-    public static ValetStatePayload from(ServerWorld world, VillagerEntity villager) {
+    public static ValetStatePayload from(ServerLevel world, Villager villager) {
         return new ValetStatePayload(
                 villager.getId(),
                 ValetOrders.get(villager).ordinal(),
@@ -85,7 +90,7 @@ public record ValetStatePayload(
         );
     }
 
-    public static ValetStatePayload read(PacketByteBuf buf) {
+    public static ValetStatePayload read(RegistryFriendlyByteBuf buf) {
         int valetEntityId = buf.readInt();
         int orderIndex = buf.readInt();
         int mineTargetIndex = buf.readInt();
@@ -116,10 +121,10 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readString(32));
+        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
-    public void write(PacketByteBuf buf) {
+    public void write(RegistryFriendlyByteBuf buf) {
         buf.writeInt(valetEntityId);
         buf.writeInt(orderIndex);
         buf.writeInt(mineTargetIndex);
@@ -134,7 +139,7 @@ public record ValetStatePayload(
         }
         buf.writeInt(valetInventory.size());
         for (ItemStack stack : valetInventory) {
-            buf.writeItemStack(stack);
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, stack);
         }
         buf.writeInt(level);
         buf.writeInt(xp);
@@ -155,7 +160,12 @@ public record ValetStatePayload(
         buf.writeInt(bowNextLevelXp);
         buf.writeInt(bowPendingPerks);
         buf.writeBoolean(allyAwareness);
-        buf.writeString(valetName, 32);
+        buf.writeUtf(valetName, 32);
+    }
+
+    @Override
+    public Type<ValetStatePayload> type() {
+        return TYPE;
     }
 
     @Override
@@ -183,22 +193,22 @@ public record ValetStatePayload(
         return Arrays.copyOf(combatPerks, combatPerks.length);
     }
 
-    private static int getCurrentMineTargetIndex(VillagerEntity villager) {
+    private static int getCurrentMineTargetIndex(Villager villager) {
         ValetMineTarget target = ValetOrders.getMineTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static int getCurrentWoodTargetIndex(VillagerEntity villager) {
+    private static int getCurrentWoodTargetIndex(Villager villager) {
         ValetWoodTarget target = ValetOrders.getWoodTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static int getCurrentCraftTargetIndex(VillagerEntity villager) {
+    private static int getCurrentCraftTargetIndex(Villager villager) {
         ValetCraftTarget target = ValetOrders.getCraftTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static int[] readOreCounts(PacketByteBuf buf) {
+    private static int[] readOreCounts(RegistryFriendlyByteBuf buf) {
         int[] counts = new int[ValetMineTarget.values().length];
         for (int i = 0; i < counts.length; i++) {
             counts[i] = buf.readInt();
@@ -206,7 +216,7 @@ public record ValetStatePayload(
         return counts;
     }
 
-    private static int[] readWoodCounts(PacketByteBuf buf) {
+    private static int[] readWoodCounts(RegistryFriendlyByteBuf buf) {
         int[] counts = new int[ValetWoodTarget.values().length];
         for (int i = 0; i < counts.length; i++) {
             counts[i] = buf.readInt();
@@ -214,19 +224,19 @@ public record ValetStatePayload(
         return counts;
     }
 
-    private static List<ItemStack> readInventory(PacketByteBuf buf) {
+    private static List<ItemStack> readInventory(RegistryFriendlyByteBuf buf) {
         int count = Math.max(0, buf.readInt());
         List<ItemStack> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            result.add(buf.readItemStack());
+            result.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
         }
         return result;
     }
 
-    private static List<ItemStack> copyInventory(Inventory inventory) {
-        List<ItemStack> result = new ArrayList<>(inventory.size());
-        for (int slot = 0; slot < inventory.size(); slot++) {
-            result.add(inventory.getStack(slot).copy());
+    private static List<ItemStack> copyInventory(Container inventory) {
+        List<ItemStack> result = new ArrayList<>(inventory.getContainerSize());
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            result.add(inventory.getItem(slot).copy());
         }
         return List.copyOf(result);
     }
@@ -239,7 +249,7 @@ public record ValetStatePayload(
         return List.copyOf(result);
     }
 
-    private static String getValetName(VillagerEntity villager) {
+    private static String getValetName(Villager villager) {
         return villager.hasCustomName() && villager.getCustomName() != null ? villager.getCustomName().getString() : "";
     }
 }

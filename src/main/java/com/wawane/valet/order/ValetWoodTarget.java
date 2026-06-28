@@ -1,15 +1,14 @@
 package com.wawane.valet.order;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 public enum ValetWoodTarget {
     OAK("wood.valet.oak", Blocks.OAK_LOG),
@@ -23,9 +22,9 @@ public enum ValetWoodTarget {
     CRIMSON("wood.valet.crimson", Blocks.CRIMSON_STEM),
     WARPED("wood.valet.warped", Blocks.WARPED_STEM);
 
-    private static final int TREE_LOG_CLUSTER_LIMIT = 96;
+    private static final int TREE_LOG_CLUSTER_LIMIT = 512;
     private static final int TREE_HORIZONTAL_SPREAD = 4;
-    private static final int TREE_VERTICAL_SPREAD = 14;
+    private static final int TREE_VERTICAL_SPREAD = 32;
     private static final int MIN_TREE_LOGS = 2;
 
     private final String translationKey;
@@ -42,21 +41,21 @@ public enum ValetWoodTarget {
 
     public boolean matches(BlockState state) {
         for (Block block : blocks) {
-            if (state.isOf(block)) {
+            if (state.is(block)) {
                 return true;
             }
         }
         return false;
     }
 
-    public boolean matchesNaturalTree(World world, BlockPos pos) {
+    public boolean matchesNaturalTree(Level world, BlockPos pos) {
         return matches(world.getBlockState(pos)) && hasConnectedTreeCrown(world, pos);
     }
 
-    private boolean hasConnectedTreeCrown(World world, BlockPos origin) {
+    private boolean hasConnectedTreeCrown(Level world, BlockPos origin) {
         ArrayDeque<BlockPos> open = new ArrayDeque<>();
         Set<BlockPos> visited = new HashSet<>();
-        open.add(origin.toImmutable());
+        open.add(origin.immutable());
         int logs = 0;
         boolean hasCrown = false;
 
@@ -68,19 +67,16 @@ public enum ValetWoodTarget {
 
             logs++;
             hasCrown = hasCrown || hasNearbyCrownBlock(world, current);
-            open.add(current.up());
-            open.add(current.down());
-            open.add(current.north());
-            open.add(current.south());
-            open.add(current.east());
-            open.add(current.west());
+            for (BlockPos next : connectedLogNeighbors(current)) {
+                open.add(next);
+            }
         }
 
         return logs >= MIN_TREE_LOGS && hasCrown;
     }
 
-    private boolean hasNearbyCrownBlock(World world, BlockPos pos) {
-        for (BlockPos candidate : BlockPos.iterate(
+    private boolean hasNearbyCrownBlock(Level world, BlockPos pos) {
+        for (BlockPos candidate : BlockPos.betweenClosed(
                 pos.getX() - 2,
                 pos.getY(),
                 pos.getZ() - 2,
@@ -89,9 +85,9 @@ public enum ValetWoodTarget {
                 pos.getZ() + 2
         )) {
             BlockState state = world.getBlockState(candidate);
-            if (state.isIn(BlockTags.LEAVES)
-                    || state.isOf(Blocks.NETHER_WART_BLOCK)
-                    || state.isOf(Blocks.WARPED_WART_BLOCK)) {
+            if (state.is(BlockTags.LEAVES)
+                    || state.is(Blocks.NETHER_WART_BLOCK)
+                    || state.is(Blocks.WARPED_WART_BLOCK)) {
                 return true;
             }
         }
@@ -102,6 +98,20 @@ public enum ValetWoodTarget {
         return Math.abs(pos.getX() - origin.getX()) <= TREE_HORIZONTAL_SPREAD
                 && Math.abs(pos.getY() - origin.getY()) <= TREE_VERTICAL_SPREAD
                 && Math.abs(pos.getZ() - origin.getZ()) <= TREE_HORIZONTAL_SPREAD;
+    }
+
+    private static Iterable<BlockPos> connectedLogNeighbors(BlockPos pos) {
+        Set<BlockPos> result = new HashSet<>(26);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx != 0 || dy != 0 || dz != 0) {
+                        result.add(pos.offset(dx, dy, dz));
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     public static ValetWoodTarget fromState(BlockState state) {

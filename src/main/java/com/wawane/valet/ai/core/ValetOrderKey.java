@@ -2,13 +2,13 @@ package com.wawane.valet.ai.core;
 
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
-import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetOrderKey {
     private ValetOrderKey() {
     }
 
-    public static String of(VillagerEntity villager) {
+    public static String of(Villager villager) {
         ValetOrder order = ValetOrders.get(villager);
         return switch (order) {
             case MINE_ORES -> order.getId() + ":" + ValetOrders.getMineTarget(villager);

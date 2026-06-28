@@ -3,13 +3,12 @@ package com.wawane.valet.order;
 import com.wawane.valet.ValetHome;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-
 import java.util.HashMap;
 import java.util.Map;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.Level;
 
 public final class ValetMiningScanner {
     public static final int ORE_SCAN_RADIUS = 14;
@@ -20,14 +19,14 @@ public final class ValetMiningScanner {
     private ValetMiningScanner() {
     }
 
-    public static int[] countNearbyOres(World world, BlockPos origin) {
+    public static int[] countNearbyOres(Level world, BlockPos origin) {
         return countNearbyOres(world, origin, ORE_SCAN_RADIUS, ORE_SCAN_VERTICAL_RADIUS);
     }
 
-    private static int[] countNearbyOres(World world, BlockPos origin, int radius, int verticalRadius) {
+    private static int[] countNearbyOres(Level world, BlockPos origin, int radius, int verticalRadius) {
         int[] counts = new int[ValetMineTarget.values().length];
 
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, radius, verticalRadius, radius)) {
+        for (BlockPos pos : BlockPos.withinManhattan(origin, radius, verticalRadius, radius)) {
             for (ValetMineTarget target : ValetMineTarget.values()) {
                 if (target.matches(world.getBlockState(pos))) {
                     counts[target.ordinal()]++;
@@ -39,16 +38,16 @@ public final class ValetMiningScanner {
         return counts;
     }
 
-    public static int[] countNearbyWood(World world, BlockPos origin) {
+    public static int[] countNearbyWood(Level world, BlockPos origin) {
         return countNearbyWood(world, origin, ORE_SCAN_RADIUS, ORE_SCAN_VERTICAL_RADIUS);
     }
 
-    private static int[] countNearbyWood(World world, BlockPos origin, int radius, int verticalRadius) {
+    private static int[] countNearbyWood(Level world, BlockPos origin, int radius, int verticalRadius) {
         int[] counts = new int[ValetWoodTarget.values().length];
         Map<BlockPos, Boolean> naturalTreeCache = new HashMap<>();
 
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, radius, verticalRadius, radius)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, radius, verticalRadius, radius)) {
+            BlockPos immutable = pos.immutable();
             ValetWoodTarget target = ValetWoodTarget.fromState(world.getBlockState(immutable));
             if (target != null && naturalTreeCache.computeIfAbsent(immutable, key -> target.matchesNaturalTree(world, key))) {
                 counts[target.ordinal()]++;
@@ -58,24 +57,24 @@ public final class ValetMiningScanner {
         return counts;
     }
 
-    public static int[] countNearbyOres(ServerWorld world, VillagerEntity villager) {
+    public static int[] countNearbyOres(ServerLevel world, Villager villager) {
         return countNearbyOres(world, getWorkOrigin(world, villager), scanRadius(villager), scanVerticalRadius(villager));
     }
 
-    public static int[] countNearbyWood(ServerWorld world, VillagerEntity villager) {
+    public static int[] countNearbyWood(ServerLevel world, Villager villager) {
         return countNearbyWood(world, getWorkOrigin(world, villager), scanRadius(villager), scanVerticalRadius(villager));
     }
 
-    private static BlockPos getWorkOrigin(ServerWorld world, VillagerEntity villager) {
+    private static BlockPos getWorkOrigin(ServerLevel world, Villager villager) {
         BlockPos home = ValetHome.get(world, villager);
-        return home == null ? villager.getBlockPos() : home;
+        return home == null ? villager.blockPosition() : home;
     }
 
-    private static int scanRadius(VillagerEntity villager) {
+    private static int scanRadius(Villager villager) {
         return ValetProgress.hasPerk(villager, ValetPerk.VISION) ? ORE_SCAN_RADIUS + VISION_SCAN_RADIUS_BONUS : ORE_SCAN_RADIUS;
     }
 
-    private static int scanVerticalRadius(VillagerEntity villager) {
+    private static int scanVerticalRadius(Villager villager) {
         return ValetProgress.hasPerk(villager, ValetPerk.VISION) ? ORE_SCAN_VERTICAL_RADIUS + VISION_SCAN_VERTICAL_RADIUS_BONUS : ORE_SCAN_VERTICAL_RADIUS;
     }
 }

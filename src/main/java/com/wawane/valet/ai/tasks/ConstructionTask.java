@@ -1,27 +1,26 @@
 package com.wawane.valet.ai.tasks;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
-import net.minecraft.block.BedBlock;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.DoorBlock;
-import net.minecraft.block.enums.BedPart;
-import net.minecraft.block.enums.DoubleBlockHalf;
-import net.minecraft.state.property.Properties;
-import net.minecraft.util.BlockRotation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
 public final class ConstructionTask {
     private ConstructionTask() {
     }
 
     public static BlockPos getBuildPos(BlockPos blueprintPos, Direction facing, ValetConstructionBlueprint.Entry entry) {
-        Direction side = facing.rotateYCounterclockwise();
+        Direction side = facing.getCounterClockWise();
         return blueprintPos
-                .offset(facing)
-                .offset(side, entry.x())
-                .offset(facing, entry.z())
-                .up(entry.y());
+                .relative(facing)
+                .relative(side, entry.x())
+                .relative(facing, entry.z())
+                .above(entry.y());
     }
 
     public static BlockState rotateBuildState(BlockState state, Direction facing) {
@@ -29,21 +28,21 @@ public final class ConstructionTask {
     }
 
     public static boolean isSecondaryBuildPart(BlockState state) {
-        if (state.getBlock() instanceof BedBlock && state.contains(BedBlock.PART)) {
-            return state.get(BedBlock.PART) == BedPart.HEAD;
+        if (state.getBlock() instanceof BedBlock && state.hasProperty(BedBlock.PART)) {
+            return state.getValue(BedBlock.PART) == BedPart.HEAD;
         }
-        if (state.getBlock() instanceof DoorBlock && state.contains(DoorBlock.HALF)) {
-            return state.get(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
+        if (state.getBlock() instanceof DoorBlock && state.hasProperty(DoorBlock.HALF)) {
+            return state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
         }
         return false;
     }
 
-    private static BlockRotation rotationFromSouth(Direction facing) {
+    private static Rotation rotationFromSouth(Direction facing) {
         return switch (facing) {
-            case NORTH -> BlockRotation.CLOCKWISE_180;
-            case EAST -> BlockRotation.COUNTERCLOCKWISE_90;
-            case WEST -> BlockRotation.CLOCKWISE_90;
-            default -> BlockRotation.NONE;
+            case NORTH -> Rotation.CLOCKWISE_180;
+            case EAST -> Rotation.COUNTERCLOCKWISE_90;
+            case WEST -> Rotation.CLOCKWISE_90;
+            default -> Rotation.NONE;
         };
     }
 }

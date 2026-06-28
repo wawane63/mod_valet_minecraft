@@ -13,5 +13,6 @@ run/
 logs/
 crash-reports/
 local.properties
+fabric-installer-*.jar
 codex_backups/
 tools/

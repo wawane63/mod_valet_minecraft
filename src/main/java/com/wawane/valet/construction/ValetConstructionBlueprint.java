@@ -1,13 +1,11 @@
 package com.wawane.valet.construction;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtElement;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class ValetConstructionBlueprint {
     public static final int DATA_VERSION = 1;
@@ -59,8 +57,8 @@ public final class ValetConstructionBlueprint {
         return entries.size();
     }
 
-    public NbtCompound writeNbt() {
-        NbtCompound nbt = new NbtCompound();
+    public CompoundTag writeNbt() {
+        CompoundTag nbt = new CompoundTag();
         nbt.putInt(DATA_VERSION_KEY, DATA_VERSION);
         nbt.putInt("Id", id);
         nbt.putString("Name", name);
@@ -68,9 +66,9 @@ public final class ValetConstructionBlueprint {
         nbt.putInt("Height", height);
         nbt.putInt("Depth", depth);
 
-        NbtList blockList = new NbtList();
+        ListTag blockList = new ListTag();
         for (Entry entry : entries) {
-            NbtCompound blockNbt = new NbtCompound();
+            CompoundTag blockNbt = new CompoundTag();
             blockNbt.putInt("X", entry.x());
             blockNbt.putInt("Y", entry.y());
             blockNbt.putInt("Z", entry.z());
@@ -81,28 +79,31 @@ public final class ValetConstructionBlueprint {
         return nbt;
     }
 
-    public static ValetConstructionBlueprint readNbt(NbtCompound nbt) {
+    public static ValetConstructionBlueprint readNbt(CompoundTag nbt) {
         List<Entry> entries = new ArrayList<>();
-        NbtList blockList = nbt.getList("Blocks", NbtElement.COMPOUND_TYPE);
+        ListTag blockList = nbt.getListOrEmpty("Blocks");
         for (int i = 0; i < blockList.size(); i++) {
-            NbtCompound blockNbt = blockList.getCompound(i);
+            CompoundTag blockNbt = blockList.getCompound(i).orElse(null);
+            if (blockNbt == null) {
+                continue;
+            }
             BlockState state = BlockStateCodec.read(blockNbt);
             if (!state.isAir()) {
                 entries.add(new Entry(
-                        blockNbt.getInt("X"),
-                        blockNbt.getInt("Y"),
-                        blockNbt.getInt("Z"),
+                        blockNbt.getIntOr("X", 0),
+                        blockNbt.getIntOr("Y", 0),
+                        blockNbt.getIntOr("Z", 0),
                         state
                 ));
             }
         }
 
         return new ValetConstructionBlueprint(
-                nbt.getInt("Id"),
-                nbt.getString("Name"),
-                nbt.getInt("Width"),
-                nbt.getInt("Height"),
-                nbt.getInt("Depth"),
+                nbt.getIntOr("Id", -1),
+                nbt.getStringOr("Name", ""),
+                nbt.getIntOr("Width", 0),
+                nbt.getIntOr("Height", 0),
+                nbt.getIntOr("Depth", 0),
                 entries
         );
     }

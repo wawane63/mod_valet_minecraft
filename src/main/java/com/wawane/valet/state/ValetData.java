@@ -6,31 +6,30 @@ import com.wawane.valet.ValetMod;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.nbt.NbtCompound;
-
 import java.util.UUID;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetData {
     private ValetData() {
     }
 
-    public static boolean shouldPersist(VillagerEntity villager, NbtCompound nbt) {
+    public static boolean shouldPersist(Villager villager, CompoundTag nbt) {
         return isValet(villager) || hasPersistentData(nbt) || hasRuntimeData(villager);
     }
 
-    public static boolean shouldRead(VillagerEntity villager, NbtCompound nbt) {
+    public static boolean shouldRead(Villager villager, CompoundTag nbt) {
         return isValet(villager) || hasPersistentData(nbt);
     }
 
-    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void writeToNbt(Villager villager, CompoundTag nbt) {
         ValetHome.writeToNbt(villager, nbt);
         ValetOrders.writeToNbt(villager, nbt);
         ValetProgress.writeToNbt(villager, nbt);
         ValetCombatProgress.writeToNbt(villager, nbt);
     }
 
-    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void readFromNbt(Villager villager, CompoundTag nbt) {
         ValetHome.readFromNbt(villager, nbt);
         ValetOrders.readFromNbt(villager, nbt);
         ValetProgress.readFromNbt(villager, nbt);
@@ -53,15 +52,15 @@ public final class ValetData {
         ValetCombatProgress.clearAll();
     }
 
-    public static boolean hasRuntimeData(VillagerEntity villager) {
+    public static boolean hasRuntimeData(Villager villager) {
         return ValetHome.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager) || ValetCombatProgress.hasData(villager);
     }
 
-    private static boolean hasPersistentData(NbtCompound nbt) {
+    private static boolean hasPersistentData(CompoundTag nbt) {
         return ValetHome.hasNbt(nbt) || ValetOrders.hasNbt(nbt) || ValetProgress.hasNbt(nbt) || ValetCombatProgress.hasNbt(nbt);
     }
 
-    public static boolean isValet(VillagerEntity villager) {
-        return villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION;
+    public static boolean isValet(Villager villager) {
+        return ValetMod.isValet(villager);
     }
 }

@@ -1,44 +1,43 @@
 package com.wawane.valet.ai.inventory;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class ValetInventoryTransfer {
     private ValetInventoryTransfer() {
     }
 
-    public static Inventory getContainerInventory(ServerWorld world, BlockPos pos) {
+    public static Container getContainerInventory(ServerLevel world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
         if (blockState.getBlock() instanceof ChestBlock chestBlock) {
-            return ChestBlock.getInventory(chestBlock, blockState, world, pos, true);
+            return ChestBlock.getContainer(chestBlock, blockState, world, pos, true);
         }
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        return blockEntity instanceof Inventory inventory ? inventory : null;
+        return blockEntity instanceof Container inventory ? inventory : null;
     }
 
-    public static int depositInventory(ServerWorld world, BlockPos pos, Inventory sourceInventory) {
-        Inventory targetInventory = getContainerInventory(world, pos);
+    public static int depositInventory(ServerLevel world, BlockPos pos, Container sourceInventory) {
+        Container targetInventory = getContainerInventory(world, pos);
         if (targetInventory == null) {
             return 0;
         }
 
         int movedTotal = 0;
-        for (int slot = 0; slot < sourceInventory.size(); slot++) {
-            ItemStack sourceStack = sourceInventory.getStack(slot);
+        for (int slot = 0; slot < sourceInventory.getContainerSize(); slot++) {
+            ItemStack sourceStack = sourceInventory.getItem(slot);
             if (sourceStack.isEmpty()) {
                 continue;
             }
-            if (sourceStack.isOf(Items.ARROW)) {
+            if (sourceStack.is(Items.ARROW)) {
                 continue;
             }
 
@@ -47,27 +46,27 @@ public final class ValetInventoryTransfer {
             int moved = sourceStack.getCount() - remaining.getCount();
             if (moved > 0) {
                 movedTotal += moved;
-                sourceStack.decrement(moved);
+                sourceStack.shrink(moved);
                 if (sourceStack.isEmpty()) {
-                    sourceInventory.setStack(slot, ItemStack.EMPTY);
+                    sourceInventory.setItem(slot, ItemStack.EMPTY);
                 }
             }
         }
 
-        sourceInventory.markDirty();
-        targetInventory.markDirty();
+        sourceInventory.setChanged();
+        targetInventory.setChanged();
         return movedTotal;
     }
 
-    public static boolean canStoreAllDrops(Inventory inventory, int usableSlots, List<ItemStack> drops) {
+    public static boolean canStoreAllDrops(Container inventory, int usableSlots, List<ItemStack> drops) {
         List<ItemStack> simulated = new ArrayList<>(usableSlots);
         for (int slot = 0; slot < usableSlots; slot++) {
-            simulated.add(inventory.getStack(slot).copy());
+            simulated.add(inventory.getItem(slot).copy());
         }
 
         for (ItemStack drop : drops) {
             ItemStack remaining = drop.copy();
-            simulateInsert(simulated, inventory.getMaxCountPerStack(), remaining);
+            simulateInsert(simulated, inventory.getMaxStackSize(), remaining);
             if (!remaining.isEmpty()) {
                 return false;
             }
@@ -76,60 +75,60 @@ public final class ValetInventoryTransfer {
         return true;
     }
 
-    public static boolean inventoryHasItem(Inventory inventory, Item item, int maxSlots) {
-        int slots = Math.min(inventory.size(), Math.max(0, maxSlots));
+    public static boolean inventoryHasItem(Container inventory, Item item, int maxSlots) {
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
         for (int slot = 0; slot < slots; slot++) {
-            if (inventory.getStack(slot).isOf(item)) {
+            if (inventory.getItem(slot).is(item)) {
                 return true;
             }
         }
         return false;
     }
 
-    public static boolean takeOneItem(Inventory inventory, Item item, int maxSlots) {
-        int slots = Math.min(inventory.size(), Math.max(0, maxSlots));
+    public static boolean takeOneItem(Container inventory, Item item, int maxSlots) {
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
         for (int slot = 0; slot < slots; slot++) {
-            ItemStack stack = inventory.getStack(slot);
-            if (!stack.isOf(item)) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.is(item)) {
                 continue;
             }
 
-            stack.decrement(1);
+            stack.shrink(1);
             if (stack.isEmpty()) {
-                inventory.setStack(slot, ItemStack.EMPTY);
+                inventory.setItem(slot, ItemStack.EMPTY);
             }
-            inventory.markDirty();
+            inventory.setChanged();
             return true;
         }
         return false;
     }
 
-    public static boolean insertStack(Inventory inventory, ItemStack stack) {
-        return insertStack(inventory, stack, inventory.size());
+    public static boolean insertStack(Container inventory, ItemStack stack) {
+        return insertStack(inventory, stack, inventory.getContainerSize());
     }
 
-    public static boolean insertStack(Inventory inventory, ItemStack stack, int maxSlots) {
-        int slots = Math.min(inventory.size(), Math.max(0, maxSlots));
+    public static boolean insertStack(Container inventory, ItemStack stack, int maxSlots) {
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
         for (int slot = 0; slot < slots && !stack.isEmpty(); slot++) {
-            ItemStack current = inventory.getStack(slot);
+            ItemStack current = inventory.getItem(slot);
             if (canMerge(current, stack)) {
-                int limit = Math.min(current.getMaxCount(), inventory.getMaxCountPerStack());
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize());
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
-                    current.increment(amount);
-                    stack.decrement(amount);
+                    current.grow(amount);
+                    stack.shrink(amount);
                 }
             }
         }
 
         for (int slot = 0; slot < slots && !stack.isEmpty(); slot++) {
-            if (inventory.getStack(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxCount(), inventory.getMaxCountPerStack()));
-                inventory.setStack(slot, stack.split(amount));
+            if (inventory.getItem(slot).isEmpty()) {
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize()));
+                inventory.setItem(slot, stack.split(amount));
             }
         }
 
-        inventory.markDirty();
+        inventory.setChanged();
         return stack.isEmpty();
     }
 
@@ -137,18 +136,18 @@ public final class ValetInventoryTransfer {
         for (int slot = 0; slot < stacks.size() && !stack.isEmpty(); slot++) {
             ItemStack current = stacks.get(slot);
             if (canMerge(current, stack)) {
-                int limit = Math.min(current.getMaxCount(), inventoryMaxCount);
+                int limit = Math.min(current.getMaxStackSize(), inventoryMaxCount);
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
-                    current.increment(amount);
-                    stack.decrement(amount);
+                    current.grow(amount);
+                    stack.shrink(amount);
                 }
             }
         }
 
         for (int slot = 0; slot < stacks.size() && !stack.isEmpty(); slot++) {
             if (stacks.get(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxCount(), inventoryMaxCount));
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventoryMaxCount));
                 stacks.set(slot, stack.split(amount));
             }
         }
@@ -156,7 +155,7 @@ public final class ValetInventoryTransfer {
 
     private static boolean canMerge(ItemStack current, ItemStack incoming) {
         return !current.isEmpty()
-                && ItemStack.canCombine(current, incoming)
-                && current.getCount() < current.getMaxCount();
+                && ItemStack.isSameItemSameComponents(current, incoming)
+                && current.getCount() < current.getMaxStackSize();
     }
 }

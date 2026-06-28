@@ -5,15 +5,13 @@ import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.List;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class LogisticsRuntimeTask {
     private final Control control;
@@ -23,7 +21,7 @@ public final class LogisticsRuntimeTask {
         this.control = control;
     }
 
-    public void returnToChest(ServerWorld world) {
+    public void returnToChest(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "logistics no_work_origin");
@@ -46,7 +44,7 @@ public final class LogisticsRuntimeTask {
         }
 
         Set<BlockPos> goals = control.findStandGoals(world, chestPos, PathPurpose.CHEST);
-        if (goals.contains(control.villager().getBlockPos())) {
+        if (goals.contains(control.villager().blockPosition())) {
             control.setState(State.DEPOSITING);
             return;
         }
@@ -62,7 +60,7 @@ public final class LogisticsRuntimeTask {
         control.startPath(PathPurpose.CHEST, path);
     }
 
-    public void returnToWorkstation(ServerWorld world) {
+    public void returnToWorkstation(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "logistics no_work_origin_home");
@@ -90,7 +88,7 @@ public final class LogisticsRuntimeTask {
         control.startPath(PathPurpose.HOME, path);
     }
 
-    public void idleAtWorkstation(ServerWorld world) {
+    public void idleAtWorkstation(ServerLevel world) {
         if (control.hasConstructionOrder()) {
             control.setState(State.FIND_TARGET);
             return;
@@ -118,11 +116,11 @@ public final class LogisticsRuntimeTask {
         }
 
         control.villager().getNavigation().stop();
-        control.villager().setVelocity(0.0D, control.villager().getVelocity().y, 0.0D);
-        control.villager().getLookControl().lookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
+        control.villager().setDeltaMovement(0.0D, control.villager().getDeltaMovement().y, 0.0D);
+        control.villager().getLookControl().setLookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
     }
 
-    public void tickDepositing(ServerWorld world) {
+    public void tickDepositing(ServerLevel world) {
         int movedItems = 0;
         if (chestPos != null) {
             movedItems += ValetInventoryTransfer.depositInventory(world, chestPos, control.villager().getInventory());
@@ -161,16 +159,16 @@ public final class LogisticsRuntimeTask {
                 && (control.hasMiningOrder() || control.hasConstructionOrder() || control.hasCraftOrder());
     }
 
-    private BlockPos findNearestContainer(ServerWorld world, BlockPos origin) {
+    private BlockPos findNearestContainer(ServerLevel world, BlockPos origin) {
         return findNearest(world, origin, control.chestRadius(), 4, pos -> {
             BlockState blockState = world.getBlockState(pos);
-            return (blockState.isOf(Blocks.CHEST) || blockState.isOf(Blocks.TRAPPED_CHEST) || blockState.isOf(Blocks.BARREL))
+            return (blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL))
                     && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
         });
     }
 
-    private BlockPos findBestContainer(ServerWorld world, BlockPos workOrigin) {
-        BlockPos villagerPos = control.villager().getBlockPos();
+    private BlockPos findBestContainer(ServerLevel world, BlockPos workOrigin) {
+        BlockPos villagerPos = control.villager().blockPosition();
         BlockPos nearVillager = findNearestContainer(world, villagerPos);
         BlockPos nearWork = findNearestContainer(world, workOrigin);
         if (nearVillager == null) {
@@ -182,12 +180,12 @@ public final class LogisticsRuntimeTask {
         return squaredDistance(villagerPos, nearVillager) <= squaredDistance(villagerPos, nearWork) ? nearVillager : nearWork;
     }
 
-    private BlockPos findNearest(ServerWorld world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
+    private BlockPos findNearest(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
         BlockPos nearest = null;
         double nearestDistance = Double.MAX_VALUE;
 
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
+            BlockPos immutable = pos.immutable();
             if (predicate.test(immutable)) {
                 double distance = squaredDistance(origin, immutable);
                 if (distance < nearestDistance) {
@@ -217,9 +215,9 @@ public final class LogisticsRuntimeTask {
     }
 
     public interface Control {
-        VillagerEntity villager();
+        Villager villager();
 
-        BlockPos getWorkOrigin(ServerWorld world);
+        BlockPos getWorkOrigin(ServerLevel world);
 
         boolean hasMiningOrder();
 
@@ -231,11 +229,11 @@ public final class LogisticsRuntimeTask {
 
         boolean hasInventoryItems();
 
-        boolean isNearWorkstation(ServerWorld world, BlockPos workOrigin);
+        boolean isNearWorkstation(ServerLevel world, BlockPos workOrigin);
 
-        Set<BlockPos> findStandGoals(ServerWorld world, BlockPos targetBlock, PathPurpose purpose);
+        Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose);
 
-        List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
+        List<BlockPos> planPathToAdjacent(ServerLevel world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
 
         void startPath(PathPurpose purpose, List<BlockPos> path);
 
@@ -245,7 +243,7 @@ public final class LogisticsRuntimeTask {
 
         int chestRadius();
 
-        void animateChestUse(ServerWorld world, BlockPos pos);
+        void animateChestUse(ServerLevel world, BlockPos pos);
 
         void setState(State state);
 

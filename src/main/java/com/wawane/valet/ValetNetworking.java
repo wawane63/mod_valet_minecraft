@@ -3,6 +3,7 @@ package com.wawane.valet;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
+import com.wawane.valet.construction.ConstructionBlueprintNbt;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.order.ValetMineTarget;
@@ -22,31 +23,28 @@ import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import com.wawane.valet.network.packets.ValetStatePayload;
-import net.fabricmc.fabric.api.networking.v1.PacketSender;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.screen.ScreenHandler;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.world.World;
-
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.EntityHitResult;
 import java.util.OptionalInt;
 import java.util.List;
 
@@ -58,75 +56,92 @@ public final class ValetNetworking {
     public static final Identifier DELETE_CONSTRUCTION_PACKET_ID = ValetMod.id("delete_construction");
     public static final Identifier VALET_STATE_PACKET_ID = ValetMod.id("valet_state");
     private static final int GLOW_TICKS = 20 * 60 * 30;
+    private static boolean payloadTypesRegistered;
 
     private ValetNetworking() {
     }
 
     public static void registerServerReceivers() {
-        ServerPlayNetworking.registerGlobalReceiver(SET_ORDER_PACKET_ID, ValetNetworking::setValetOrder);
-        ServerPlayNetworking.registerGlobalReceiver(CHOOSE_PERK_PACKET_ID, ValetNetworking::chooseValetPerk);
-        ServerPlayNetworking.registerGlobalReceiver(CHOOSE_COMBAT_PERK_PACKET_ID, ValetNetworking::chooseValetCombatPerk);
-        ServerPlayNetworking.registerGlobalReceiver(RENAME_PACKET_ID, ValetNetworking::renameValet);
-        ServerPlayNetworking.registerGlobalReceiver(DELETE_CONSTRUCTION_PACKET_ID, ValetNetworking::deleteConstruction);
+        registerPayloadTypes();
+        ServerPlayNetworking.registerGlobalReceiver(SetOrderPayload.TYPE, ValetNetworking::setValetOrder);
+        ServerPlayNetworking.registerGlobalReceiver(ChoosePerkPayload.TYPE, ValetNetworking::chooseValetPerk);
+        ServerPlayNetworking.registerGlobalReceiver(ChooseCombatPerkPayload.TYPE, ValetNetworking::chooseValetCombatPerk);
+        ServerPlayNetworking.registerGlobalReceiver(RenameValetPayload.TYPE, ValetNetworking::renameValet);
+        ServerPlayNetworking.registerGlobalReceiver(DeleteConstructionPayload.TYPE, ValetNetworking::deleteConstruction);
     }
 
-    public static ActionResult openValetOrders(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
-        if (hand != Hand.MAIN_HAND || !(entity instanceof VillagerEntity villager)) {
-            return ActionResult.PASS;
+    public static void registerPayloadTypes() {
+        if (payloadTypesRegistered) {
+            return;
+        }
+        payloadTypesRegistered = true;
+        PayloadTypeRegistry.serverboundPlay().register(SetOrderPayload.TYPE, SetOrderPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ChoosePerkPayload.TYPE, ChoosePerkPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ChooseCombatPerkPayload.TYPE, ChooseCombatPerkPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RenameValetPayload.TYPE, RenameValetPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(DeleteConstructionPayload.TYPE, DeleteConstructionPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ValetStatePayload.TYPE, ValetStatePayload.CODEC);
+    }
+
+    public static InteractionResult openValetOrders(Player player, Level world, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
+        if (hand != InteractionHand.MAIN_HAND || !(entity instanceof Villager villager)) {
+            return InteractionResult.PASS;
         }
 
-        if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION) {
-            if (world instanceof ServerWorld serverWorld && ValetMod.tryAssignValetJob(serverWorld, villager, player.getBlockPos())) {
+        if (!ValetMod.isValet(villager)) {
+            if (world instanceof ServerLevel serverWorld && ValetMod.tryAssignValetJob(serverWorld, villager, player.blockPosition())) {
                 return openValetOrders(player, world, hand, entity, hitResult);
             }
-            return ActionResult.PASS;
+            return InteractionResult.PASS;
         }
 
-        if (!world.isClient && player instanceof ServerPlayerEntity serverPlayer) {
-            villager.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, GLOW_TICKS, 0, false, false));
+        if (!world.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+            villager.addEffect(new MobEffectInstance(MobEffects.GLOWING, GLOW_TICKS, 0, false, false));
             if (villager.hasCustomName()) {
                 villager.setCustomNameVisible(true);
             }
-            ValetHome.getOrRecover(serverPlayer.getServerWorld(), villager, serverPlayer.getBlockPos());
+            ValetHome.getOrRecover(serverPlayer.level(), villager, serverPlayer.blockPosition());
             ValetConversations.begin(villager);
-            int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.getServerWorld(), villager);
-            int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.getServerWorld(), villager);
-            List<ValetConstructionBlueprint> constructions = ValetConstructionStorage.get(serverPlayer.getServerWorld()).getBlueprints();
-            OptionalInt openedScreen = serverPlayer.openHandledScreen(new ExtendedScreenHandlerFactory() {
+            int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager);
+            int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.level(), villager);
+            List<ValetConstructionBlueprint> constructions = ValetConstructionStorage.get(serverPlayer.level()).getBlueprints();
+            OptionalInt openedScreen = serverPlayer.openMenu(new ExtendedMenuProvider<ValetOrdersScreenHandler.OpeningData>() {
                 @Override
-                public void writeScreenOpeningData(ServerPlayerEntity player, PacketByteBuf buf) {
-                    buf.writeInt(villager.getId());
-                    buf.writeUuid(villager.getUuid());
-                    buf.writeIdentifier(serverPlayer.getServerWorld().getRegistryKey().getValue());
-                    buf.writeInt(ValetOrders.get(villager).ordinal());
-                    buf.writeInt(getCurrentMineTargetIndex(villager));
-                    buf.writeInt(getCurrentWoodTargetIndex(villager));
-                    buf.writeInt(ValetOrders.getConstructionTargetId(villager));
-                    buf.writeInt(getCurrentCraftTargetIndex(villager));
-                    for (int count : oreCounts) {
-                        buf.writeInt(count);
-                    }
-                    for (int count : woodCounts) {
-                        buf.writeInt(count);
-                    }
-                    writeConstructions(constructions, buf);
-                    writeValetInventory(villager.getInventory(), buf);
-                    writeValetProgress(villager, buf);
+                public ValetOrdersScreenHandler.OpeningData getScreenOpeningData(ServerPlayer player) {
+                    return ValetOrdersScreenHandler.OpeningData.create(serverPlayer.registryAccess(), buf -> {
+                        buf.writeInt(villager.getId());
+                        buf.writeUUID(villager.getUUID());
+                        buf.writeIdentifier(serverPlayer.level().dimension().identifier());
+                        buf.writeInt(ValetOrders.get(villager).ordinal());
+                        buf.writeInt(getCurrentMineTargetIndex(villager));
+                        buf.writeInt(getCurrentWoodTargetIndex(villager));
+                        buf.writeInt(ValetOrders.getConstructionTargetId(villager));
+                        buf.writeInt(getCurrentCraftTargetIndex(villager));
+                        for (int count : oreCounts) {
+                            buf.writeInt(count);
+                        }
+                        for (int count : woodCounts) {
+                            buf.writeInt(count);
+                        }
+                        writeConstructions(constructions, buf);
+                        writeValetInventory(villager.getInventory(), buf);
+                        writeValetProgress(villager, buf);
+                    });
                 }
 
                 @Override
-                public Text getDisplayName() {
-                    return Text.translatable("screen.valet.orders");
+                public Component getDisplayName() {
+                    return Component.translatable("screen.valet.orders");
                 }
 
                 @Override
-                public ScreenHandler createMenu(int syncId, PlayerInventory inventory, PlayerEntity player) {
+                public AbstractContainerMenu createMenu(int syncId, Inventory inventory, Player player) {
                     return new ValetOrdersScreenHandler(
                             syncId,
                             inventory,
                             villager.getId(),
-                            villager.getUuid(),
-                            serverPlayer.getServerWorld().getRegistryKey().getValue(),
+                            villager.getUUID(),
+                            serverPlayer.level().dimension().identifier(),
                             ValetOrders.get(villager).ordinal(),
                             getCurrentMineTargetIndex(villager),
                             getCurrentWoodTargetIndex(villager),
@@ -160,25 +175,25 @@ public final class ValetNetworking {
             }
         }
 
-        return ActionResult.SUCCESS;
+        return InteractionResult.SUCCESS;
     }
 
-    private static int getCurrentMineTargetIndex(VillagerEntity villager) {
+    private static int getCurrentMineTargetIndex(Villager villager) {
         ValetMineTarget target = ValetOrders.getMineTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static int getCurrentWoodTargetIndex(VillagerEntity villager) {
+    private static int getCurrentWoodTargetIndex(Villager villager) {
         ValetWoodTarget target = ValetOrders.getWoodTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static int getCurrentCraftTargetIndex(VillagerEntity villager) {
+    private static int getCurrentCraftTargetIndex(Villager villager) {
         ValetCraftTarget target = ValetOrders.getCraftTarget(villager);
         return target == null ? -1 : target.ordinal();
     }
 
-    private static void writeValetProgress(VillagerEntity villager, PacketByteBuf buf) {
+    private static void writeValetProgress(Villager villager, RegistryFriendlyByteBuf buf) {
         buf.writeInt(ValetProgress.getLevel(villager));
         buf.writeInt(ValetProgress.getXp(villager));
         buf.writeInt(ValetProgress.getNextLevelXp(villager));
@@ -192,64 +207,63 @@ public final class ValetNetworking {
         writeCombatSkill(villager, ValetCombatSkillTree.SWORD, buf);
         writeCombatSkill(villager, ValetCombatSkillTree.BOW, buf);
         buf.writeBoolean(ValetCombatProgress.hasPerk(villager, ValetCombatPerk.ALLY_AWARENESS));
-        buf.writeString(getValetName(villager), 32);
+        buf.writeUtf(getValetName(villager), 32);
     }
 
-    private static void writeCombatSkill(VillagerEntity villager, ValetCombatSkillTree tree, PacketByteBuf buf) {
+    private static void writeCombatSkill(Villager villager, ValetCombatSkillTree tree, RegistryFriendlyByteBuf buf) {
         buf.writeInt(ValetCombatProgress.getLevel(villager, tree));
         buf.writeInt(ValetCombatProgress.getXp(villager, tree));
         buf.writeInt(ValetCombatProgress.getNextLevelXp(villager, tree));
         buf.writeInt(ValetCombatProgress.getPendingPerks(villager, tree));
     }
 
-    private static void sendValetState(ServerPlayerEntity player, VillagerEntity villager) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        ValetStatePayload.from(player.getServerWorld(), villager).write(buf);
-        ServerPlayNetworking.send(player, VALET_STATE_PACKET_ID, buf);
+    private static void sendValetState(ServerPlayer player, Villager villager) {
+        ServerPlayNetworking.send(player, ValetStatePayload.from(player.level(), villager));
     }
 
-    private static void writeConstructions(List<ValetConstructionBlueprint> blueprints, PacketByteBuf buf) {
+    private static void writeConstructions(List<ValetConstructionBlueprint> blueprints, RegistryFriendlyByteBuf buf) {
         buf.writeInt(blueprints.size());
         for (ValetConstructionBlueprint blueprint : blueprints) {
             buf.writeNbt(blueprint.writeNbt());
         }
     }
 
-    private static void writeValetInventory(Inventory inventory, PacketByteBuf buf) {
-        buf.writeInt(inventory.size());
-        for (int slot = 0; slot < inventory.size(); slot++) {
-            buf.writeItemStack(inventory.getStack(slot));
+    private static void writeValetInventory(Container inventory, RegistryFriendlyByteBuf buf) {
+        buf.writeInt(inventory.getContainerSize());
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, inventory.getItem(slot));
         }
     }
 
-    private static List<ItemStack> copyInventory(Inventory inventory) {
-        List<ItemStack> result = new java.util.ArrayList<>(inventory.size());
-        for (int slot = 0; slot < inventory.size(); slot++) {
-            result.add(inventory.getStack(slot).copy());
+    private static List<ItemStack> copyInventory(Container inventory) {
+        List<ItemStack> result = new java.util.ArrayList<>(inventory.getContainerSize());
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            result.add(inventory.getItem(slot).copy());
         }
         return result;
     }
 
-    private static void setValetOrder(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
-        SetOrderPayload payload = SetOrderPayload.read(buf);
+    private static void setValetOrder(SetOrderPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
         server.execute(() -> {
-            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
-            if (!(entity instanceof VillagerEntity villager)) {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
                 return;
             }
 
-            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+            if (!isValidValetInteraction(player, villager)) {
                 return;
             }
 
             ValetOrder order = payload.order();
             int targetIndex = payload.targetIndex();
-            ValetHome.getOrRecover(player.getServerWorld(), villager, player.getBlockPos());
+            ValetHome.getOrRecover(player.level(), villager, player.blockPosition());
             if (order == ValetOrder.NONE) {
                 ValetOrders.set(villager, ValetOrder.NONE);
                 ValetWorkGoal.requestRestart(villager);
-                ValetMod.LOGGER.info("Valet {} order set to none", villager.getUuid());
-                player.sendMessage(Text.translatable("message.valet.order_set", Text.translatable("order.valet.none")), true);
+                ValetMod.LOGGER.info("Valet {} order set to none", villager.getUUID());
+                player.sendOverlayMessage(Component.translatable("message.valet.order_set", Component.translatable("order.valet.none")));
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
@@ -262,17 +276,17 @@ public final class ValetNetworking {
                     return;
                 }
 
-                int[] counts = ValetMiningScanner.countNearbyOres(player.getServerWorld(), villager);
+                int[] counts = ValetMiningScanner.countNearbyOres(player.level(), villager);
                 if (counts[target.ordinal()] <= 0) {
-                    player.sendMessage(Text.translatable("message.valet.no_target"), true);
+                    player.sendOverlayMessage(Component.translatable("message.valet.no_target"));
                     sendValetState(player, villager);
                     return;
                 }
 
                 ValetOrders.setMineTarget(villager, target);
                 ValetWorkGoal.requestRestart(villager);
-                ValetMod.LOGGER.info("Valet {} order set to mine {}", villager.getUuid(), target.name());
-                player.sendMessage(Text.translatable("message.valet.mine_target_set", Text.translatable(target.getTranslationKey())), true);
+                ValetMod.LOGGER.info("Valet {} order set to mine {}", villager.getUUID(), target.name());
+                player.sendOverlayMessage(Component.translatable("message.valet.mine_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
@@ -285,35 +299,35 @@ public final class ValetNetworking {
                     return;
                 }
 
-                int[] counts = ValetMiningScanner.countNearbyWood(player.getServerWorld(), villager);
+                int[] counts = ValetMiningScanner.countNearbyWood(player.level(), villager);
                 if (counts[target.ordinal()] <= 0) {
-                    player.sendMessage(Text.translatable("message.valet.no_target"), true);
+                    player.sendOverlayMessage(Component.translatable("message.valet.no_target"));
                     sendValetState(player, villager);
                     return;
                 }
 
                 ValetOrders.setWoodTarget(villager, target);
                 ValetWorkGoal.requestRestart(villager);
-                ValetMod.LOGGER.info("Valet {} order set to chop {}", villager.getUuid(), target.name());
-                player.sendMessage(Text.translatable("message.valet.wood_target_set", Text.translatable(target.getTranslationKey())), true);
+                ValetMod.LOGGER.info("Valet {} order set to chop {}", villager.getUUID(), target.name());
+                player.sendOverlayMessage(Component.translatable("message.valet.wood_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
             }
 
             if (order == ValetOrder.BUILD_STRUCTURE) {
-                ValetConstructionBlueprint blueprint = ValetConstructionStorage.get(player.getServerWorld()).getBlueprint(targetIndex);
+                ValetConstructionBlueprint blueprint = ValetConstructionStorage.get(player.level()).getBlueprint(targetIndex);
                 if (blueprint == null) {
-                    player.sendMessage(Text.translatable("message.valet.no_construction"), true);
+                    player.sendOverlayMessage(Component.translatable("message.valet.no_construction"));
                     sendValetState(player, villager);
                     return;
                 }
 
                 ValetOrders.setConstructionTarget(villager, targetIndex);
                 ValetWorkGoal.requestRestart(villager);
-                ValetMod.LOGGER.info("Valet {} order set to build {}", villager.getUuid(), targetIndex);
+                ValetMod.LOGGER.info("Valet {} order set to build {}", villager.getUUID(), targetIndex);
                 giveBlueprintItem(player, villager, blueprint);
-                player.sendMessage(Text.translatable("message.valet.construction_target_set", blueprint.name()), true);
+                player.sendOverlayMessage(Component.translatable("message.valet.construction_target_set", blueprint.name()));
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
@@ -328,8 +342,8 @@ public final class ValetNetworking {
 
                 ValetOrders.setCraftTarget(villager, target);
                 ValetWorkGoal.requestRestart(villager);
-                ValetMod.LOGGER.info("Valet {} order set to craft {}", villager.getUuid(), target.name());
-                player.sendMessage(Text.translatable("message.valet.craft_target_set", Text.translatable(target.getTranslationKey())), true);
+                ValetMod.LOGGER.info("Valet {} order set to craft {}", villager.getUUID(), target.name());
+                player.sendOverlayMessage(Component.translatable("message.valet.craft_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
@@ -338,38 +352,41 @@ public final class ValetNetworking {
         });
     }
 
-    private static void finishOrderInteraction(ServerPlayerEntity player, VillagerEntity villager) {
+    private static void finishOrderInteraction(ServerPlayer player, Villager villager) {
         ValetConversations.end(villager);
-        player.closeHandledScreen();
+        player.closeContainer();
     }
 
-    private static void giveBlueprintItem(ServerPlayerEntity player, VillagerEntity villager, ValetConstructionBlueprint blueprint) {
+    private static void giveBlueprintItem(ServerPlayer player, Villager villager, ValetConstructionBlueprint blueprint) {
         ItemStack stack = new ItemStack(ValetMod.CONSTRUCTION_BLUEPRINT_ITEM);
-        stack.getOrCreateNbt().putInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY, blueprint.id());
-        stack.getOrCreateNbt().putString(ConstructionBlueprintBlockEntity.CONSTRUCTION_NAME_KEY, blueprint.name());
-        stack.getOrCreateNbt().putUuid(ConstructionBlueprintBlockEntity.VALET_UUID_KEY, villager.getUuid());
-        stack.getOrCreateNbt().put(ConstructionBlueprintBlockEntity.BLUEPRINT_KEY, blueprint.writeNbt());
-        if (!player.getInventory().insertStack(stack)) {
-            player.dropItem(stack, false);
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        tag.putInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY, blueprint.id());
+        tag.putString(ConstructionBlueprintBlockEntity.CONSTRUCTION_NAME_KEY, blueprint.name());
+        tag.putString(ConstructionBlueprintBlockEntity.VALET_UUID_KEY, villager.getUUID().toString());
+        tag.put(ConstructionBlueprintBlockEntity.BLUEPRINT_KEY, blueprint.writeNbt());
+        ConstructionBlueprintNbt.set(stack, tag);
+        if (!player.getInventory().add(stack)) {
+            player.drop(stack, false);
         }
     }
 
-    private static void deleteConstruction(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
-        DeleteConstructionPayload payload = DeleteConstructionPayload.read(buf);
+    private static void deleteConstruction(DeleteConstructionPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
         server.execute(() -> {
-            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
-            if (!(entity instanceof VillagerEntity villager)) {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
                 return;
             }
 
-            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+            if (!isValidValetInteraction(player, villager)) {
                 return;
             }
 
             int constructionId = payload.constructionId();
-            boolean removed = ValetConstructionStorage.get(player.getServerWorld()).removeBlueprint(constructionId);
+            boolean removed = ValetConstructionStorage.get(player.level()).removeBlueprint(constructionId);
             if (!removed) {
-                player.sendMessage(Text.translatable("message.valet.no_construction"), true);
+                player.sendOverlayMessage(Component.translatable("message.valet.no_construction"));
                 sendValetState(player, villager);
                 return;
             }
@@ -378,76 +395,79 @@ public final class ValetNetworking {
                 ValetOrders.set(villager, ValetOrder.NONE);
             }
             removeBlueprintItems(player, constructionId);
-            player.sendMessage(Text.translatable("message.valet.construction_deleted"), true);
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_deleted"));
             sendValetState(player, villager);
         });
     }
 
-    private static void removeBlueprintItems(ServerPlayerEntity player, int constructionId) {
-        for (int i = 0; i < player.getInventory().size(); i++) {
-            ItemStack stack = player.getInventory().getStack(i);
-            if (stack.isOf(ValetMod.CONSTRUCTION_BLUEPRINT_ITEM)
-                    && stack.getNbt() != null
-                    && stack.getNbt().contains(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY)
-                    && stack.getNbt().getInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY) == constructionId) {
-                player.getInventory().setStack(i, ItemStack.EMPTY);
+    private static void removeBlueprintItems(ServerPlayer player, int constructionId) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            net.minecraft.nbt.CompoundTag tag = ConstructionBlueprintNbt.get(stack);
+            if (stack.is(ValetMod.CONSTRUCTION_BLUEPRINT_ITEM)
+                    && tag != null
+                    && tag.getInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY).orElse(-1) == constructionId) {
+                player.getInventory().setItem(i, ItemStack.EMPTY);
             }
         }
-        player.getInventory().markDirty();
+        player.getInventory().setChanged();
     }
 
-    private static void chooseValetPerk(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
-        ChoosePerkPayload payload = ChoosePerkPayload.read(buf);
+    private static void chooseValetPerk(ChoosePerkPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
         server.execute(() -> {
-            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
-            if (!(entity instanceof VillagerEntity villager)) {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
                 return;
             }
 
-            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+            if (!isValidValetInteraction(player, villager)) {
                 return;
             }
 
             ValetPerk perk = payload.perk();
             if (ValetProgress.choosePerk(villager, perk)) {
                 ValetWorkGoal.requestRestart(villager);
-                player.sendMessage(Text.translatable("message.valet.perk_set", Text.translatable(perk.getTranslationKey())), true);
+                player.sendOverlayMessage(Component.translatable("message.valet.perk_set", Component.translatable(perk.getTranslationKey())));
             }
             sendValetState(player, villager);
         });
     }
 
-    private static void chooseValetCombatPerk(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
-        ChooseCombatPerkPayload payload = ChooseCombatPerkPayload.read(buf);
+    private static void chooseValetCombatPerk(ChooseCombatPerkPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
         server.execute(() -> {
-            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
-            if (!(entity instanceof VillagerEntity villager)) {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
                 return;
             }
 
-            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+            if (!isValidValetInteraction(player, villager)) {
                 return;
             }
 
             ValetCombatPerk perk = payload.perk();
             if (ValetCombatProgress.choosePerk(villager, perk)) {
                 ValetWorkGoal.requestRestart(villager);
-                player.sendMessage(Text.translatable("message.valet.perk_set", Text.translatable(perk.getTranslationKey())), true);
+                player.sendOverlayMessage(Component.translatable("message.valet.perk_set", Component.translatable(perk.getTranslationKey())));
             }
             sendValetState(player, villager);
         });
     }
 
-    private static void renameValet(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler, PacketByteBuf buf, PacketSender sender) {
-        RenameValetPayload payload = RenameValetPayload.read(buf);
+    private static void renameValet(RenameValetPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
         String name = cleanName(payload.name());
         server.execute(() -> {
-            Entity entity = player.getWorld().getEntityById(payload.valetEntityId());
-            if (!(entity instanceof VillagerEntity villager)) {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
                 return;
             }
 
-            if (villager.getVillagerData().getProfession() != ValetMod.VALET_PROFESSION || player.squaredDistanceTo(villager) > 64.0D) {
+            if (!isValidValetInteraction(player, villager)) {
                 return;
             }
 
@@ -455,15 +475,19 @@ public final class ValetNetworking {
                 villager.setCustomName(null);
                 villager.setCustomNameVisible(false);
             } else {
-                villager.setCustomName(Text.literal(name));
+                villager.setCustomName(Component.literal(name));
                 villager.setCustomNameVisible(true);
             }
             sendValetState(player, villager);
         });
     }
 
-    private static String getValetName(VillagerEntity villager) {
+    private static String getValetName(Villager villager) {
         return villager.hasCustomName() && villager.getCustomName() != null ? villager.getCustomName().getString() : "";
+    }
+
+    private static boolean isValidValetInteraction(ServerPlayer player, Villager villager) {
+        return ValetMod.isValet(villager) && player.distanceToSqr(villager) <= 64.0D;
     }
 
     private static String cleanName(String name) {

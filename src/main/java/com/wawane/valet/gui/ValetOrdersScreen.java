@@ -1,6 +1,5 @@
 package com.wawane.valet.gui;
 
-import com.wawane.valet.ValetNetworking;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMineTarget;
@@ -14,23 +13,24 @@ import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
+public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreenHandler> {
+    private static ValetOrdersScreen currentScreen;
+
     private static final int SCREEN_WIDTH = 430;
     private static final int SCREEN_HEIGHT = 420;
     private static final int PANEL_MARGIN = 9;
@@ -68,14 +68,14 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private final List<OrderEntry> orderEntries = new ArrayList<>();
     private final ValetOrdersViewModel viewModel;
     private final List<ValetConstructionBlueprint> localConstructions;
-    private TextFieldWidget nameField;
-    private ButtonWidget renameButton;
-    private ButtonWidget buildConstructionButton;
-    private ButtonWidget deleteConstructionButton;
-    private ButtonWidget generalPageButton;
-    private ButtonWidget swordPageButton;
-    private ButtonWidget bowPageButton;
-    private ButtonWidget inventoryPageButton;
+    private EditBox nameField;
+    private Button renameButton;
+    private Button buildConstructionButton;
+    private Button deleteConstructionButton;
+    private Button generalPageButton;
+    private Button swordPageButton;
+    private Button bowPageButton;
+    private Button inventoryPageButton;
     private RightPage selectedRightPage = RightPage.GENERAL;
     private TargetCategory selectedCategory = TargetCategory.NONE;
     private int selectedMineTargetIndex = -1;
@@ -105,10 +105,8 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private ValetPerk selectedPerk = ValetPerk.SPEED;
     private ValetCombatPerk selectedCombatPerk = ValetCombatPerk.SWORD_STRENGTH;
 
-    public ValetOrdersScreen(ValetOrdersScreenHandler handler, PlayerInventory inventory, Text title) {
-        super(handler, inventory, title);
-        backgroundWidth = SCREEN_WIDTH;
-        backgroundHeight = SCREEN_HEIGHT;
+    public ValetOrdersScreen(ValetOrdersScreenHandler handler, Inventory inventory, Component title) {
+        super(handler, inventory, title, SCREEN_WIDTH, SCREEN_HEIGHT);
         viewModel = ValetOrdersViewModel.fromHandler(handler);
         localConstructions = new ArrayList<>(viewModel.constructions());
         ValetOrder currentOrder = viewModel.currentOrder();
@@ -140,48 +138,53 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             localPerks[perk.ordinal()] = viewModel.hasPerk(perk);
         }
         localValetName = viewModel.valetName();
-        titleX = -10000;
-        playerInventoryTitleY = 10000;
+        titleLabelX = -10000;
+        inventoryLabelY = 10000;
+    }
+
+    public static ValetOrdersScreen current() {
+        return currentScreen;
     }
 
     @Override
     protected void init() {
         super.init();
-        highlightValet(true);
+        currentScreen = this;
         rebuildOrderEntries();
         int rightLeft = getRightPanelLeft();
         int top = getPanelTop();
-        nameField = addDrawableChild(new TextFieldWidget(textRenderer, rightLeft + 10, top + 21, RIGHT_WIDTH - 78, 16, Text.translatable("screen.valet.rename")));
+        nameField = addRenderableWidget(new EditBox(font, rightLeft + 10, top + 21, RIGHT_WIDTH - 78, 16, Component.translatable("screen.valet.rename")));
         nameField.setMaxLength(32);
-        nameField.setText(localValetName);
-        renameButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.rename_apply"), button -> sendRename())
-                .dimensions(rightLeft + RIGHT_WIDTH - 62, top + 20, 52, 18)
+        nameField.setValue(localValetName);
+        renameButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.rename_apply"), button -> sendRename())
+                .bounds(rightLeft + RIGHT_WIDTH - 62, top + 20, 52, 18)
                 .build());
-        buildConstructionButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.get_blueprint"), button -> sendSelectedConstructionOrder())
-                .dimensions(rightLeft + RIGHT_WIDTH - 116, top + 42, 52, 18)
+        buildConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.get_blueprint"), button -> sendSelectedConstructionOrder())
+                .bounds(rightLeft + RIGHT_WIDTH - 116, top + 42, 52, 18)
                 .build());
-        deleteConstructionButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
-                .dimensions(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
+        deleteConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
+                .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
                 .build());
-        generalPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
-                .dimensions(rightLeft + 10, top + 132, 58, 18)
+        generalPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
+                .bounds(rightLeft + 10, top + 132, 58, 18)
                 .build());
-        swordPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_sword"), button -> selectRightPage(RightPage.SWORD))
-                .dimensions(rightLeft + 72, top + 132, 48, 18)
+        swordPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_sword"), button -> selectRightPage(RightPage.SWORD))
+                .bounds(rightLeft + 72, top + 132, 48, 18)
                 .build());
-        bowPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
-                .dimensions(rightLeft + 124, top + 132, 42, 18)
+        bowPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
+                .bounds(rightLeft + 124, top + 132, 42, 18)
                 .build());
-        inventoryPageButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.valet.page_inventory"), button -> selectRightPage(RightPage.INVENTORY))
-                .dimensions(rightLeft + 170, top + 132, 86, 18)
+        inventoryPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_inventory"), button -> selectRightPage(RightPage.INVENTORY))
+                .bounds(rightLeft + 170, top + 132, 86, 18)
                 .build());
         updatePageButtons();
         updateConstructionButtons();
     }
 
     @Override
-    protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        drawFrame(context, x, y, backgroundWidth, backgroundHeight);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        extractTransparentBackground(context);
+        drawFrame(context, leftPos, topPos, imageWidth, imageHeight);
         drawPanel(context, getLeftPanelLeft(), getPanelTop(), LEFT_WIDTH, PANEL_HEIGHT);
         drawPanel(context, getRightPanelLeft(), getPanelTop(), RIGHT_WIDTH, PANEL_HEIGHT);
         drawOrderPanel(context, mouseX, mouseY);
@@ -195,12 +198,14 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             drawCombatTalentTree(context, mouseX, mouseY, selectedRightPage);
             drawCombatTalentDetails(context, mouseX, mouseY, selectedRightPage);
         }
+        super.extractRenderState(context, mouseX, mouseY, delta);
+        extractMouseoverTooltip(context, mouseX, mouseY);
     }
 
-    private void drawOrderPanel(DrawContext context, int mouseX, int mouseY) {
+    private void drawOrderPanel(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         int left = getLeftPanelLeft();
         int top = getPanelTop();
-        context.drawText(textRenderer, title, left + 8, top + 7, 0x303030, false);
+        context.text(font, title, left + 8, top + 7, 0xFF303030, false);
 
         context.enableScissor(left + 7, getOrderListTop(), left + LEFT_WIDTH - 7, getOrderListTop() + getOrderListHeight());
         for (int i = 0; i < orderEntries.size(); i++) {
@@ -212,42 +217,42 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             boolean selected = isSelectedEntry(entry);
             boolean hovered = isInside(mouseX, mouseY, left + 7, rowTop, LEFT_WIDTH - 14, ORDER_ROW_HEIGHT);
             drawInset(context, left + 7, rowTop, LEFT_WIDTH - 14, ORDER_ROW_HEIGHT, selected ? 0xFFB99A45 : hovered ? 0xFFD8D1BD : 0xFFC5C0B2);
-            context.drawText(textRenderer, getOrderLabel(entry, selected), left + 12, rowTop + 6, selected ? 0x2B1A05 : 0x303030, false);
+            context.text(font, getOrderLabel(entry, selected), left + 12, rowTop + 6, selected ? 0xFF2B1A05 : 0xFF303030, false);
         }
         context.disableScissor();
         drawOrderScrollbar(context);
     }
 
-    private void drawInfoPanel(DrawContext context) {
+    private void drawInfoPanel(GuiGraphicsExtractor context) {
         int left = getRightPanelLeft();
         int top = getPanelTop();
 
-        context.drawText(textRenderer, Text.translatable("screen.valet.rename"), left + 10, top + 9, 0x303030, false);
-        context.drawText(textRenderer, getAvailableTitle(), left + 10, top + 45, 0x303030, false);
-        context.drawText(textRenderer, getSelectedText(), left + 10, top + 60, 0x1F1F1F, false);
-        context.drawText(textRenderer, getHintText(), left + 10, top + 75, 0x5A5142, false);
-        drawConstructionPreview(context, getSelectedConstruction(), left + RIGHT_WIDTH - CONSTRUCTION_PREVIEW_SIZE - 10, top + 66);
-        context.drawText(textRenderer, Text.translatable("screen.valet.level", localLevel), left + 10, top + 93, 0x202020, false);
+        context.text(font, Component.translatable("screen.valet.rename"), left + 10, top + 9, 0xFF303030, false);
+        context.text(font, getAvailableTitle(), left + 10, top + 45, 0xFF303030, false);
+        context.text(font, getSelectedText(), left + 10, top + 60, 0xFF1F1F1F, false);
+        context.text(font, getHintText(), left + 10, top + 75, 0xFF5A5142, false);
+        drawTargetPreview(context, left + RIGHT_WIDTH - CONSTRUCTION_PREVIEW_SIZE - 10, top + 66);
+        context.text(font, Component.translatable("screen.valet.level", localLevel), left + 10, top + 93, 0xFF202020, false);
         drawXpBar(context, left + 10, top + 108);
 
-        Text pageTitle = getRightPageTitle();
-        context.drawText(textRenderer, pageTitle, left + 10, top + TREE_TITLE_OFFSET, 0x303030, false);
+        Component pageTitle = getRightPageTitle();
+        context.text(font, pageTitle, left + 10, top + TREE_TITLE_OFFSET, 0xFF303030, false);
         if (selectedRightPage != RightPage.INVENTORY) {
             int points = selectedRightPage == RightPage.GENERAL ? localPendingPerks : getCombatPendingPoints(selectedRightPage);
-            context.drawText(textRenderer, Text.translatable("screen.valet.pending_points", points), left + RIGHT_WIDTH - 72, top + TREE_TITLE_OFFSET, points > 0 ? 0x8A5A00 : 0x606060, false);
+            context.text(font, Component.translatable("screen.valet.pending_points", points), left + RIGHT_WIDTH - 72, top + TREE_TITLE_OFFSET, points > 0 ? 0xFF8A5A00 : 0xFF606060, false);
         }
     }
 
-    private Text getRightPageTitle() {
+    private Component getRightPageTitle() {
         return switch (selectedRightPage) {
-            case GENERAL -> Text.translatable("screen.valet.skill_tree");
-            case SWORD -> Text.translatable("screen.valet.sword_tree");
-            case BOW -> Text.translatable("screen.valet.bow_tree");
-            case INVENTORY -> Text.translatable("screen.valet.inventory_title");
+            case GENERAL -> Component.translatable("screen.valet.skill_tree");
+            case SWORD -> Component.translatable("screen.valet.sword_tree");
+            case BOW -> Component.translatable("screen.valet.bow_tree");
+            case INVENTORY -> Component.translatable("screen.valet.inventory_title");
         };
     }
 
-    private void drawInventoryPanel(DrawContext context) {
+    private void drawInventoryPanel(GuiGraphicsExtractor context) {
         int left = getInventoryGridLeft();
         int top = getInventoryGridTop();
         int slotCount = Math.max(localInventoryStacks.size(), 8);
@@ -260,13 +265,13 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             drawInset(context, slotLeft, slotTop, INVENTORY_SLOT_SIZE, INVENTORY_SLOT_SIZE, 0xFF9C9688);
             if (!stack.isEmpty()) {
                 empty = false;
-                context.drawItem(stack, slotLeft + 1, slotTop + 1);
-                context.drawItemInSlot(textRenderer, stack, slotLeft + 1, slotTop + 1);
+                context.item(stack, slotLeft + 1, slotTop + 1);
+                context.itemDecorations(font, stack, slotLeft + 1, slotTop + 1);
             }
         }
 
         if (empty) {
-            context.drawText(textRenderer, Text.translatable("screen.valet.inventory_empty"), left, top + 54, 0x5A5142, false);
+            context.text(font, Component.translatable("screen.valet.inventory_empty"), left, top + 54, 0xFF5A5142, false);
         }
     }
 
@@ -300,7 +305,30 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return ItemStack.EMPTY;
     }
 
-    private void drawCombatTalentTree(DrawContext context, int mouseX, int mouseY, RightPage page) {
+    private void drawTargetPreview(GuiGraphicsExtractor context, int left, int top) {
+        if (selectedCategory == TargetCategory.CONSTRUCTION) {
+            drawConstructionPreview(context, getSelectedConstruction(), left, top);
+            return;
+        }
+        if (selectedCategory == TargetCategory.CRAFT) {
+            drawCraftPreview(context, getSelectedCraftTarget(), left, top);
+        }
+    }
+
+    private void drawCraftPreview(GuiGraphicsExtractor context, ValetCraftTarget target, int left, int top) {
+        if (target == null) {
+            return;
+        }
+
+        drawInset(context, left, top, CONSTRUCTION_PREVIEW_SIZE, CONSTRUCTION_PREVIEW_SIZE, 0xFF9FA394);
+        ItemStack output = new ItemStack(target.getOutputItem());
+        int itemLeft = left + (CONSTRUCTION_PREVIEW_SIZE - 16) / 2;
+        int itemTop = top + 9;
+        context.item(output, itemLeft, itemTop);
+        context.itemDecorations(font, output, itemLeft, itemTop);
+    }
+
+    private void drawCombatTalentTree(GuiGraphicsExtractor context, int mouseX, int mouseY, RightPage page) {
         int left = getRightPanelLeft();
         int top = getPanelTop();
         drawCombatSkillHeader(context, page, left + 10, top + COMBAT_HEADER_OFFSET);
@@ -322,28 +350,28 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         }
     }
 
-    private void drawCombatSkillHeader(DrawContext context, RightPage page, int left, int top) {
+    private void drawCombatSkillHeader(GuiGraphicsExtractor context, RightPage page, int left, int top) {
         boolean sword = page == RightPage.SWORD;
         int level = sword ? localSwordLevel : localBowLevel;
         int xp = sword ? localSwordXp : localBowXp;
         int nextLevelXp = sword ? localSwordNextLevelXp : localBowNextLevelXp;
         int color = sword ? 0xFFB84A3D : 0xFF3E7FB5;
-        Text label = Text.translatable(sword ? "screen.valet.skill_sword" : "screen.valet.skill_bow")
+        Component label = Component.translatable(sword ? "screen.valet.skill_sword" : "screen.valet.skill_bow")
                 .copy()
                 .append(" ")
-                .append(Text.translatable("screen.valet.level", level));
+                .append(Component.translatable("screen.valet.level", level));
 
-        context.drawText(textRenderer, label, left, top, 0x303030, false);
+        context.text(font, label, left, top, 0xFF303030, false);
         int barTop = top + 13;
         int maxXp = Math.max(1, nextLevelXp);
         int fillWidth = Math.min(XP_BAR_WIDTH, Math.max(0, xp) * XP_BAR_WIDTH / maxXp);
         context.fill(left, barTop, left + XP_BAR_WIDTH, barTop + XP_BAR_HEIGHT, 0xFF4C4C4C);
         context.fill(left + 1, barTop + 1, left + XP_BAR_WIDTH - 1, barTop + XP_BAR_HEIGHT - 1, 0xFF222222);
         context.fill(left + 1, barTop + 1, left + 1 + fillWidth, barTop + XP_BAR_HEIGHT - 1, color);
-        context.drawText(textRenderer, Text.translatable("screen.valet.xp", xp, nextLevelXp), left, barTop + 13, 0x4A4030, false);
+        context.text(font, Component.translatable("screen.valet.xp", xp, nextLevelXp), left, barTop + 13, 0xFF4A4030, false);
     }
 
-    private void drawCombatPerkNode(DrawContext context, CombatPerkNode node, int mouseX, int mouseY) {
+    private void drawCombatPerkNode(GuiGraphicsExtractor context, CombatPerkNode node, int mouseX, int mouseY) {
         boolean owned = hasLocalCombatPerk(node.perk);
         boolean hovered = isInside(mouseX, mouseY, node.left, node.top, NODE_SIZE, NODE_SIZE);
         boolean selected = selectedCombatPerk == node.perk;
@@ -358,10 +386,10 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
 
         drawInset(context, node.left, node.top, NODE_SIZE, NODE_SIZE, border);
         context.fill(node.left + 3, node.top + 3, node.left + NODE_SIZE - 3, node.top + NODE_SIZE - 3, fill);
-        context.drawCenteredTextWithShadow(textRenderer, getCombatPerkIcon(node.perk, owned), node.left + NODE_SIZE / 2, node.top + 10, 0xFFFFFF);
+        context.centeredText(font, getCombatPerkIcon(node.perk, owned), node.left + NODE_SIZE / 2, node.top + 10, 0xFFFFFFFF);
     }
 
-    private void drawCombatConnection(DrawContext context, CombatPerkNode from, CombatPerkNode to) {
+    private void drawCombatConnection(GuiGraphicsExtractor context, CombatPerkNode from, CombatPerkNode to) {
         int color = hasLocalCombatPerk(to.perk) ? 0xFFD39A35 : hasLocalCombatPerk(from.perk) ? 0xFF7F9CCB : 0xFF555555;
         int x1 = from.centerX();
         int y1 = from.centerY();
@@ -374,7 +402,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         context.fill(Math.min(midX, x2), y2 - 1, Math.max(midX, x2) + 1, y2 + 1, color);
     }
 
-    private void drawCombatTalentDetails(DrawContext context, int mouseX, int mouseY, RightPage page) {
+    private void drawCombatTalentDetails(GuiGraphicsExtractor context, int mouseX, int mouseY, RightPage page) {
         ValetCombatPerk perk = getHoveredCombatPerk(mouseX, mouseY, page);
         if (perk == null) {
             perk = combatPerkBelongsToPage(selectedCombatPerk, page) ? selectedCombatPerk : getDefaultCombatPerk(page);
@@ -384,14 +412,14 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         int top = getPanelTop() + TREE_DETAIL_OFFSET;
         int width = RIGHT_WIDTH - 20;
         drawInset(context, left, top, width, TREE_DETAIL_HEIGHT, 0xFFB8B19E);
-        context.drawText(textRenderer, Text.translatable(perk.getTranslationKey()), left + 7, top + 6, 0x202020, false);
-        context.drawText(textRenderer, Text.translatable(perk.getDescriptionKey()), left + 7, top + 18, 0x4A4030, false);
+        context.text(font, Component.translatable(perk.getTranslationKey()), left + 7, top + 6, 0xFF202020, false);
+        context.text(font, Component.translatable(perk.getDescriptionKey()), left + 7, top + 18, 0xFF4A4030, false);
 
-        Text status = getCombatPerkStatus(perk);
-        context.drawText(textRenderer, status, left + width - textRenderer.getWidth(status) - 7, top + 6, hasLocalCombatPerk(perk) ? 0x8A5A00 : 0x555555, false);
+        Component status = getCombatPerkStatus(perk);
+        context.text(font, status, left + width - font.width(status) - 7, top + 6, hasLocalCombatPerk(perk) ? 0xFF8A5A00 : 0xFF555555, false);
     }
 
-    private void drawPerkTree(DrawContext context, int mouseX, int mouseY) {
+    private void drawPerkTree(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         PerkNode speed = getNode(ValetPerk.SPEED);
         PerkNode vision = getNode(ValetPerk.VISION);
         PerkNode movement = getNode(ValetPerk.MOVEMENT);
@@ -404,7 +432,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         }
     }
 
-    private void drawPerkNode(DrawContext context, PerkNode node, int mouseX, int mouseY) {
+    private void drawPerkNode(GuiGraphicsExtractor context, PerkNode node, int mouseX, int mouseY) {
         boolean owned = hasLocalPerk(node.perk);
         boolean hovered = isInside(mouseX, mouseY, node.left, node.top, NODE_SIZE, NODE_SIZE);
         boolean selected = selectedPerk == node.perk;
@@ -418,10 +446,10 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
 
         drawInset(context, node.left, node.top, NODE_SIZE, NODE_SIZE, border);
         context.fill(node.left + 3, node.top + 3, node.left + NODE_SIZE - 3, node.top + NODE_SIZE - 3, fill);
-        context.drawCenteredTextWithShadow(textRenderer, getPerkIcon(node.perk, owned), node.left + NODE_SIZE / 2, node.top + 10, 0xFFFFFF);
+        context.centeredText(font, getPerkIcon(node.perk, owned), node.left + NODE_SIZE / 2, node.top + 10, 0xFFFFFFFF);
     }
 
-    private void drawConnection(DrawContext context, PerkNode from, PerkNode to) {
+    private void drawConnection(GuiGraphicsExtractor context, PerkNode from, PerkNode to) {
         int color = hasLocalPerk(to.perk) ? 0xFFD39A35 : hasLocalPerk(from.perk) ? 0xFF7F9CCB : 0xFF555555;
         int x1 = from.centerX();
         int y1 = from.centerY();
@@ -434,7 +462,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         context.fill(Math.min(midX, x2), y2 - 1, Math.max(midX, x2) + 1, y2 + 1, color);
     }
 
-    private void drawPerkDetails(DrawContext context, int mouseX, int mouseY) {
+    private void drawPerkDetails(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         ValetPerk perk = getHoveredPerk(mouseX, mouseY);
         if (perk == null) {
             perk = selectedPerk;
@@ -444,38 +472,38 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         int top = getPanelTop() + TREE_DETAIL_OFFSET;
         int width = RIGHT_WIDTH - 20;
         drawInset(context, left, top, width, TREE_DETAIL_HEIGHT, 0xFFB8B19E);
-        context.drawText(textRenderer, Text.translatable(perk.getTranslationKey()), left + 7, top + 6, 0x202020, false);
-        context.drawText(textRenderer, Text.translatable(getPerkDescriptionKey(perk)), left + 7, top + 18, 0x4A4030, false);
+        context.text(font, Component.translatable(perk.getTranslationKey()), left + 7, top + 6, 0xFF202020, false);
+        context.text(font, Component.translatable(getPerkDescriptionKey(perk)), left + 7, top + 18, 0xFF4A4030, false);
 
-        Text status = getPerkStatus(perk);
-        context.drawText(textRenderer, status, left + width - textRenderer.getWidth(status) - 7, top + 6, hasLocalPerk(perk) ? 0x8A5A00 : 0x555555, false);
+        Component status = getPerkStatus(perk);
+        context.text(font, status, left + width - font.width(status) - 7, top + 6, hasLocalPerk(perk) ? 0xFF8A5A00 : 0xFF555555, false);
     }
 
-    private void drawXpBar(DrawContext context, int left, int top) {
+    private void drawXpBar(GuiGraphicsExtractor context, int left, int top) {
         int maxXp = Math.max(1, localNextLevelXp);
         int fillWidth = Math.min(XP_BAR_WIDTH, localXp * XP_BAR_WIDTH / maxXp);
 
         context.fill(left, top, left + XP_BAR_WIDTH, top + XP_BAR_HEIGHT, 0xFF4C4C4C);
         context.fill(left + 1, top + 1, left + XP_BAR_WIDTH - 1, top + XP_BAR_HEIGHT - 1, 0xFF222222);
         context.fill(left + 1, top + 1, left + 1 + fillWidth, top + XP_BAR_HEIGHT - 1, 0xFF70B536);
-        context.drawText(textRenderer, Text.translatable("screen.valet.xp", localXp, localNextLevelXp), left, top + 13, 0x4A4030, false);
+        context.text(font, Component.translatable("screen.valet.xp", localXp, localNextLevelXp), left, top + 13, 0xFF4A4030, false);
     }
 
-    private void drawFrame(DrawContext context, int left, int top, int width, int height) {
+    private void drawFrame(GuiGraphicsExtractor context, int left, int top, int width, int height) {
         context.fill(left, top, left + width, top + height, 0xFF1F1A14);
         context.fill(left + 1, top + 1, left + width - 1, top + height - 1, 0xFFE7D6A3);
         context.fill(left + 3, top + 3, left + width - 3, top + height - 3, 0xFF5A4631);
         context.fill(left + 5, top + 5, left + width - 5, top + height - 5, 0xFFC8BEA6);
     }
 
-    private void drawPanel(DrawContext context, int left, int top, int width, int height) {
+    private void drawPanel(GuiGraphicsExtractor context, int left, int top, int width, int height) {
         context.fill(left, top, left + width, top + height, 0xFF3C3226);
         context.fill(left + 1, top + 1, left + width - 1, top + height - 1, 0xFFE4D8BD);
         context.fill(left + 3, top + 3, left + width - 3, top + height - 3, 0xFFB8B19E);
         context.fill(left + 4, top + 4, left + width - 4, top + height - 4, 0xFFD1CAB8);
     }
 
-    private void drawInset(DrawContext context, int left, int top, int width, int height, int fill) {
+    private void drawInset(GuiGraphicsExtractor context, int left, int top, int width, int height, int fill) {
         context.fill(left, top, left + width, top + height, 0xFF5A5142);
         context.fill(left + 1, top + 1, left + width - 1, top + height - 1, 0xFFE9DFCA);
         context.fill(left + 2, top + 2, left + width - 2, top + height - 2, fill);
@@ -483,38 +511,38 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
 
     private void rebuildOrderEntries() {
         orderEntries.clear();
-        orderEntries.add(OrderEntry.target(ValetOrder.NONE, -1, Text.translatable("order.valet.none")));
-        orderEntries.add(OrderEntry.category(TargetCategory.ORE, Text.translatable("screen.valet.category_ores")));
+        orderEntries.add(OrderEntry.target(ValetOrder.NONE, -1, Component.translatable("order.valet.none")));
+        orderEntries.add(OrderEntry.category(TargetCategory.ORE, Component.translatable("screen.valet.category_ores")));
         if (selectedCategory == TargetCategory.ORE) {
             for (ValetMineTarget target : ValetMineTarget.values()) {
                 int count = getLocalOreCount(target);
                 if (count > 0) {
-                    orderEntries.add(OrderEntry.target(ValetOrder.MINE_ORES, target.ordinal(), Text.literal("  ").append(Text.translatable("screen.valet.ore_count", Text.translatable(target.getTranslationKey()), count))));
+                    orderEntries.add(OrderEntry.target(ValetOrder.MINE_ORES, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.ore_count", Component.translatable(target.getTranslationKey()), count))));
                 }
             }
         }
 
-        orderEntries.add(OrderEntry.category(TargetCategory.WOOD, Text.translatable("screen.valet.category_wood")));
+        orderEntries.add(OrderEntry.category(TargetCategory.WOOD, Component.translatable("screen.valet.category_wood")));
         if (selectedCategory == TargetCategory.WOOD) {
             for (ValetWoodTarget target : ValetWoodTarget.values()) {
                 int count = getLocalWoodCount(target);
                 if (count > 0) {
-                    orderEntries.add(OrderEntry.target(ValetOrder.CHOP_WOOD, target.ordinal(), Text.literal("  ").append(Text.translatable("screen.valet.wood_count", Text.translatable(target.getTranslationKey()), count))));
+                    orderEntries.add(OrderEntry.target(ValetOrder.CHOP_WOOD, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.wood_count", Component.translatable(target.getTranslationKey()), count))));
                 }
             }
         }
 
-        orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Text.translatable("screen.valet.category_constructions")));
+        orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Component.translatable("screen.valet.category_constructions")));
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             for (ValetConstructionBlueprint construction : localConstructions) {
-                orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Text.literal("  ").append(Text.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
+                orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Component.literal("  ").append(Component.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
             }
         }
 
-        orderEntries.add(OrderEntry.category(TargetCategory.CRAFT, Text.translatable("screen.valet.category_craft")));
+        orderEntries.add(OrderEntry.category(TargetCategory.CRAFT, Component.translatable("screen.valet.category_craft")));
         if (selectedCategory == TargetCategory.CRAFT) {
             for (ValetCraftTarget target : ValetCraftTarget.values()) {
-                orderEntries.add(OrderEntry.target(ValetOrder.CRAFT, target.ordinal(), Text.literal("  ").append(Text.translatable(target.getTranslationKey()))));
+                orderEntries.add(OrderEntry.target(ValetOrder.CRAFT, target.ordinal(), Component.literal("  ").append(Component.translatable(target.getTranslationKey()))));
             }
         }
         clampOrderScroll();
@@ -543,58 +571,58 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return false;
     }
 
-    private Text getAvailableTitle() {
+    private Component getAvailableTitle() {
         return switch (selectedCategory) {
-            case ORE -> Text.translatable("screen.valet.available_ores");
-            case WOOD -> Text.translatable("screen.valet.available_wood");
-            case CONSTRUCTION -> Text.translatable("screen.valet.available_constructions");
-            case CRAFT -> Text.translatable("screen.valet.available_craft");
-            case NONE -> Text.translatable("screen.valet.available_targets");
+            case ORE -> Component.translatable("screen.valet.available_ores");
+            case WOOD -> Component.translatable("screen.valet.available_wood");
+            case CONSTRUCTION -> Component.translatable("screen.valet.available_constructions");
+            case CRAFT -> Component.translatable("screen.valet.available_craft");
+            case NONE -> Component.translatable("screen.valet.available_targets");
         };
     }
 
-    private Text getCategoryText(TargetCategory category) {
+    private Component getCategoryText(TargetCategory category) {
         return switch (category) {
-            case ORE -> Text.translatable("screen.valet.category_ores");
-            case WOOD -> Text.translatable("screen.valet.category_wood");
-            case CONSTRUCTION -> Text.translatable("screen.valet.category_constructions");
-            case CRAFT -> Text.translatable("screen.valet.category_craft");
-            case NONE -> Text.translatable("order.valet.none");
+            case ORE -> Component.translatable("screen.valet.category_ores");
+            case WOOD -> Component.translatable("screen.valet.category_wood");
+            case CONSTRUCTION -> Component.translatable("screen.valet.category_constructions");
+            case CRAFT -> Component.translatable("screen.valet.category_craft");
+            case NONE -> Component.translatable("order.valet.none");
         };
     }
 
-    private Text getOrderLabel(OrderEntry entry, boolean selected) {
-        return selected ? Text.literal("> ").append(entry.label) : entry.label;
+    private Component getOrderLabel(OrderEntry entry, boolean selected) {
+        return selected ? Component.literal("> ").append(entry.label) : entry.label;
     }
 
-    private Text getSelectedText() {
+    private Component getSelectedText() {
         if (selectedCategory == TargetCategory.ORE) {
             ValetMineTarget target = ValetMineTarget.fromIndex(selectedMineTargetIndex);
-            return target == null ? getCategoryText(TargetCategory.ORE) : Text.translatable(target.getTranslationKey());
+            return target == null ? getCategoryText(TargetCategory.ORE) : Component.translatable(target.getTranslationKey());
         }
         if (selectedCategory == TargetCategory.WOOD) {
             ValetWoodTarget target = ValetWoodTarget.fromIndex(selectedWoodTargetIndex);
-            return target == null ? getCategoryText(TargetCategory.WOOD) : Text.translatable(target.getTranslationKey());
+            return target == null ? getCategoryText(TargetCategory.WOOD) : Component.translatable(target.getTranslationKey());
         }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             ValetConstructionBlueprint construction = getSelectedConstruction();
-            return construction == null ? getCategoryText(TargetCategory.CONSTRUCTION) : Text.literal(construction.name());
+            return construction == null ? getCategoryText(TargetCategory.CONSTRUCTION) : Component.literal(construction.name());
         }
         if (selectedCategory == TargetCategory.CRAFT) {
             ValetCraftTarget target = ValetCraftTarget.fromIndex(selectedCraftTargetIndex);
-            return target == null ? getCategoryText(TargetCategory.CRAFT) : Text.translatable(target.getTranslationKey());
+            return target == null ? getCategoryText(TargetCategory.CRAFT) : Component.translatable(target.getTranslationKey());
         }
-        return Text.translatable("order.valet.none");
+        return Component.translatable("order.valet.none");
     }
 
-    private Text getHintText() {
+    private Component getHintText() {
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
-            return localConstructions.isEmpty() ? Text.translatable("screen.valet.no_constructions") : Text.translatable("screen.valet.build_hint");
+            return localConstructions.isEmpty() ? Component.translatable("screen.valet.no_constructions") : Component.translatable("screen.valet.build_hint");
         }
         if (selectedCategory == TargetCategory.CRAFT) {
-            return Text.translatable("screen.valet.craft_hint");
+            return Component.translatable("screen.valet.craft_hint");
         }
-        return Text.translatable("screen.valet.mine_hint");
+        return Component.translatable("screen.valet.mine_hint");
     }
 
     private ValetConstructionBlueprint getSelectedConstruction() {
@@ -604,6 +632,10 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             }
         }
         return null;
+    }
+
+    private ValetCraftTarget getSelectedCraftTarget() {
+        return ValetCraftTarget.fromIndex(selectedCraftTargetIndex);
     }
 
     private PerkNode getNode(ValetPerk perk) {
@@ -667,46 +699,46 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         return perk.getTree() == com.wawane.valet.progress.ValetCombatSkillTree.SWORD ? RightPage.SWORD : RightPage.BOW;
     }
 
-    private Text getPerkIcon(ValetPerk perk, boolean owned) {
+    private Component getPerkIcon(ValetPerk perk, boolean owned) {
         if (owned) {
-            return Text.literal("*");
+            return Component.literal("*");
         }
 
-        return Text.literal(perk.getIcon());
+        return Component.literal(perk.getIcon());
     }
 
-    private Text getCombatPerkIcon(ValetCombatPerk perk, boolean owned) {
+    private Component getCombatPerkIcon(ValetCombatPerk perk, boolean owned) {
         if (owned) {
-            return Text.literal("*");
+            return Component.literal("*");
         }
 
-        return Text.literal(perk.getIcon());
+        return Component.literal(perk.getIcon());
     }
 
-    private Text getPerkStatus(ValetPerk perk) {
+    private Component getPerkStatus(ValetPerk perk) {
         if (hasLocalPerk(perk)) {
-            return Text.translatable("screen.valet.perk_owned");
+            return Component.translatable("screen.valet.perk_owned");
         }
         if (!canLearnPerk(perk)) {
-            return Text.translatable("screen.valet.perk_locked");
+            return Component.translatable("screen.valet.perk_locked");
         }
         if (localPendingPerks > 0) {
-            return Text.translatable("screen.valet.perk_learn");
+            return Component.translatable("screen.valet.perk_learn");
         }
-        return Text.translatable("screen.valet.perk_no_points");
+        return Component.translatable("screen.valet.perk_no_points");
     }
 
-    private Text getCombatPerkStatus(ValetCombatPerk perk) {
+    private Component getCombatPerkStatus(ValetCombatPerk perk) {
         if (hasLocalCombatPerk(perk)) {
-            return Text.translatable("screen.valet.perk_owned");
+            return Component.translatable("screen.valet.perk_owned");
         }
         if (!canLearnCombatPerk(perk)) {
-            return Text.translatable("screen.valet.perk_locked");
+            return Component.translatable("screen.valet.perk_locked");
         }
         if (getCombatPendingPoints(getPageForCombatPerk(perk)) > 0) {
-            return Text.translatable("screen.valet.perk_learn");
+            return Component.translatable("screen.valet.perk_learn");
         }
-        return Text.translatable("screen.valet.perk_no_points");
+        return Component.translatable("screen.valet.perk_no_points");
     }
 
     private String getPerkDescriptionKey(ValetPerk perk) {
@@ -771,15 +803,15 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     }
 
     private int getLeftPanelLeft() {
-        return x + PANEL_MARGIN;
+        return leftPos + PANEL_MARGIN;
     }
 
     private int getRightPanelLeft() {
-        return x + PANEL_MARGIN + LEFT_WIDTH + PANEL_GAP;
+        return leftPos + PANEL_MARGIN + LEFT_WIDTH + PANEL_GAP;
     }
 
     private int getPanelTop() {
-        return y + PANEL_TOP;
+        return topPos + PANEL_TOP;
     }
 
     private int getOrderTop(int row) {
@@ -806,7 +838,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         orderScroll = Math.max(0, Math.min(orderScroll + amount, getMaxOrderScroll()));
     }
 
-    private void drawOrderScrollbar(DrawContext context) {
+    private void drawOrderScrollbar(GuiGraphicsExtractor context) {
         int maxScroll = getMaxOrderScroll();
         if (maxScroll <= 0) {
             return;
@@ -821,21 +853,18 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         context.fill(left, thumbTop, left + 3, thumbTop + thumbHeight, 0xFF5A5142);
     }
 
-    @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context);
-        super.render(context, mouseX, mouseY, delta);
-        drawMouseoverTooltip(context, mouseX, mouseY);
+    private void extractMouseoverTooltip(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         if (selectedRightPage == RightPage.INVENTORY) {
             ItemStack hoveredStack = getHoveredInventoryStack(mouseX, mouseY);
             if (!hoveredStack.isEmpty()) {
-                context.drawItemTooltip(textRenderer, hoveredStack, mouseX, mouseY);
+                context.setTooltipForNextFrame(font, hoveredStack, mouseX, mouseY);
             }
         }
     }
-
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x();
+        double mouseY = event.y();
         int left = getLeftPanelLeft();
         for (int i = 0; i < orderEntries.size(); i++) {
             OrderEntry entry = orderEntries.get(i);
@@ -874,16 +903,16 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             }
         }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (isInside(mouseX, mouseY, getLeftPanelLeft() + 7, getOrderListTop(), LEFT_WIDTH - 14, getOrderListHeight()) && getMaxOrderScroll() > 0) {
-            scrollOrders((int) (-amount * ORDER_ROW_STRIDE));
+            scrollOrders((int) (-verticalAmount * ORDER_ROW_STRIDE));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, amount);
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     public int getValetEntityId() {
@@ -921,44 +950,51 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         }
         localValetName = valetName;
         if (nameField != null) {
-            nameField.setText(localValetName);
+            nameField.setValue(localValetName);
         }
         rebuildOrderEntries();
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if ((keyCode == 257 || keyCode == 335) && nameField != null && nameField.isFocused()) {
-            sendRename();
+    public boolean keyPressed(KeyEvent event) {
+        int keyCode = event.key();
+        if (nameField != null && nameField.isFocused()) {
+            if (keyCode == 257 || keyCode == 335) {
+                sendRename();
+                return true;
+            }
+            if (keyCode == 256) {
+                nameField.setFocused(false);
+                return true;
+            }
+            nameField.keyPressed(event);
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public void close() {
-        highlightValet(false);
-        super.close();
+    public boolean charTyped(CharacterEvent event) {
+        if (nameField != null && nameField.isFocused()) {
+            return nameField.charTyped(event);
+        }
+        return super.charTyped(event);
+    }
+
+    @Override
+    public void onClose() {
+        if (currentScreen == this) {
+            currentScreen = null;
+        }
+        super.onClose();
     }
 
     @Override
     public void removed() {
-        highlightValet(false);
+        if (currentScreen == this) {
+            currentScreen = null;
+        }
         super.removed();
-    }
-
-    private void highlightValet(boolean highlighted) {
-        MinecraftClient minecraft = MinecraftClient.getInstance();
-        if (minecraft.world == null) {
-            return;
-        }
-
-        Entity entity = minecraft.world.getEntityById(viewModel.valetEntityId());
-        if (entity == null) {
-            return;
-        }
-
-        entity.setGlowing(highlighted);
     }
 
     private void sendSelection(ValetOrder order, int targetIndex) {
@@ -983,9 +1019,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         }
         rebuildOrderEntries();
 
-        PacketByteBuf buf = PacketByteBufs.create();
-        new SetOrderPayload(viewModel.valetEntityId(), order, targetIndex).write(buf);
-        ClientPlayNetworking.send(ValetNetworking.SET_ORDER_PACKET_ID, buf);
+        ClientPlayNetworking.send(new SetOrderPayload(viewModel.valetEntityId(), order, targetIndex));
     }
 
     private void sendPerkSelection(ValetPerk perk) {
@@ -996,9 +1030,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         setLocalPerk(perk);
         localPendingPerks = Math.max(0, localPendingPerks - 1);
 
-        PacketByteBuf buf = PacketByteBufs.create();
-        new ChoosePerkPayload(viewModel.valetEntityId(), perk).write(buf);
-        ClientPlayNetworking.send(ValetNetworking.CHOOSE_PERK_PACKET_ID, buf);
+        ClientPlayNetworking.send(new ChoosePerkPayload(viewModel.valetEntityId(), perk));
     }
 
     private void sendCombatPerkSelection(ValetCombatPerk perk) {
@@ -1014,9 +1046,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             localBowPendingPerks = Math.max(0, localBowPendingPerks - 1);
         }
 
-        PacketByteBuf buf = PacketByteBufs.create();
-        new ChooseCombatPerkPayload(viewModel.valetEntityId(), perk).write(buf);
-        ClientPlayNetworking.send(ValetNetworking.CHOOSE_COMBAT_PERK_PACKET_ID, buf);
+        ClientPlayNetworking.send(new ChooseCombatPerkPayload(viewModel.valetEntityId(), perk));
     }
 
     private void sendRename() {
@@ -1024,10 +1054,8 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             return;
         }
 
-        localValetName = nameField.getText().trim();
-        PacketByteBuf buf = PacketByteBufs.create();
-        new RenameValetPayload(viewModel.valetEntityId(), localValetName).write(buf);
-        ClientPlayNetworking.send(ValetNetworking.RENAME_PACKET_ID, buf);
+        localValetName = nameField.getValue().trim();
+        ClientPlayNetworking.send(new RenameValetPayload(viewModel.valetEntityId(), localValetName));
         nameField.setFocused(false);
     }
 
@@ -1051,9 +1079,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         selectedConstructionTargetId = -1;
         rebuildOrderEntries();
 
-        PacketByteBuf buf = PacketByteBufs.create();
-        new DeleteConstructionPayload(viewModel.valetEntityId(), constructionId).write(buf);
-        ClientPlayNetworking.send(ValetNetworking.DELETE_CONSTRUCTION_PACKET_ID, buf);
+        ClientPlayNetworking.send(new DeleteConstructionPayload(viewModel.valetEntityId(), constructionId));
     }
 
     private void selectRightPage(RightPage page) {
@@ -1072,13 +1098,13 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory");
     }
 
-    private void updatePageButton(ButtonWidget button, RightPage page, String translationKey) {
+    private void updatePageButton(Button button, RightPage page, String translationKey) {
         if (button == null) {
             return;
         }
 
         button.active = selectedRightPage != page;
-        button.setMessage(Text.literal(selectedRightPage == page ? "> " : "").append(Text.translatable(translationKey)));
+        button.setMessage(Component.literal(selectedRightPage == page ? "> " : "").append(Component.translatable(translationKey)));
     }
 
     private void updateConstructionButtons() {
@@ -1095,7 +1121,7 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
         deleteConstructionButton.active = hasSelectedConstruction;
     }
 
-    private void drawConstructionPreview(DrawContext context, ValetConstructionBlueprint blueprint, int left, int top) {
+    private void drawConstructionPreview(GuiGraphicsExtractor context, ValetConstructionBlueprint blueprint, int left, int top) {
         if (blueprint == null || blueprint.entries().isEmpty()) {
             return;
         }
@@ -1161,11 +1187,11 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
     private static final class OrderEntry {
         private final ValetOrder order;
         private final int targetIndex;
-        private final Text label;
+        private final Component label;
         private final TargetCategory category;
         private final boolean categoryOnly;
 
-        private OrderEntry(ValetOrder order, int targetIndex, Text label, TargetCategory category, boolean categoryOnly) {
+        private OrderEntry(ValetOrder order, int targetIndex, Component label, TargetCategory category, boolean categoryOnly) {
             this.order = order;
             this.targetIndex = targetIndex;
             this.label = label;
@@ -1173,11 +1199,11 @@ public class ValetOrdersScreen extends HandledScreen<ValetOrdersScreenHandler> {
             this.categoryOnly = categoryOnly;
         }
 
-        private static OrderEntry target(ValetOrder order, int targetIndex, Text label) {
+        private static OrderEntry target(ValetOrder order, int targetIndex, Component label) {
             return new OrderEntry(order, targetIndex, label, TargetCategory.NONE, false);
         }
 
-        private static OrderEntry category(TargetCategory category, Text label) {
+        private static OrderEntry category(TargetCategory category, Component label) {
             return new OrderEntry(ValetOrder.NONE, -1, label, category, true);
         }
     }

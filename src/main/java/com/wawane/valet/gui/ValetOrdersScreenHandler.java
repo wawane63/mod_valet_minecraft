@@ -9,22 +9,26 @@ import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetCombatPerk;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.World;
-
+import io.netty.buffer.Unpooled;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
-public class ValetOrdersScreenHandler extends ScreenHandler {
+public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final int valetEntityId;
     private final UUID valetUuid;
     private final Identifier valetDimension;
@@ -54,15 +58,23 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     private final boolean allyAwareness;
     private final String valetName;
 
-    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, PacketByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUuid(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readString(32));
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, FriendlyByteBuf buf) {
+        this(syncId, inventory, new RegistryFriendlyByteBuf(buf, inventory.player.registryAccess()));
     }
 
-    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), World.OVERWORLD.getValue(), ValetOrder.NONE.ordinal(), -1, -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, OpeningData data) {
+        this(syncId, inventory, data.asBuffer(inventory.player.registryAccess()));
     }
 
-    public ValetOrdersScreenHandler(int syncId, PlayerInventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    private ValetOrdersScreenHandler(int syncId, Inventory inventory, RegistryFriendlyByteBuf buf) {
+        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
+    }
+
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId) {
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetOrder.NONE.ordinal(), -1, -1, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+    }
+
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -217,29 +229,29 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
     }
 
     @Override
-    public boolean canUse(PlayerEntity player) {
-        Entity entity = player.getWorld().getEntityById(valetEntityId);
-        return entity instanceof VillagerEntity villager
-                && villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION
-                && player.squaredDistanceTo(villager) <= 64.0D;
+    public boolean stillValid(Player player) {
+        net.minecraft.world.entity.Entity entity = player.level().getEntity(valetEntityId);
+        return entity instanceof Villager villager
+                && ValetMod.isValet(villager)
+                && player.distanceToSqr(villager) <= 64.0D;
     }
 
     @Override
-    public ItemStack quickMove(PlayerEntity player, int slot) {
+    public ItemStack quickMoveStack(Player player, int slot) {
         return ItemStack.EMPTY;
     }
 
     @Override
-    public void onClosed(PlayerEntity player) {
-        super.onClosed(player);
-        if (player.getWorld().isClient) {
+    public void removed(Player player) {
+        super.removed(player);
+        if (player.level().isClientSide()) {
             return;
         }
 
         ValetConversations.end(valetUuid);
     }
 
-    private static int[] readOreCounts(PacketByteBuf buf) {
+    private static int[] readOreCounts(FriendlyByteBuf buf) {
         int[] counts = new int[ValetMineTarget.values().length];
         for (int i = 0; i < counts.length; i++) {
             counts[i] = buf.readInt();
@@ -247,7 +259,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         return counts;
     }
 
-    private static int[] readWoodCounts(PacketByteBuf buf) {
+    private static int[] readWoodCounts(FriendlyByteBuf buf) {
         int[] counts = new int[ValetWoodTarget.values().length];
         for (int i = 0; i < counts.length; i++) {
             counts[i] = buf.readInt();
@@ -255,7 +267,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         return counts;
     }
 
-    private static boolean[] readPerks(PacketByteBuf buf) {
+    private static boolean[] readPerks(FriendlyByteBuf buf) {
         boolean[] perks = new boolean[ValetPerk.values().length];
         for (int i = 0; i < perks.length; i++) {
             perks[i] = buf.readBoolean();
@@ -263,7 +275,7 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         return perks;
     }
 
-    private static boolean[] readCombatPerks(PacketByteBuf buf) {
+    private static boolean[] readCombatPerks(FriendlyByteBuf buf) {
         boolean[] perks = new boolean[ValetCombatPerk.values().length];
         for (int i = 0; i < perks.length; i++) {
             perks[i] = buf.readBoolean();
@@ -271,11 +283,11 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         return perks;
     }
 
-    private static List<ValetConstructionBlueprint> readConstructions(PacketByteBuf buf) {
+    private static List<ValetConstructionBlueprint> readConstructions(FriendlyByteBuf buf) {
         int count = buf.readInt();
         List<ValetConstructionBlueprint> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            NbtCompound nbt = buf.readNbt();
+            CompoundTag nbt = buf.readNbt();
             if (nbt != null) {
                 result.add(ValetConstructionBlueprint.readNbt(nbt));
             }
@@ -283,11 +295,11 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
         return result;
     }
 
-    private static List<ItemStack> readInventory(PacketByteBuf buf) {
+    private static List<ItemStack> readInventory(RegistryFriendlyByteBuf buf) {
         int count = Math.max(0, buf.readInt());
         List<ItemStack> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            result.add(buf.readItemStack());
+            result.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
         }
         return result;
     }
@@ -298,5 +310,34 @@ public class ValetOrdersScreenHandler extends ScreenHandler {
             result.add(stack.copy());
         }
         return result;
+    }
+
+    public record OpeningData(byte[] bytes) {
+        private static final int MAX_OPENING_DATA_BYTES = 262144;
+        public static final StreamCodec<RegistryFriendlyByteBuf, OpeningData> CODEC = StreamCodec.ofMember(OpeningData::write, OpeningData::read);
+
+        public OpeningData {
+            bytes = Arrays.copyOf(bytes, bytes.length);
+        }
+
+        public static OpeningData create(RegistryAccess registryAccess, Consumer<RegistryFriendlyByteBuf> writer) {
+            RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), registryAccess);
+            writer.accept(buf);
+            byte[] bytes = new byte[buf.readableBytes()];
+            buf.getBytes(buf.readerIndex(), bytes);
+            return new OpeningData(bytes);
+        }
+
+        public static OpeningData read(RegistryFriendlyByteBuf buf) {
+            return new OpeningData(buf.readByteArray(MAX_OPENING_DATA_BYTES));
+        }
+
+        public void write(RegistryFriendlyByteBuf buf) {
+            buf.writeByteArray(bytes);
+        }
+
+        public RegistryFriendlyByteBuf asBuffer(RegistryAccess registryAccess) {
+            return new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(bytes), registryAccess);
+        }
     }
 }

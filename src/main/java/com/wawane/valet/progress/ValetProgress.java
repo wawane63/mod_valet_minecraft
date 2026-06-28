@@ -1,12 +1,11 @@
 package com.wawane.valet.progress;
 
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.nbt.NbtCompound;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetProgress {
     public static final int DATA_VERSION = 1;
@@ -19,43 +18,43 @@ public final class ValetProgress {
     private ValetProgress() {
     }
 
-    public static int getLevel(VillagerEntity villager) {
+    public static int getLevel(Villager villager) {
         Data data = data(villager);
         normalize(data);
         return data.level;
     }
 
-    public static int getXp(VillagerEntity villager) {
+    public static int getXp(Villager villager) {
         Data data = data(villager);
         normalize(data);
         return data.xp;
     }
 
-    public static int getNextLevelXp(VillagerEntity villager) {
+    public static int getNextLevelXp(Villager villager) {
         Data data = data(villager);
         normalize(data);
         return xpForNextLevel(data.level);
     }
 
-    public static int getPendingPerks(VillagerEntity villager) {
+    public static int getPendingPerks(Villager villager) {
         Data data = data(villager);
         normalize(data);
         return data.pendingPerks;
     }
 
-    public static boolean hasPerk(VillagerEntity villager, ValetPerk perk) {
+    public static boolean hasPerk(Villager villager, ValetPerk perk) {
         return perk != null && data(villager).perks[perk.ordinal()];
     }
 
-    public static boolean[] getPerks(VillagerEntity villager) {
+    public static boolean[] getPerks(Villager villager) {
         return Arrays.copyOf(data(villager).perks, ValetPerk.values().length);
     }
 
-    public static boolean hasData(VillagerEntity villager) {
-        return DATA.containsKey(villager.getUuid());
+    public static boolean hasData(Villager villager) {
+        return DATA.containsKey(villager.getUUID());
     }
 
-    public static boolean hasNbt(NbtCompound nbt) {
+    public static boolean hasNbt(CompoundTag nbt) {
         if (nbt.contains(DATA_VERSION_KEY) || nbt.contains(LEVEL_KEY) || nbt.contains(XP_KEY) || nbt.contains(PENDING_PERKS_KEY)) {
             return true;
         }
@@ -75,7 +74,7 @@ public final class ValetProgress {
         DATA.clear();
     }
 
-    public static void addXp(VillagerEntity villager, int amount) {
+    public static void addXp(Villager villager, int amount) {
         if (amount <= 0) {
             return;
         }
@@ -90,7 +89,7 @@ public final class ValetProgress {
         }
     }
 
-    public static boolean choosePerk(VillagerEntity villager, ValetPerk perk) {
+    public static boolean choosePerk(Villager villager, ValetPerk perk) {
         Data data = data(villager);
         normalize(data);
         if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk) || !canChoosePerk(data, perk)) {
@@ -102,7 +101,7 @@ public final class ValetProgress {
         return true;
     }
 
-    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void writeToNbt(Villager villager, CompoundTag nbt) {
         Data data = data(villager);
         normalize(data);
         nbt.putInt(DATA_VERSION_KEY, DATA_VERSION);
@@ -114,7 +113,7 @@ public final class ValetProgress {
         }
     }
 
-    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void readFromNbt(Villager villager, CompoundTag nbt) {
         Data data = data(villager);
         if (!hasNbt(nbt)) {
             normalize(data);
@@ -122,17 +121,17 @@ public final class ValetProgress {
         }
 
         if (nbt.contains(LEVEL_KEY)) {
-            data.level = Math.max(1, nbt.getInt(LEVEL_KEY));
+            data.level = Math.max(1, nbt.getIntOr(LEVEL_KEY, 1));
         }
         if (nbt.contains(XP_KEY)) {
-            data.xp = Math.max(0, nbt.getInt(XP_KEY));
+            data.xp = Math.max(0, nbt.getIntOr(XP_KEY, 0));
         }
         if (nbt.contains(PENDING_PERKS_KEY)) {
-            data.pendingPerks = Math.max(0, nbt.getInt(PENDING_PERKS_KEY));
+            data.pendingPerks = Math.max(0, nbt.getIntOr(PENDING_PERKS_KEY, 0));
         }
         for (ValetPerk perk : ValetPerk.values()) {
             if (nbt.contains(perk.getNbtKey())) {
-                data.perks[perk.ordinal()] = nbt.getBoolean(perk.getNbtKey());
+                data.perks[perk.ordinal()] = nbt.getBooleanOr(perk.getNbtKey(), false);
             }
         }
         normalize(data);
@@ -142,8 +141,8 @@ public final class ValetProgress {
         return 40 + Math.max(0, level - 1) * 25;
     }
 
-    private static Data data(VillagerEntity villager) {
-        return DATA.computeIfAbsent(villager.getUuid(), uuid -> new Data());
+    private static Data data(Villager villager) {
+        return DATA.computeIfAbsent(villager.getUUID(), uuid -> new Data());
     }
 
     private static void normalize(Data data) {

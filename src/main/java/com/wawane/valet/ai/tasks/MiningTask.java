@@ -1,19 +1,18 @@
 package com.wawane.valet.ai.tasks;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class MiningTask {
     private MiningTask() {
     }
 
-    public static List<BlockPos> findCluster(ServerWorld world, BlockPos seed, int maxBlocks, ResourceMatcher matcher, AreaPredicate areaPredicate, NeighborProvider neighborProvider) {
+    public static List<BlockPos> findCluster(ServerLevel world, BlockPos seed, int maxBlocks, ResourceMatcher matcher, AreaPredicate areaPredicate, NeighborProvider neighborProvider) {
         if (!matcher.matches(world, seed, world.getBlockState(seed))) {
             return List.of();
         }
@@ -21,8 +20,8 @@ public final class MiningTask {
         List<BlockPos> result = new ArrayList<>();
         List<BlockPos> open = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        open.add(seed.toImmutable());
-        visited.add(seed.toImmutable());
+        open.add(seed.immutable());
+        visited.add(seed.immutable());
 
         for (int index = 0; index < open.size() && result.size() < maxBlocks; index++) {
             BlockPos current = open.get(index);
@@ -47,7 +46,7 @@ public final class MiningTask {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     if (dx != 0 || dy != 0 || dz != 0) {
-                        result.add(pos.add(dx, dy, dz));
+                        result.add(pos.offset(dx, dy, dz));
                     }
                 }
             }
@@ -57,7 +56,7 @@ public final class MiningTask {
 
     @FunctionalInterface
     public interface ResourceMatcher {
-        boolean matches(ServerWorld world, BlockPos pos, BlockState state);
+        boolean matches(ServerLevel world, BlockPos pos, BlockState state);
     }
 
     @FunctionalInterface

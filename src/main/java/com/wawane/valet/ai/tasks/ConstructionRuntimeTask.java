@@ -12,31 +12,30 @@ import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.block.BedBlock;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.DoorBlock;
-import net.minecraft.block.enums.BedPart;
-import net.minecraft.block.enums.DoubleBlockHalf;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.state.property.Properties;
-import net.minecraft.text.Text;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
 public final class ConstructionRuntimeTask {
     private static final int BUILD_SITE_RADIUS = 64;
@@ -61,7 +60,7 @@ public final class ConstructionRuntimeTask {
         }
     }
 
-    public void findTarget(ServerWorld world) {
+    public void findTarget(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "build no_workstation");
@@ -107,8 +106,8 @@ public final class ConstructionRuntimeTask {
             }
 
             if (!hasBuildMaterial(world, workOrigin, buildTarget)) {
-                ValetDebug.record(control.villager(), "build missing_material block=" + buildState.getBlock().getTranslationKey());
-                reportConstructionIssue(world, "message.valet.construction_missing_material", Text.translatable(getBuildItem(buildState).getTranslationKey()));
+                ValetDebug.record(control.villager(), "build missing_material block=" + buildState.getBlock().getDescriptionId());
+                reportConstructionIssue(world, "message.valet.construction_missing_material", Component.translatable(getBuildItem(buildState).getDescriptionId()));
                 control.setState(State.RETURNING_HOME);
                 control.setDelayTicks(40);
                 return;
@@ -119,7 +118,7 @@ public final class ConstructionRuntimeTask {
             targetBuildSecondaryPos = buildTarget.secondaryPos();
             targetBuildSecondaryState = buildTarget.secondaryState();
             Set<BlockPos> goals = control.findBuildStandGoals(world, buildPos);
-            if (goals.contains(control.villager().getBlockPos())) {
+            if (goals.contains(control.villager().blockPosition())) {
                 control.setState(State.PLACING);
                 return;
             }
@@ -148,14 +147,14 @@ public final class ConstructionRuntimeTask {
         control.setDelayTicks(20);
     }
 
-    public void tickPlacing(ServerWorld world) {
+    public void tickPlacing(ServerLevel world) {
         if (targetBuildPos == null || targetBuildState == null) {
             ValetDebug.record(control.villager(), "build lost_target");
             control.setState(State.FIND_TARGET);
             return;
         }
 
-        if (!control.canReachBuildTargetFromStand(targetBuildPos, control.villager().getBlockPos())) {
+        if (!control.canReachBuildTargetFromStand(targetBuildPos, control.villager().blockPosition())) {
             ValetDebug.record(control.villager(), "build lost_reach pos=" + ValetDebug.shortPos(targetBuildPos));
             control.setState(State.FIND_TARGET);
             return;
@@ -189,23 +188,23 @@ public final class ConstructionRuntimeTask {
         }
 
         if (!consumeBuildMaterial(world, workOrigin, buildTarget)) {
-            ValetDebug.record(control.villager(), "build missing_material block=" + targetBuildState.getBlock().getTranslationKey());
-            reportConstructionIssue(world, "message.valet.construction_missing_material", Text.translatable(getBuildItem(targetBuildState).getTranslationKey()));
+            ValetDebug.record(control.villager(), "build missing_material block=" + targetBuildState.getBlock().getDescriptionId());
+            reportConstructionIssue(world, "message.valet.construction_missing_material", Component.translatable(getBuildItem(targetBuildState).getDescriptionId()));
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
         }
 
-        control.villager().swingHand(Hand.MAIN_HAND);
-        control.villager().getLookControl().lookAt(targetBuildPos.getX() + 0.5D, targetBuildPos.getY() + 0.5D, targetBuildPos.getZ() + 0.5D);
+        control.villager().swing(InteractionHand.MAIN_HAND);
+        control.villager().getLookControl().setLookAt(targetBuildPos.getX() + 0.5D, targetBuildPos.getY() + 0.5D, targetBuildPos.getZ() + 0.5D);
         if (needsBuildBlock(world, targetBuildPos, targetBuildState)) {
             placeBuildBlock(world, targetBuildPos, targetBuildState);
         }
         if (targetBuildSecondaryPos != null && targetBuildSecondaryState != null && needsBuildBlock(world, targetBuildSecondaryPos, targetBuildSecondaryState)) {
             placeBuildBlock(world, targetBuildSecondaryPos, targetBuildSecondaryState);
         }
-        world.playSound(null, targetBuildPos, targetBuildState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, 0.7F, 1.0F);
-        ValetDebug.record(control.villager(), "build placed pos=" + ValetDebug.shortPos(targetBuildPos) + " block=" + targetBuildState.getBlock().getTranslationKey());
+        world.playSound(null, targetBuildPos, targetBuildState.getSoundType().getPlaceSound(), SoundSource.BLOCKS, 0.7F, 1.0F);
+        ValetDebug.record(control.villager(), "build placed pos=" + ValetDebug.shortPos(targetBuildPos) + " block=" + targetBuildState.getBlock().getDescriptionId());
         ValetProgress.addXp(control.villager(), 1);
         clearBuildState();
         control.setState(State.FIND_TARGET);
@@ -221,30 +220,30 @@ public final class ConstructionRuntimeTask {
 
     public String debugSummary() {
         return "buildTarget=" + shortPos(targetBuildPos)
-                + " buildBlock=" + (targetBuildState == null ? "-" : targetBuildState.getBlock().getTranslationKey());
+                + " buildBlock=" + (targetBuildState == null ? "-" : targetBuildState.getBlock().getDescriptionId());
     }
 
-    private ConstructionSite findNearestConstructionSite(ServerWorld world, BlockPos origin, int constructionId) {
-        ConstructionSite nearest = findNearestConstructionSiteAround(world, control.villager().getBlockPos(), constructionId, null);
+    private ConstructionSite findNearestConstructionSite(ServerLevel world, BlockPos origin, int constructionId) {
+        ConstructionSite nearest = findNearestConstructionSiteAround(world, control.villager().blockPosition(), constructionId, null);
         return findNearestConstructionSiteAround(world, origin, constructionId, nearest);
     }
 
-    private ConstructionSite findNearestConstructionSiteAround(ServerWorld world, BlockPos center, int constructionId, ConstructionSite currentNearest) {
+    private ConstructionSite findNearestConstructionSiteAround(ServerLevel world, BlockPos center, int constructionId, ConstructionSite currentNearest) {
         ConstructionSite nearest = currentNearest;
-        double nearestDistance = nearest == null ? Double.MAX_VALUE : squaredDistance(control.villager().getBlockPos(), nearest.blueprintPos());
+        double nearestDistance = nearest == null ? Double.MAX_VALUE : squaredDistance(control.villager().blockPosition(), nearest.blueprintPos());
 
-        for (BlockPos pos : BlockPos.iterateOutwards(center, BUILD_SITE_RADIUS, BUILD_SITE_VERTICAL_RADIUS, BUILD_SITE_RADIUS)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(center, BUILD_SITE_RADIUS, BUILD_SITE_VERTICAL_RADIUS, BUILD_SITE_RADIUS)) {
+            BlockPos immutable = pos.immutable();
             BlockState state = world.getBlockState(immutable);
-            if (!state.isOf(ValetMod.CONSTRUCTION_BLUEPRINT)
+            if (!state.is(ValetMod.CONSTRUCTION_BLUEPRINT)
                     || !(world.getBlockEntity(immutable) instanceof ConstructionBlueprintBlockEntity blueprint)
                     || !matchesConstructionId(blueprint, constructionId)) {
                 continue;
             }
 
-            double distance = squaredDistance(control.villager().getBlockPos(), immutable);
+            double distance = squaredDistance(control.villager().blockPosition(), immutable);
             if (distance < nearestDistance) {
-                nearest = new ConstructionSite(immutable, state.get(ConstructionBlueprintBlock.FACING));
+                nearest = new ConstructionSite(immutable, state.getValue(ConstructionBlueprintBlock.FACING));
                 nearestDistance = distance;
             }
         }
@@ -265,7 +264,7 @@ public final class ConstructionRuntimeTask {
         return ConstructionTask.rotateBuildState(state, facing);
     }
 
-    private BuildTarget createBuildTarget(ServerWorld world, ConstructionSite site, ValetConstructionBlueprint blueprint, ValetConstructionBlueprint.Entry entry) {
+    private BuildTarget createBuildTarget(ServerLevel world, ConstructionSite site, ValetConstructionBlueprint blueprint, ValetConstructionBlueprint.Entry entry) {
         BlockPos buildPos = getBuildPos(site, entry);
         BlockState buildState = rotateBuildState(entry.state(), site.facing());
 
@@ -285,24 +284,24 @@ public final class ConstructionRuntimeTask {
 
     private BuildTarget findSecondaryBuildTarget(ConstructionSite site, ValetConstructionBlueprint blueprint, BlockPos pos, BlockState state) {
         if (state.getBlock() instanceof DoorBlock
-                && state.contains(DoorBlock.HALF)
-                && state.get(DoorBlock.HALF) == DoubleBlockHalf.LOWER) {
-            BlockPos upperPos = pos.up();
+                && state.hasProperty(DoorBlock.HALF)
+                && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER) {
+            BlockPos upperPos = pos.above();
             return findMatchingBuildTarget(site, blueprint, candidate -> candidate.pos().equals(upperPos)
-                    && candidate.state().isOf(state.getBlock())
-                    && candidate.state().contains(DoorBlock.HALF)
-                    && candidate.state().get(DoorBlock.HALF) == DoubleBlockHalf.UPPER);
+                    && candidate.state().is(state.getBlock())
+                    && candidate.state().hasProperty(DoorBlock.HALF)
+                    && candidate.state().getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER);
         }
 
         if (state.getBlock() instanceof BedBlock
-                && state.contains(BedBlock.PART)
-                && state.get(BedBlock.PART) == BedPart.FOOT
-                && state.contains(Properties.HORIZONTAL_FACING)) {
-            BlockPos headPos = pos.offset(state.get(Properties.HORIZONTAL_FACING));
+                && state.hasProperty(BedBlock.PART)
+                && state.getValue(BedBlock.PART) == BedPart.FOOT
+                && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            BlockPos headPos = pos.relative(state.getValue(BlockStateProperties.HORIZONTAL_FACING));
             return findMatchingBuildTarget(site, blueprint, candidate -> candidate.pos().equals(headPos)
-                    && candidate.state().isOf(state.getBlock())
-                    && candidate.state().contains(BedBlock.PART)
-                    && candidate.state().get(BedBlock.PART) == BedPart.HEAD);
+                    && candidate.state().is(state.getBlock())
+                    && candidate.state().hasProperty(BedBlock.PART)
+                    && candidate.state().getValue(BedBlock.PART) == BedPart.HEAD);
         }
 
         return null;
@@ -310,24 +309,24 @@ public final class ConstructionRuntimeTask {
 
     private BuildTarget findPairedPrimaryBuildTarget(ConstructionSite site, ValetConstructionBlueprint blueprint, BlockPos pos, BlockState state) {
         if (state.getBlock() instanceof DoorBlock
-                && state.contains(DoorBlock.HALF)
-                && state.get(DoorBlock.HALF) == DoubleBlockHalf.UPPER) {
-            BlockPos lowerPos = pos.down();
+                && state.hasProperty(DoorBlock.HALF)
+                && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER) {
+            BlockPos lowerPos = pos.below();
             return findMatchingBuildTarget(site, blueprint, candidate -> candidate.pos().equals(lowerPos)
-                    && candidate.state().isOf(state.getBlock())
-                    && candidate.state().contains(DoorBlock.HALF)
-                    && candidate.state().get(DoorBlock.HALF) == DoubleBlockHalf.LOWER);
+                    && candidate.state().is(state.getBlock())
+                    && candidate.state().hasProperty(DoorBlock.HALF)
+                    && candidate.state().getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER);
         }
 
         if (state.getBlock() instanceof BedBlock
-                && state.contains(BedBlock.PART)
-                && state.get(BedBlock.PART) == BedPart.HEAD
-                && state.contains(Properties.HORIZONTAL_FACING)) {
-            BlockPos footPos = pos.offset(state.get(Properties.HORIZONTAL_FACING).getOpposite());
+                && state.hasProperty(BedBlock.PART)
+                && state.getValue(BedBlock.PART) == BedPart.HEAD
+                && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            BlockPos footPos = pos.relative(state.getValue(BlockStateProperties.HORIZONTAL_FACING).getOpposite());
             return findMatchingBuildTarget(site, blueprint, candidate -> candidate.pos().equals(footPos)
-                    && candidate.state().isOf(state.getBlock())
-                    && candidate.state().contains(BedBlock.PART)
-                    && candidate.state().get(BedBlock.PART) == BedPart.FOOT);
+                    && candidate.state().is(state.getBlock())
+                    && candidate.state().hasProperty(BedBlock.PART)
+                    && candidate.state().getValue(BedBlock.PART) == BedPart.FOOT);
         }
 
         return null;
@@ -345,24 +344,24 @@ public final class ConstructionRuntimeTask {
         return null;
     }
 
-    private void removeFinishedBlueprint(ServerWorld world, BlockPos pos) {
-        if (world.getBlockState(pos).isOf(ValetMod.CONSTRUCTION_BLUEPRINT)) {
-            world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+    private void removeFinishedBlueprint(ServerLevel world, BlockPos pos) {
+        if (world.getBlockState(pos).is(ValetMod.CONSTRUCTION_BLUEPRINT)) {
+            world.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
         }
     }
 
-    private boolean needsBuildBlock(ServerWorld world, BlockPos pos, BlockState targetState) {
+    private boolean needsBuildBlock(ServerLevel world, BlockPos pos, BlockState targetState) {
         return !isOptionalNaturalBlock(targetState) && !world.getBlockState(pos).equals(targetState);
     }
 
-    private boolean needsBuildTarget(ServerWorld world, BuildTarget target) {
+    private boolean needsBuildTarget(ServerLevel world, BuildTarget target) {
         return needsBuildBlock(world, target.pos(), target.state())
                 || target.secondaryPos() != null
                 && target.secondaryState() != null
                 && needsBuildBlock(world, target.secondaryPos(), target.secondaryState());
     }
 
-    private BlockPos getBlockedBuildPos(ServerWorld world, BuildTarget target) {
+    private BlockPos getBlockedBuildPos(ServerLevel world, BuildTarget target) {
         if (needsBuildBlock(world, target.pos(), target.state()) && !canBuildAt(world, target.pos(), target.state())) {
             return target.pos();
         }
@@ -375,27 +374,27 @@ public final class ConstructionRuntimeTask {
         return null;
     }
 
-    private boolean canBuildAt(ServerWorld world, BlockPos pos, BlockState targetState) {
+    private boolean canBuildAt(ServerLevel world, BlockPos pos, BlockState targetState) {
         BlockState current = world.getBlockState(pos);
         return current.equals(targetState)
                 || current.isAir()
-                || current.isOf(Blocks.TORCH)
-                || current.isOf(Blocks.WALL_TORCH)
-                || current.isReplaceable()
-                || current.isOf(ValetMod.CONSTRUCTION_BEACON)
-                || current.isOf(targetState.getBlock());
+                || current.is(Blocks.TORCH)
+                || current.is(Blocks.WALL_TORCH)
+                || current.canBeReplaced()
+                || current.is(ValetMod.CONSTRUCTION_BEACON)
+                || current.is(targetState.getBlock());
     }
 
-    private void placeBuildBlock(ServerWorld world, BlockPos pos, BlockState state) {
-        world.setBlockState(pos, state, Block.NOTIFY_ALL);
+    private void placeBuildBlock(ServerLevel world, BlockPos pos, BlockState state) {
+        world.setBlock(pos, state, Block.UPDATE_ALL);
     }
 
-    private boolean hasBuildMaterial(ServerWorld world, BlockPos origin, BuildTarget buildTarget) {
+    private boolean hasBuildMaterial(ServerLevel world, BlockPos origin, BuildTarget buildTarget) {
         return !needsBuildBlock(world, buildTarget.pos(), buildTarget.state())
                 || hasBuildMaterial(world, origin, buildTarget.pos(), buildTarget.state());
     }
 
-    private boolean hasBuildMaterial(ServerWorld world, BlockPos origin, BlockPos buildPos, BlockState buildState) {
+    private boolean hasBuildMaterial(ServerLevel world, BlockPos origin, BlockPos buildPos, BlockState buildState) {
         if (!requiresBuildMaterial(buildState)) {
             return true;
         }
@@ -407,12 +406,12 @@ public final class ConstructionRuntimeTask {
                 || findNearestContainerWithItem(world, origin, item) != null);
     }
 
-    private boolean consumeBuildMaterial(ServerWorld world, BlockPos origin, BuildTarget buildTarget) {
+    private boolean consumeBuildMaterial(ServerLevel world, BlockPos origin, BuildTarget buildTarget) {
         return !needsBuildBlock(world, buildTarget.pos(), buildTarget.state())
                 || consumeBuildMaterial(world, origin, buildTarget.pos(), buildTarget.state());
     }
 
-    private boolean consumeBuildMaterial(ServerWorld world, BlockPos origin, BlockPos buildPos, BlockState buildState) {
+    private boolean consumeBuildMaterial(ServerLevel world, BlockPos origin, BlockPos buildPos, BlockState buildState) {
         if (!requiresBuildMaterial(buildState)) {
             return true;
         }
@@ -433,34 +432,34 @@ public final class ConstructionRuntimeTask {
         if (containerPos == null) {
             return false;
         }
-        Inventory inventory = ValetInventoryTransfer.getContainerInventory(world, containerPos);
+        Container inventory = ValetInventoryTransfer.getContainerInventory(world, containerPos);
         if (inventory == null) {
             return false;
         }
 
-        boolean taken = ValetInventoryTransfer.takeOneItem(inventory, item, inventory.size());
+        boolean taken = ValetInventoryTransfer.takeOneItem(inventory, item, inventory.getContainerSize());
         if (taken) {
             control.animateChestUse(world, containerPos);
         }
         return taken;
     }
 
-    private BlockPos findNearestContainerWithItem(ServerWorld world, BlockPos origin, Item item) {
+    private BlockPos findNearestContainerWithItem(ServerLevel world, BlockPos origin, Item item) {
         return findNearest(world, origin, control.materialRadius(), 8, pos -> {
             BlockState blockState = world.getBlockState(pos);
-            Inventory inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
-            return (blockState.isOf(Blocks.CHEST) || blockState.isOf(Blocks.TRAPPED_CHEST) || blockState.isOf(Blocks.BARREL))
+            Container inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
+            return (blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL))
                     && inventory != null
-                    && ValetInventoryTransfer.inventoryHasItem(inventory, item, inventory.size());
+                    && ValetInventoryTransfer.inventoryHasItem(inventory, item, inventory.getContainerSize());
         });
     }
 
-    private BlockPos findNearest(ServerWorld world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
+    private BlockPos findNearest(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
         BlockPos nearest = null;
         double nearestDistance = Double.MAX_VALUE;
 
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
-            BlockPos immutable = pos.toImmutable();
+        for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
+            BlockPos immutable = pos.immutable();
             if (predicate.test(immutable)) {
                 double distance = squaredDistance(origin, immutable);
                 if (distance < nearestDistance) {
@@ -481,21 +480,21 @@ public final class ConstructionRuntimeTask {
         if (isOptionalNaturalBlock(buildState)) {
             return false;
         }
-        if (buildState.getBlock() instanceof BedBlock && buildState.contains(BedBlock.PART)) {
-            return buildState.get(BedBlock.PART) == BedPart.FOOT;
+        if (buildState.getBlock() instanceof BedBlock && buildState.hasProperty(BedBlock.PART)) {
+            return buildState.getValue(BedBlock.PART) == BedPart.FOOT;
         }
-        if (buildState.getBlock() instanceof DoorBlock && buildState.contains(DoorBlock.HALF)) {
-            return buildState.get(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
+        if (buildState.getBlock() instanceof DoorBlock && buildState.hasProperty(DoorBlock.HALF)) {
+            return buildState.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
         }
         return true;
     }
 
     private boolean isOptionalNaturalBlock(BlockState buildState) {
-        return buildState.isReplaceable()
-                || buildState.isIn(BlockTags.LEAVES);
+        return buildState.canBeReplaced()
+                || buildState.is(BlockTags.LEAVES);
     }
 
-    private void reportConstructionIssue(ServerWorld world, String messageKey, Object... args) {
+    private void reportConstructionIssue(ServerLevel world, String messageKey, Object... args) {
         String signature = messageKey + Arrays.toString(args);
         if (constructionReportDelayTicks > 0 && signature.equals(lastConstructionReport)) {
             return;
@@ -504,10 +503,10 @@ public final class ConstructionRuntimeTask {
         constructionReportDelayTicks = CONSTRUCTION_REPORT_INTERVAL_TICKS;
         lastConstructionReport = signature;
         ValetMod.LOGGER.info("Valet construction: {} {}", messageKey, Arrays.toString(args));
-        Text message = Text.translatable(messageKey, args);
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (player.squaredDistanceTo(control.villager()) <= 64.0D * 64.0D) {
-                player.sendMessage(message, true);
+        Component message = Component.translatable(messageKey, args);
+        for (ServerPlayer player : world.players()) {
+            if (player.distanceToSqr(control.villager()) <= 64.0D * 64.0D) {
+                player.sendOverlayMessage(message);
             }
         }
     }
@@ -535,13 +534,13 @@ public final class ConstructionRuntimeTask {
     }
 
     public interface Control {
-        VillagerEntity villager();
+        Villager villager();
 
-        BlockPos getWorkOrigin(ServerWorld world);
+        BlockPos getWorkOrigin(ServerLevel world);
 
-        Set<BlockPos> findBuildStandGoals(ServerWorld world, BlockPos targetBlock);
+        Set<BlockPos> findBuildStandGoals(ServerLevel world, BlockPos targetBlock);
 
-        List<BlockPos> planPathToAdjacent(ServerWorld world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
+        List<BlockPos> planPathToAdjacent(ServerLevel world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals);
 
         void startPath(PathPurpose purpose, List<BlockPos> path);
 
@@ -551,11 +550,11 @@ public final class ConstructionRuntimeTask {
 
         int materialRadius();
 
-        int getUsableInventorySlots(Inventory inventory);
+        int getUsableInventorySlots(Container inventory);
 
         int actionDelayTicks();
 
-        void animateChestUse(ServerWorld world, BlockPos pos);
+        void animateChestUse(ServerLevel world, BlockPos pos);
 
         void setState(State state);
 

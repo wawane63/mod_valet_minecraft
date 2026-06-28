@@ -1,10 +1,9 @@
 package com.wawane.valet;
 
-import net.minecraft.entity.passive.VillagerEntity;
-
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetConversations {
     private static final Set<UUID> OPEN_SCREENS = ConcurrentHashMap.newKeySet();
@@ -12,12 +11,12 @@ public final class ValetConversations {
     private ValetConversations() {
     }
 
-    public static void begin(VillagerEntity villager) {
-        OPEN_SCREENS.add(villager.getUuid());
+    public static void begin(Villager villager) {
+        OPEN_SCREENS.add(villager.getUUID());
     }
 
-    public static void end(VillagerEntity villager) {
-        end(villager.getUuid());
+    public static void end(Villager villager) {
+        end(villager.getUUID());
     }
 
     public static void end(UUID uuid) {
@@ -32,7 +31,7 @@ public final class ValetConversations {
         OPEN_SCREENS.clear();
     }
 
-    public static boolean isTalking(VillagerEntity villager) {
-        return OPEN_SCREENS.contains(villager.getUuid());
+    public static boolean isTalking(Villager villager) {
+        return OPEN_SCREENS.contains(villager.getUUID());
     }
 }

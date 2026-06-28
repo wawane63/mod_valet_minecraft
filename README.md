@@ -1,6 +1,6 @@
 # Valet
 
-Mod Fabric 1.20.1 qui ajoute le metier de villageois `Valet`.
+Mod Fabric 26.2 qui ajoute le metier de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
@@ -12,6 +12,7 @@ La tracabilite des jars, bugs corriges et changements par version est tenue dans
 | 0.1.1 | Combat | [`v0.1.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.1) |
 | 0.1.2 | Craft | [`v0.1.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.2) |
 | 0.1.3 | Better UI + correctifs craft | [`v0.1.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.3) |
+| 0.2.0 | Portage Minecraft 26.2 | [`v0.2.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.2.0) |
 
 ## Depart
 
@@ -26,13 +27,15 @@ La tracabilite des jars, bugs corriges et changements par version est tenue dans
 
 Prerequis :
 
-- JDK 17
+- JDK 25
+- Minecraft 26.2 + Fabric Loader 0.19.3
+- Fabric API 0.153.0+26.2 dans `%APPDATA%\.minecraft\mods`
 - Gradle wrapper du repo
 
 Commande :
 
 ```powershell
-$env:JAVA_HOME=(Resolve-Path '.tools\jdk-17.0.19+10').Path
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 .\gradlew.bat build
 ```
 

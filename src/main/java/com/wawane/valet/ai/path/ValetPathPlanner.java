@@ -1,8 +1,5 @@
 package com.wawane.valet.ai.path;
 
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -11,11 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 
 public final class ValetPathPlanner {
     private static final int SEARCH_MARGIN = 6;
 
-    public List<BlockPos> planPathToAdjacent(ServerWorld world, BlockPos origin, BlockPos start, BlockPos targetBlock, Set<BlockPos> goals, int maxPathNodes, int maxPathLength, StepPredicate stepPredicate, StepCost stepCost) {
+    public List<BlockPos> planPathToAdjacent(ServerLevel world, BlockPos origin, BlockPos start, BlockPos targetBlock, Set<BlockPos> goals, int maxPathNodes, int maxPathLength, StepPredicate stepPredicate, StepCost stepCost) {
         if (goals.isEmpty()) {
             return List.of();
         }
@@ -84,7 +83,7 @@ public final class ValetPathPlanner {
 
         for (int[] direction : horizontal) {
             for (int dy = -1; dy <= 1; dy++) {
-                result.add(pos.add(direction[0], dy, direction[1]));
+                result.add(pos.offset(direction[0], dy, direction[1]));
             }
         }
 
@@ -123,11 +122,11 @@ public final class ValetPathPlanner {
 
     @FunctionalInterface
     public interface StepPredicate {
-        boolean canPrepareStep(ServerWorld world, BlockPos from, BlockPos to);
+        boolean canPrepareStep(ServerLevel world, BlockPos from, BlockPos to);
     }
 
     @FunctionalInterface
     public interface StepCost {
-        int movementCost(ServerWorld world, BlockPos from, BlockPos to);
+        int movementCost(ServerLevel world, BlockPos from, BlockPos to);
     }
 }

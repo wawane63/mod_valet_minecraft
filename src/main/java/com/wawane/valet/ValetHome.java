@@ -1,20 +1,19 @@
 package com.wawane.valet;
 
-import net.minecraft.entity.ai.brain.MemoryModuleType;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.GlobalPos;
-import net.minecraft.world.World;
-
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.Level;
 
 public final class ValetHome {
     private static final int WORKSTATION_RECOVERY_RADIUS = 24;
@@ -28,39 +27,39 @@ public final class ValetHome {
     private ValetHome() {
     }
 
-    public static BlockPos get(ServerWorld world, VillagerEntity villager) {
-        Optional<GlobalPos> jobSite = villager.getBrain().getOptionalMemory(MemoryModuleType.JOB_SITE);
-        if (jobSite.isPresent() && jobSite.get().getDimension().equals(world.getRegistryKey())) {
-            BlockPos pos = jobSite.get().getPos();
+    public static BlockPos get(ServerLevel world, Villager villager) {
+        Optional<GlobalPos> jobSite = villager.getBrain().getMemoryInternal(MemoryModuleType.JOB_SITE);
+        if (jobSite.isPresent() && jobSite.get().dimension().equals(world.dimension())) {
+            BlockPos pos = jobSite.get().pos();
             if (isValidWorkstation(world, pos)) {
                 set(villager, jobSite.get());
                 return pos;
             }
-            villager.getBrain().forget(MemoryModuleType.JOB_SITE);
-            HOMES.remove(villager.getUuid());
+            villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+            HOMES.remove(villager.getUUID());
         }
-        GlobalPos home = HOMES.get(villager.getUuid());
-        if (home == null || !home.getDimension().equals(world.getRegistryKey())) {
-            BlockPos workstation = findNearbyWorkstation(world, villager.getBlockPos());
+        GlobalPos home = HOMES.get(villager.getUUID());
+        if (home == null || !home.dimension().equals(world.dimension())) {
+            BlockPos workstation = findNearbyWorkstation(world, villager.blockPosition());
             if (workstation == null) {
                 return null;
             }
 
-            GlobalPos recoveredHome = GlobalPos.create(world.getRegistryKey(), workstation);
-            villager.getBrain().remember(MemoryModuleType.JOB_SITE, recoveredHome);
+            GlobalPos recoveredHome = GlobalPos.of(world.dimension(), workstation);
+            villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, recoveredHome);
             set(villager, recoveredHome);
             return workstation;
         }
-        if (!isValidWorkstation(world, home.getPos())) {
-            HOMES.remove(villager.getUuid());
-            villager.getBrain().forget(MemoryModuleType.JOB_SITE);
-            return getOrRecover(world, villager, villager.getBlockPos());
+        if (!isValidWorkstation(world, home.pos())) {
+            HOMES.remove(villager.getUUID());
+            villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+            return getOrRecover(world, villager, villager.blockPosition());
         }
-        villager.getBrain().remember(MemoryModuleType.JOB_SITE, home);
-        return home.getPos();
+        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, home);
+        return home.pos();
     }
 
-    public static BlockPos getOrRecover(ServerWorld world, VillagerEntity villager, BlockPos recoveryOrigin) {
+    public static BlockPos getOrRecover(ServerLevel world, Villager villager, BlockPos recoveryOrigin) {
         BlockPos home = get(world, villager);
         if (home != null) {
             return home;
@@ -71,38 +70,38 @@ public final class ValetHome {
             return null;
         }
 
-        GlobalPos recoveredHome = GlobalPos.create(world.getRegistryKey(), workstation);
-        villager.getBrain().remember(MemoryModuleType.JOB_SITE, recoveredHome);
+        GlobalPos recoveredHome = GlobalPos.of(world.dimension(), workstation);
+        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, recoveredHome);
         set(villager, recoveredHome);
         return workstation;
     }
 
-    public static void set(VillagerEntity villager, BlockPos pos) {
-        set(villager, GlobalPos.create(villager.getWorld().getRegistryKey(), pos.toImmutable()));
+    public static void set(Villager villager, BlockPos pos) {
+        set(villager, GlobalPos.of(villager.level().dimension(), pos.immutable()));
     }
 
-    private static void set(VillagerEntity villager, GlobalPos pos) {
-        HOMES.put(villager.getUuid(), pos);
+    private static void set(Villager villager, GlobalPos pos) {
+        HOMES.put(villager.getUUID(), pos);
     }
 
-    private static BlockPos findNearbyWorkstation(ServerWorld world, BlockPos origin) {
-        for (BlockPos pos : BlockPos.iterateOutwards(origin, WORKSTATION_RECOVERY_RADIUS, WORKSTATION_RECOVERY_VERTICAL_RADIUS, WORKSTATION_RECOVERY_RADIUS)) {
+    private static BlockPos findNearbyWorkstation(ServerLevel world, BlockPos origin) {
+        for (BlockPos pos : BlockPos.withinManhattan(origin, WORKSTATION_RECOVERY_RADIUS, WORKSTATION_RECOVERY_VERTICAL_RADIUS, WORKSTATION_RECOVERY_RADIUS)) {
             if (isValidWorkstation(world, pos)) {
-                return pos.toImmutable();
+                return pos.immutable();
             }
         }
         return null;
     }
 
-    private static boolean isValidWorkstation(ServerWorld world, BlockPos pos) {
-        return world.getBlockState(pos).isOf(ValetMod.VALET_WORKSTATION);
+    private static boolean isValidWorkstation(ServerLevel world, BlockPos pos) {
+        return world.getBlockState(pos).is(ValetMod.VALET_WORKSTATION);
     }
 
-    public static boolean hasData(VillagerEntity villager) {
-        return HOMES.containsKey(villager.getUuid());
+    public static boolean hasData(Villager villager) {
+        return HOMES.containsKey(villager.getUUID());
     }
 
-    public static boolean hasNbt(NbtCompound nbt) {
+    public static boolean hasNbt(CompoundTag nbt) {
         return nbt.contains(HOME_X_KEY) || nbt.contains(HOME_Y_KEY) || nbt.contains(HOME_Z_KEY) || nbt.contains(HOME_DIMENSION_KEY);
     }
 
@@ -114,8 +113,8 @@ public final class ValetHome {
         HOMES.clear();
     }
 
-    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
-        GlobalPos home = HOMES.get(villager.getUuid());
+    public static void writeToNbt(Villager villager, CompoundTag nbt) {
+        GlobalPos home = HOMES.get(villager.getUUID());
         if (home == null) {
             nbt.remove(HOME_X_KEY);
             nbt.remove(HOME_Y_KEY);
@@ -124,21 +123,27 @@ public final class ValetHome {
             return;
         }
 
-        BlockPos pos = home.getPos();
-        nbt.putString(HOME_DIMENSION_KEY, home.getDimension().getValue().toString());
+        BlockPos pos = home.pos();
+        nbt.putString(HOME_DIMENSION_KEY, home.dimension().identifier().toString());
         nbt.putInt(HOME_X_KEY, pos.getX());
         nbt.putInt(HOME_Y_KEY, pos.getY());
         nbt.putInt(HOME_Z_KEY, pos.getZ());
     }
 
-    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void readFromNbt(Villager villager, CompoundTag nbt) {
         if (!nbt.contains(HOME_X_KEY) || !nbt.contains(HOME_Y_KEY) || !nbt.contains(HOME_Z_KEY)) {
-            HOMES.remove(villager.getUuid());
+            HOMES.remove(villager.getUUID());
             return;
         }
 
-        Identifier dimensionId = nbt.contains(HOME_DIMENSION_KEY) ? new Identifier(nbt.getString(HOME_DIMENSION_KEY)) : villager.getWorld().getRegistryKey().getValue();
-        RegistryKey<World> dimension = RegistryKey.of(RegistryKeys.WORLD, dimensionId);
-        set(villager, GlobalPos.create(dimension, new BlockPos(nbt.getInt(HOME_X_KEY), nbt.getInt(HOME_Y_KEY), nbt.getInt(HOME_Z_KEY))));
+        Identifier dimensionId = nbt.getString(HOME_DIMENSION_KEY)
+                .map(Identifier::parse)
+                .orElse(villager.level().dimension().identifier());
+        ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
+        set(villager, GlobalPos.of(dimension, new BlockPos(
+                nbt.getIntOr(HOME_X_KEY, 0),
+                nbt.getIntOr(HOME_Y_KEY, 0),
+                nbt.getIntOr(HOME_Z_KEY, 0)
+        )));
     }
 }

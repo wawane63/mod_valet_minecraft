@@ -4,8 +4,8 @@ import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetProgress;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.inventory.Inventory;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetWorkSettings {
     private static final int CHEST_RADIUS = 10;
@@ -42,9 +42,9 @@ public final class ValetWorkSettings {
     private static final int COMBAT_ARROW_COOLDOWN_BONUS = 10;
     private static final int COMBAT_ARROW_RESTOCK_COUNT = 16;
 
-    private final VillagerEntity villager;
+    private final Villager villager;
 
-    public ValetWorkSettings(VillagerEntity villager) {
+    public ValetWorkSettings(Villager villager) {
         this.villager = villager;
     }
 
@@ -88,12 +88,12 @@ public final class ValetWorkSettings {
         return ValetProgress.hasPerk(villager, ValetPerk.LIGHTING) ? COMFORT_TORCH_BLOCK_LIGHT : MONSTER_SPAWN_BLOCK_LIGHT;
     }
 
-    public int usableInventorySlots(Inventory inventory) {
+    public int usableInventorySlots(Container inventory) {
         int slots = BASE_INVENTORY_SLOTS;
         if (ValetProgress.hasPerk(villager, ValetPerk.STORAGE)) {
             slots += STORAGE_PERK_BONUS_SLOTS;
         }
-        return Math.min(inventory.size(), slots);
+        return Math.min(inventory.getContainerSize(), slots);
     }
 
     public int noTargetDelayTicks() {

@@ -1,11 +1,10 @@
 package com.wawane.valet.order;
 
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.nbt.NbtCompound;
-
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetOrders {
     public static final int DATA_VERSION = 1;
@@ -24,12 +23,12 @@ public final class ValetOrders {
     private ValetOrders() {
     }
 
-    public static ValetOrder get(VillagerEntity villager) {
-        return ORDERS.getOrDefault(villager.getUuid(), ValetOrder.NONE);
+    public static ValetOrder get(Villager villager) {
+        return ORDERS.getOrDefault(villager.getUUID(), ValetOrder.NONE);
     }
 
-    public static void set(VillagerEntity villager, ValetOrder order) {
-        UUID uuid = villager.getUuid();
+    public static void set(Villager villager, ValetOrder order) {
+        UUID uuid = villager.getUUID();
         if (order == ValetOrder.NONE) {
             clear(uuid);
         } else {
@@ -49,8 +48,8 @@ public final class ValetOrders {
         }
     }
 
-    public static boolean hasData(VillagerEntity villager) {
-        UUID uuid = villager.getUuid();
+    public static boolean hasData(Villager villager) {
+        UUID uuid = villager.getUUID();
         return ORDERS.containsKey(uuid)
                 || MINE_TARGETS.containsKey(uuid)
                 || WOOD_TARGETS.containsKey(uuid)
@@ -58,7 +57,7 @@ public final class ValetOrders {
                 || CRAFT_TARGETS.containsKey(uuid);
     }
 
-    public static boolean hasNbt(NbtCompound nbt) {
+    public static boolean hasNbt(CompoundTag nbt) {
         return nbt.contains(ORDER_KEY)
                 || nbt.contains(DATA_VERSION_KEY)
                 || nbt.contains(MINE_TARGET_KEY)
@@ -83,75 +82,75 @@ public final class ValetOrders {
         CRAFT_TARGETS.clear();
     }
 
-    public static ValetMineTarget getMineTarget(VillagerEntity villager) {
-        return MINE_TARGETS.get(villager.getUuid());
+    public static ValetMineTarget getMineTarget(Villager villager) {
+        return MINE_TARGETS.get(villager.getUUID());
     }
 
-    public static ValetWoodTarget getWoodTarget(VillagerEntity villager) {
-        return WOOD_TARGETS.get(villager.getUuid());
+    public static ValetWoodTarget getWoodTarget(Villager villager) {
+        return WOOD_TARGETS.get(villager.getUUID());
     }
 
-    public static int getConstructionTargetId(VillagerEntity villager) {
-        return CONSTRUCTION_TARGETS.getOrDefault(villager.getUuid(), -1);
+    public static int getConstructionTargetId(Villager villager) {
+        return CONSTRUCTION_TARGETS.getOrDefault(villager.getUUID(), -1);
     }
 
-    public static ValetCraftTarget getCraftTarget(VillagerEntity villager) {
-        return CRAFT_TARGETS.get(villager.getUuid());
+    public static ValetCraftTarget getCraftTarget(Villager villager) {
+        return CRAFT_TARGETS.get(villager.getUUID());
     }
 
-    public static void setMineTarget(VillagerEntity villager, ValetMineTarget target) {
+    public static void setMineTarget(Villager villager, ValetMineTarget target) {
         if (target == null) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
-        ORDERS.put(villager.getUuid(), ValetOrder.MINE_ORES);
-        MINE_TARGETS.put(villager.getUuid(), target);
-        WOOD_TARGETS.remove(villager.getUuid());
-        CONSTRUCTION_TARGETS.remove(villager.getUuid());
-        CRAFT_TARGETS.remove(villager.getUuid());
+        ORDERS.put(villager.getUUID(), ValetOrder.MINE_ORES);
+        MINE_TARGETS.put(villager.getUUID(), target);
+        WOOD_TARGETS.remove(villager.getUUID());
+        CONSTRUCTION_TARGETS.remove(villager.getUUID());
+        CRAFT_TARGETS.remove(villager.getUUID());
     }
 
-    public static void setWoodTarget(VillagerEntity villager, ValetWoodTarget target) {
+    public static void setWoodTarget(Villager villager, ValetWoodTarget target) {
         if (target == null) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
-        ORDERS.put(villager.getUuid(), ValetOrder.CHOP_WOOD);
-        WOOD_TARGETS.put(villager.getUuid(), target);
-        MINE_TARGETS.remove(villager.getUuid());
-        CONSTRUCTION_TARGETS.remove(villager.getUuid());
-        CRAFT_TARGETS.remove(villager.getUuid());
+        ORDERS.put(villager.getUUID(), ValetOrder.CHOP_WOOD);
+        WOOD_TARGETS.put(villager.getUUID(), target);
+        MINE_TARGETS.remove(villager.getUUID());
+        CONSTRUCTION_TARGETS.remove(villager.getUUID());
+        CRAFT_TARGETS.remove(villager.getUUID());
     }
 
-    public static void setConstructionTarget(VillagerEntity villager, int constructionId) {
+    public static void setConstructionTarget(Villager villager, int constructionId) {
         if (constructionId < 0) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
-        ORDERS.put(villager.getUuid(), ValetOrder.BUILD_STRUCTURE);
-        CONSTRUCTION_TARGETS.put(villager.getUuid(), constructionId);
-        MINE_TARGETS.remove(villager.getUuid());
-        WOOD_TARGETS.remove(villager.getUuid());
-        CRAFT_TARGETS.remove(villager.getUuid());
+        ORDERS.put(villager.getUUID(), ValetOrder.BUILD_STRUCTURE);
+        CONSTRUCTION_TARGETS.put(villager.getUUID(), constructionId);
+        MINE_TARGETS.remove(villager.getUUID());
+        WOOD_TARGETS.remove(villager.getUUID());
+        CRAFT_TARGETS.remove(villager.getUUID());
     }
 
-    public static void setCraftTarget(VillagerEntity villager, ValetCraftTarget target) {
+    public static void setCraftTarget(Villager villager, ValetCraftTarget target) {
         if (target == null) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
-        ORDERS.put(villager.getUuid(), ValetOrder.CRAFT);
-        CRAFT_TARGETS.put(villager.getUuid(), target);
-        MINE_TARGETS.remove(villager.getUuid());
-        WOOD_TARGETS.remove(villager.getUuid());
-        CONSTRUCTION_TARGETS.remove(villager.getUuid());
+        ORDERS.put(villager.getUUID(), ValetOrder.CRAFT);
+        CRAFT_TARGETS.put(villager.getUUID(), target);
+        MINE_TARGETS.remove(villager.getUUID());
+        WOOD_TARGETS.remove(villager.getUUID());
+        CONSTRUCTION_TARGETS.remove(villager.getUUID());
     }
 
-    public static void writeToNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void writeToNbt(Villager villager, CompoundTag nbt) {
         ValetOrder order = get(villager);
         if (order == ValetOrder.NONE) {
             nbt.remove(DATA_VERSION_KEY);
@@ -208,22 +207,22 @@ public final class ValetOrders {
         }
     }
 
-    public static void readFromNbt(VillagerEntity villager, NbtCompound nbt) {
+    public static void readFromNbt(Villager villager, CompoundTag nbt) {
         if (!nbt.contains(ORDER_KEY)) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
         try {
-            ValetOrder order = ValetOrder.fromId(nbt.getString(ORDER_KEY));
+            ValetOrder order = ValetOrder.fromId(nbt.getString(ORDER_KEY).orElse(""));
             if (order == ValetOrder.MINE_ORES && nbt.contains(MINE_TARGET_KEY)) {
-                setMineTarget(villager, ValetMineTarget.valueOf(nbt.getString(MINE_TARGET_KEY)));
+                setMineTarget(villager, ValetMineTarget.valueOf(nbt.getString(MINE_TARGET_KEY).orElse("")));
             } else if (order == ValetOrder.CHOP_WOOD && nbt.contains(WOOD_TARGET_KEY)) {
-                setWoodTarget(villager, ValetWoodTarget.valueOf(nbt.getString(WOOD_TARGET_KEY)));
+                setWoodTarget(villager, ValetWoodTarget.valueOf(nbt.getString(WOOD_TARGET_KEY).orElse("")));
             } else if (order == ValetOrder.BUILD_STRUCTURE && nbt.contains(CONSTRUCTION_TARGET_KEY)) {
-                setConstructionTarget(villager, nbt.getInt(CONSTRUCTION_TARGET_KEY));
+                setConstructionTarget(villager, nbt.getIntOr(CONSTRUCTION_TARGET_KEY, -1));
             } else if (order == ValetOrder.CRAFT && nbt.contains(CRAFT_TARGET_KEY)) {
-                setCraftTarget(villager, ValetCraftTarget.valueOf(nbt.getString(CRAFT_TARGET_KEY)));
+                setCraftTarget(villager, ValetCraftTarget.valueOf(nbt.getString(CRAFT_TARGET_KEY).orElse("")));
             } else {
                 set(villager, order);
             }

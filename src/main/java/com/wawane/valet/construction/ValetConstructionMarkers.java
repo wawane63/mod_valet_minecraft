@@ -1,19 +1,18 @@
 package com.wawane.valet.construction;
 
 import com.wawane.valet.ValetMod;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Items;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class ValetConstructionMarkers {
     private static final int MAX_HEIGHT = 64;
@@ -24,17 +23,17 @@ public final class ValetConstructionMarkers {
     private ValetConstructionMarkers() {
     }
 
-    public static void placeMarker(ServerWorld world, BlockPos pos, PlayerEntity player) {
-        UUID playerId = player.getUuid();
+    public static void placeMarker(ServerLevel world, BlockPos pos, Player player) {
+        UUID playerId = player.getUUID();
         Marker previous = FIRST_MARKERS.get(playerId);
-        if (previous == null || !previous.dimension().equals(world.getRegistryKey()) || previous.pos().equals(pos) || !isMarkerStillPlaced(world, previous.pos())) {
-            FIRST_MARKERS.put(playerId, new Marker(world.getRegistryKey(), pos.toImmutable()));
-            player.sendMessage(Text.translatable("message.valet.construction_first_marker"), true);
+        if (previous == null || !previous.dimension().equals(world.dimension()) || previous.pos().equals(pos) || !isMarkerStillPlaced(world, previous.pos())) {
+            FIRST_MARKERS.put(playerId, new Marker(world.dimension(), pos.immutable()));
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_first_marker"));
             return;
         }
 
         FIRST_MARKERS.remove(playerId);
-        copyStructure(world, previous.pos(), pos.toImmutable(), player);
+        copyStructure(world, previous.pos(), pos.immutable(), player);
     }
 
     public static void clear(UUID playerId) {
@@ -45,11 +44,11 @@ public final class ValetConstructionMarkers {
         FIRST_MARKERS.clear();
     }
 
-    private static boolean isMarkerStillPlaced(ServerWorld world, BlockPos pos) {
-        return world.getBlockState(pos).isOf(ValetMod.CONSTRUCTION_BEACON);
+    private static boolean isMarkerStillPlaced(ServerLevel world, BlockPos pos) {
+        return world.getBlockState(pos).is(ValetMod.CONSTRUCTION_BEACON);
     }
 
-    private static void copyStructure(ServerWorld world, BlockPos first, BlockPos second, PlayerEntity player) {
+    private static void copyStructure(ServerLevel world, BlockPos first, BlockPos second, Player player) {
         int minX = Math.min(first.getX(), second.getX());
         int maxX = Math.max(first.getX(), second.getX());
         int minZ = Math.min(first.getZ(), second.getZ());
@@ -57,21 +56,21 @@ public final class ValetConstructionMarkers {
         int baseY = Math.min(first.getY(), second.getY());
         int width = maxX - minX + 1;
         int depth = maxZ - minZ + 1;
-        int maxWorldY = Math.min(world.getTopY(), baseY + MAX_HEIGHT);
+        int maxWorldY = Math.min(world.getMaxY(), baseY + MAX_HEIGHT);
 
         int topY = baseY - 1;
         for (int y = baseY; y < maxWorldY; y++) {
             if (hasCopyableBlockInLayer(world, minX, maxX, y, minZ, maxZ)) {
                 topY = y;
                 if (width * depth * (topY - baseY + 1) > MAX_VOLUME) {
-                    player.sendMessage(Text.translatable("message.valet.construction_too_large"), true);
+                    player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
                     return;
                 }
             }
         }
 
         if (topY < baseY) {
-            player.sendMessage(Text.translatable("message.valet.construction_empty"), true);
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_empty"));
             return;
         }
 
@@ -87,7 +86,7 @@ public final class ValetConstructionMarkers {
 
                     entries.add(new ValetConstructionBlueprint.Entry(x - minX, y - baseY, z - minZ, state));
                     if (entries.size() > MAX_BLOCKS) {
-                        player.sendMessage(Text.translatable("message.valet.construction_too_large"), true);
+                        player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
                         return;
                     }
                 }
@@ -95,28 +94,28 @@ public final class ValetConstructionMarkers {
         }
 
         if (entries.isEmpty()) {
-            player.sendMessage(Text.translatable("message.valet.construction_empty"), true);
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_empty"));
             return;
         }
 
         ValetConstructionStorage storage = ValetConstructionStorage.get(world);
         ValetConstructionBlueprint blueprint = storage.addBlueprint(storage.nextDefaultName(), width, topY - baseY + 1, depth, entries);
         if (blueprint == null) {
-            player.sendMessage(Text.translatable("message.valet.construction_storage_full", ValetConstructionStorage.MAX_BLUEPRINTS), true);
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_storage_full", ValetConstructionStorage.MAX_BLUEPRINTS));
             return;
         }
 
-        player.sendMessage(Text.translatable(
+        player.sendSystemMessage(Component.translatable(
                 "message.valet.construction_saved",
                 blueprint.name(),
                 blueprint.width(),
                 blueprint.height(),
                 blueprint.depth(),
                 blueprint.blockCount()
-        ), false);
+        ));
     }
 
-    private static boolean hasCopyableBlockInLayer(ServerWorld world, int minX, int maxX, int y, int minZ, int maxZ) {
+    private static boolean hasCopyableBlockInLayer(ServerLevel world, int minX, int maxX, int y, int minZ, int maxZ) {
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 if (isCopyable(world.getBlockState(new BlockPos(x, y, z)))) {
@@ -130,10 +129,10 @@ public final class ValetConstructionMarkers {
     private static boolean isCopyable(BlockState state) {
         return !state.isAir()
                 && state.getFluidState().isEmpty()
-                && !state.isOf(ValetMod.CONSTRUCTION_BEACON)
+                && !state.is(ValetMod.CONSTRUCTION_BEACON)
                 && state.getBlock().asItem() != Items.AIR;
     }
 
-    private record Marker(RegistryKey<World> dimension, BlockPos pos) {
+    private record Marker(ResourceKey<Level> dimension, BlockPos pos) {
     }
 }

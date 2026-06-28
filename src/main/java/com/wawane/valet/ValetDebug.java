@@ -5,23 +5,23 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.phys.AABB;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.literal;
 
 public final class ValetDebug {
     private static final int RANGE = 96;
@@ -40,32 +40,32 @@ public final class ValetDebug {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> register(dispatcher));
     }
 
-    public static void tick(ServerWorld world) {
-        if (VIEWERS.isEmpty() || world.getTime() % ACTIONBAR_INTERVAL_TICKS != 0) {
+    public static void tick(ServerLevel world) {
+        if (VIEWERS.isEmpty() || world.getGameTime() % ACTIONBAR_INTERVAL_TICKS != 0) {
             return;
         }
 
-        for (ServerPlayerEntity player : world.getPlayers()) {
-            if (!VIEWERS.contains(player.getUuid())) {
+        for (ServerPlayer player : world.players()) {
+            if (!VIEWERS.contains(player.getUUID())) {
                 continue;
             }
 
-            Optional<VillagerEntity> nearest = nearestValet(player);
+            Optional<Villager> nearest = nearestValet(player);
             if (nearest.isEmpty()) {
-                player.sendMessage(Text.literal("[Valet] aucun valet proche").formatted(Formatting.YELLOW), true);
+                player.sendOverlayMessage(Component.literal("[Valet] aucun valet proche").withStyle(ChatFormatting.YELLOW));
                 continue;
             }
 
-            VillagerEntity villager = nearest.get();
-            String event = LAST_EVENTS.getOrDefault(villager.getUuid(), "event=aucun");
-            player.sendMessage(Text.literal("[Valet] profession=" + villager.getVillagerData().getProfession()
-                    + " " + ValetWorkDriver.describe(villager) + " | " + event), true);
+            Villager villager = nearest.get();
+            String event = LAST_EVENTS.getOrDefault(villager.getUUID(), "event=aucun");
+            player.sendOverlayMessage(Component.literal("[Valet] profession=" + villager.getVillagerData().profession()
+                    + " " + ValetWorkDriver.describe(villager) + " | " + event));
         }
     }
 
-    public static void record(VillagerEntity villager, String message) {
-        String line = shortUuid(villager.getUuid()) + " " + shortPos(villager.getBlockPos()) + " " + message;
-        LAST_EVENTS.put(villager.getUuid(), line);
+    public static void record(Villager villager, String message) {
+        String line = shortUuid(villager.getUUID()) + " " + shortPos(villager.blockPosition()) + " " + message;
+        LAST_EVENTS.put(villager.getUUID(), line);
         if (shouldWriteLog(villager, line)) {
             ValetMod.LOGGER.info("[valet-debug] {}", line);
         }
@@ -89,63 +89,63 @@ public final class ValetDebug {
         return pos.getX() + "," + pos.getY() + "," + pos.getZ();
     }
 
-    private static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
+    private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(literal("valetdebug")
                 .then(literal("on").executes(context -> {
-                    ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-                    VIEWERS.add(player.getUuid());
+                    ServerPlayer player = context.getSource().getPlayerOrException();
+                    VIEWERS.add(player.getUUID());
                     verboseLog = true;
-                    context.getSource().sendFeedback(() -> Text.literal("Valet debug ON").formatted(Formatting.GREEN), false);
+                    context.getSource().sendSuccess(() -> Component.literal("Valet debug ON").withStyle(ChatFormatting.GREEN), false);
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("off").executes(context -> {
-                    ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
-                    VIEWERS.remove(player.getUuid());
-                    context.getSource().sendFeedback(() -> Text.literal("Valet debug OFF").formatted(Formatting.GRAY), false);
+                    ServerPlayer player = context.getSource().getPlayerOrException();
+                    VIEWERS.remove(player.getUUID());
+                    context.getSource().sendSuccess(() -> Component.literal("Valet debug OFF").withStyle(ChatFormatting.GRAY), false);
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("log").executes(context -> {
                     verboseLog = true;
-                    context.getSource().sendFeedback(() -> Text.literal("Valet debug log always ON").formatted(Formatting.GREEN), false);
+                    context.getSource().sendSuccess(() -> Component.literal("Valet debug log always ON").withStyle(ChatFormatting.GREEN), false);
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(literal("dump").executes(context -> {
-                    ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+                    ServerPlayer player = context.getSource().getPlayerOrException();
                     dumpNearby(player);
                     return Command.SINGLE_SUCCESS;
                 }))
         );
     }
 
-    private static void dumpNearby(ServerPlayerEntity player) {
-        Box searchBox = Box.from(player.getPos()).expand(RANGE);
-        var valets = player.getServerWorld().getEntitiesByClass(VillagerEntity.class, searchBox, ValetDebug::isDebugTarget);
+    private static void dumpNearby(ServerPlayer player) {
+        AABB searchBox = AABB.unitCubeFromLowerCorner(player.position()).inflate(RANGE);
+        var valets = player.level().getEntitiesOfClass(Villager.class, searchBox, ValetDebug::isDebugTarget);
         if (valets.isEmpty()) {
-            player.sendMessage(Text.literal("[Valet] aucun valet proche").formatted(Formatting.YELLOW), false);
+            player.sendSystemMessage(Component.literal("[Valet] aucun valet proche").withStyle(ChatFormatting.YELLOW));
             return;
         }
 
-        for (VillagerEntity villager : valets) {
-            String event = LAST_EVENTS.getOrDefault(villager.getUuid(), "event=aucun");
-            player.sendMessage(Text.literal("[Valet] profession=" + villager.getVillagerData().getProfession()
-                    + " " + ValetWorkDriver.describe(villager) + " | " + event), false);
+        for (Villager villager : valets) {
+            String event = LAST_EVENTS.getOrDefault(villager.getUUID(), "event=aucun");
+            player.sendSystemMessage(Component.literal("[Valet] profession=" + villager.getVillagerData().profession()
+                    + " " + ValetWorkDriver.describe(villager) + " | " + event));
         }
     }
 
-    private static Optional<VillagerEntity> nearestValet(ServerPlayerEntity player) {
-        Box searchBox = Box.from(player.getPos()).expand(RANGE);
-        return player.getServerWorld().getEntitiesByClass(VillagerEntity.class, searchBox, ValetDebug::isDebugTarget)
+    private static Optional<Villager> nearestValet(ServerPlayer player) {
+        AABB searchBox = AABB.unitCubeFromLowerCorner(player.position()).inflate(RANGE);
+        return player.level().getEntitiesOfClass(Villager.class, searchBox, ValetDebug::isDebugTarget)
                 .stream()
-                .min(Comparator.comparingDouble(player::squaredDistanceTo));
+                .min(Comparator.comparingDouble(villager -> player.distanceToSqr(villager)));
     }
 
-    private static boolean shouldWriteLog(VillagerEntity villager, String line) {
+    private static boolean shouldWriteLog(Villager villager, String line) {
         if (!verboseLog) {
             return false;
         }
 
-        long tick = villager.getWorld() instanceof ServerWorld world ? world.getTime() : 0L;
-        UUID uuid = villager.getUuid();
+        long tick = villager.level() instanceof ServerLevel world ? world.getGameTime() : 0L;
+        UUID uuid = villager.getUUID();
         String previous = LAST_LOG_LINES.get(uuid);
         long previousTick = LAST_LOG_TICKS.getOrDefault(uuid, Long.MIN_VALUE);
         if (line.equals(previous) && tick - previousTick < LOG_REPEAT_INTERVAL_TICKS) {
@@ -157,8 +157,8 @@ public final class ValetDebug {
         return true;
     }
 
-    private static boolean isDebugTarget(VillagerEntity villager) {
-        return villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION || ValetData.hasRuntimeData(villager);
+    private static boolean isDebugTarget(Villager villager) {
+        return ValetMod.isValet(villager) || ValetData.hasRuntimeData(villager);
     }
 
     private static String shortUuid(UUID uuid) {

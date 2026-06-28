@@ -1,23 +1,22 @@
 package com.wawane.valet.ai.tasks.combat;
 
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.server.world.ServerWorld;
-
 import java.util.Comparator;
 import java.util.List;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetCombatTargeting {
     private ValetCombatTargeting() {
     }
 
-    public static LivingEntity chooseTarget(ServerWorld world, VillagerEntity villager, LivingEntity currentTarget, double searchRadius, double chaseRadius) {
+    public static LivingEntity chooseTarget(ServerLevel world, Villager villager, LivingEntity currentTarget, double searchRadius, double chaseRadius) {
         if (isValidTarget(villager, currentTarget, chaseRadius * chaseRadius)) {
             return currentTarget;
         }
 
-        LivingEntity attacker = villager.getAttacker();
+        LivingEntity attacker = villager.getLastHurtByMob();
         if (isValidTarget(villager, attacker, chaseRadius * chaseRadius)) {
             return attacker;
         }
@@ -30,25 +29,25 @@ public final class ValetCombatTargeting {
         return findNearestHostile(world, villager, searchRadius);
     }
 
-    private static LivingEntity findNearestHostile(ServerWorld world, VillagerEntity villager, double radius) {
+    private static LivingEntity findNearestHostile(ServerLevel world, Villager villager, double radius) {
         double maxDistanceSquared = radius * radius;
-        List<HostileEntity> hostiles = world.getEntitiesByClass(
-                HostileEntity.class,
-                villager.getBoundingBox().expand(radius, 4.0D, radius),
+        List<Monster> hostiles = world.getEntitiesOfClass(
+                Monster.class,
+                villager.getBoundingBox().inflate(radius, 4.0D, radius),
                 hostile -> isValidTarget(villager, hostile, maxDistanceSquared)
         );
 
         return hostiles.stream()
-                .min(Comparator.comparingDouble(villager::squaredDistanceTo))
+                .min(Comparator.comparingDouble(villager::distanceToSqr))
                 .orElse(null);
     }
 
-    private static boolean isValidTarget(VillagerEntity villager, LivingEntity target, double maxDistanceSquared) {
-        return target instanceof HostileEntity
+    private static boolean isValidTarget(Villager villager, LivingEntity target, double maxDistanceSquared) {
+        return target instanceof Monster
                 && target.isAlive()
                 && !target.isRemoved()
                 && !target.isSpectator()
-                && villager.squaredDistanceTo(target) <= maxDistanceSquared
-                && villager.canSee(target);
+                && villager.distanceToSqr(target) <= maxDistanceSquared
+                && villager.hasLineOfSight(target);
     }
 }

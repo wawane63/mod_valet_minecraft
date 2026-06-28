@@ -1,82 +1,92 @@
 package com.wawane.valet.construction;
 
+import com.mojang.serialization.MapCodec;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.order.ValetOrders;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.BlockWithEntity;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.item.ItemPlacementContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.state.StateManager;
-import net.minecraft.state.property.DirectionProperty;
-import net.minecraft.state.property.Properties;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.phys.AABB;
 
-public class ConstructionBlueprintBlock extends BlockWithEntity {
-    public static final DirectionProperty FACING = Properties.HORIZONTAL_FACING;
+public class ConstructionBlueprintBlock extends BaseEntityBlock {
+    public static final MapCodec<ConstructionBlueprintBlock> CODEC = simpleCodec(ConstructionBlueprintBlock::new);
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
-    public ConstructionBlueprintBlock(Settings settings) {
+    public ConstructionBlueprintBlock(Properties settings) {
         super(settings);
-        setDefaultState(getDefaultState().with(FACING, Direction.SOUTH));
+        registerDefaultState(defaultBlockState().setValue(FACING, Direction.SOUTH));
     }
 
     @Override
-    public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
+
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ConstructionBlueprintBlockEntity(pos, state);
     }
 
     @Override
-    public BlockRenderType getRenderType(BlockState state) {
-        return BlockRenderType.MODEL;
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
     }
 
     @Override
-    public BlockState getPlacementState(ItemPlacementContext ctx) {
-        return getDefaultState().with(FACING, ctx.getHorizontalPlayerFacing());
+    public BlockState getStateForPlacement(BlockPlaceContext ctx) {
+        return defaultBlockState().setValue(FACING, ctx.getHorizontalDirection());
     }
 
     @Override
-    public void onPlaced(World world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack itemStack) {
-        super.onPlaced(world, pos, state, placer, itemStack);
+    public void setPlacedBy(Level world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack itemStack) {
+        super.setPlacedBy(world, pos, state, placer, itemStack);
+        CompoundTag nbt = ConstructionBlueprintNbt.get(itemStack);
         if (world.getBlockEntity(pos) instanceof ConstructionBlueprintBlockEntity blueprint) {
-            blueprint.setFromStackNbt(itemStack.getNbt());
+            blueprint.setFromStackNbt(nbt);
         }
-        activateTargetValet(world, pos, itemStack.getNbt());
+        activateTargetValet(world, pos, nbt);
     }
 
-    private void activateTargetValet(World world, BlockPos pos, @Nullable NbtCompound nbt) {
-        if (world.isClient || !(world instanceof ServerWorld serverWorld) || nbt == null || !nbt.contains(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY)) {
+    private void activateTargetValet(Level world, BlockPos pos, @Nullable CompoundTag nbt) {
+        if (world.isClientSide() || !(world instanceof ServerLevel serverWorld) || nbt == null || !nbt.contains(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY)) {
             return;
         }
 
-        int constructionId = nbt.getInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY);
-        VillagerEntity valet = findTargetValet(serverWorld, pos, nbt);
+        int constructionId = nbt.getInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY).orElse(-1);
+        Villager valet = findTargetValet(serverWorld, pos, nbt);
         if (valet != null) {
             ValetOrders.setConstructionTarget(valet, constructionId);
         }
     }
 
     @Nullable
-    private VillagerEntity findTargetValet(ServerWorld world, BlockPos pos, NbtCompound nbt) {
-        Box searchBox = new Box(pos).expand(96.0D);
-        List<VillagerEntity> valets = world.getEntitiesByClass(VillagerEntity.class, searchBox, villager -> villager.getVillagerData().getProfession() == ValetMod.VALET_PROFESSION);
-        if (nbt.containsUuid(ConstructionBlueprintBlockEntity.VALET_UUID_KEY)) {
-            UUID valetUuid = nbt.getUuid(ConstructionBlueprintBlockEntity.VALET_UUID_KEY);
-            for (VillagerEntity valet : valets) {
-                if (valet.getUuid().equals(valetUuid)) {
+    private Villager findTargetValet(ServerLevel world, BlockPos pos, CompoundTag nbt) {
+        AABB searchBox = new AABB(pos).inflate(96.0D);
+        List<Villager> valets = world.getEntitiesOfClass(Villager.class, searchBox, ValetMod::isValet);
+        if (nbt.contains(ConstructionBlueprintBlockEntity.VALET_UUID_KEY)) {
+            UUID valetUuid = nbt.getString(ConstructionBlueprintBlockEntity.VALET_UUID_KEY)
+                    .map(UUID::fromString)
+                    .orElse(null);
+            for (Villager valet : valets) {
+                if (valet.getUUID().equals(valetUuid)) {
                     return valet;
                 }
             }
@@ -85,7 +95,7 @@ public class ConstructionBlueprintBlock extends BlockWithEntity {
     }
 
     @Override
-    protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING);
     }
 }

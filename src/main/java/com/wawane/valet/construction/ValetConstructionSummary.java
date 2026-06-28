@@ -1,6 +1,6 @@
 package com.wawane.valet.construction;
 
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 
 public record ValetConstructionSummary(int id, String name, int width, int height, int depth, int blockCount) {
     public static ValetConstructionSummary fromBlueprint(ValetConstructionBlueprint blueprint) {
@@ -14,19 +14,19 @@ public record ValetConstructionSummary(int id, String name, int width, int heigh
         );
     }
 
-    public void write(PacketByteBuf buf) {
+    public void write(FriendlyByteBuf buf) {
         buf.writeInt(id);
-        buf.writeString(name, 48);
+        buf.writeUtf(name, 48);
         buf.writeInt(width);
         buf.writeInt(height);
         buf.writeInt(depth);
         buf.writeInt(blockCount);
     }
 
-    public static ValetConstructionSummary read(PacketByteBuf buf) {
+    public static ValetConstructionSummary read(FriendlyByteBuf buf) {
         return new ValetConstructionSummary(
                 buf.readInt(),
-                buf.readString(48),
+                buf.readUtf(48),
                 buf.readInt(),
                 buf.readInt(),
                 buf.readInt(),

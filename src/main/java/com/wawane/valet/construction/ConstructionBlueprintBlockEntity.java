@@ -1,14 +1,17 @@
 package com.wawane.valet.construction;
 
 import com.wawane.valet.ValetMod;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.network.listener.ClientPlayPacketListener;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.Nullable;
 
 public class ConstructionBlueprintBlockEntity extends BlockEntity {
@@ -41,49 +44,49 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
         this.constructionId = constructionId;
         this.constructionName = constructionName == null ? "" : constructionName;
         this.blueprint = blueprint;
-        markDirty();
-        if (world != null && !world.isClient) {
-            world.updateListeners(pos, getCachedState(), getCachedState(), Block.NOTIFY_ALL);
+        setChanged();
+        if (level != null && !level.isClientSide()) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_ALL);
         }
     }
 
-    public void setFromStackNbt(NbtCompound nbt) {
+    public void setFromStackNbt(CompoundTag nbt) {
         if (nbt == null) {
             return;
         }
 
-        ValetConstructionBlueprint stackBlueprint = nbt.contains(BLUEPRINT_KEY) ? ValetConstructionBlueprint.readNbt(nbt.getCompound(BLUEPRINT_KEY)) : null;
-        int id = nbt.contains(CONSTRUCTION_ID_KEY) ? nbt.getInt(CONSTRUCTION_ID_KEY) : stackBlueprint == null ? -1 : stackBlueprint.id();
-        String name = nbt.contains(CONSTRUCTION_NAME_KEY) ? nbt.getString(CONSTRUCTION_NAME_KEY) : stackBlueprint == null ? "" : stackBlueprint.name();
+        ValetConstructionBlueprint stackBlueprint = nbt.getCompound(BLUEPRINT_KEY).map(ValetConstructionBlueprint::readNbt).orElse(null);
+        int id = nbt.getInt(CONSTRUCTION_ID_KEY).orElse(stackBlueprint == null ? -1 : stackBlueprint.id());
+        String name = nbt.getString(CONSTRUCTION_NAME_KEY).orElse(stackBlueprint == null ? "" : stackBlueprint.name());
         setConstruction(id, name, stackBlueprint);
     }
 
     @Override
-    public void readNbt(NbtCompound nbt) {
-        super.readNbt(nbt);
-        constructionId = nbt.contains(CONSTRUCTION_ID_KEY) ? nbt.getInt(CONSTRUCTION_ID_KEY) : -1;
-        constructionName = nbt.getString(CONSTRUCTION_NAME_KEY);
-        blueprint = nbt.contains(BLUEPRINT_KEY) ? ValetConstructionBlueprint.readNbt(nbt.getCompound(BLUEPRINT_KEY)) : null;
+    protected void loadAdditional(ValueInput input) {
+        super.loadAdditional(input);
+        constructionId = input.getIntOr(CONSTRUCTION_ID_KEY, -1);
+        constructionName = input.getStringOr(CONSTRUCTION_NAME_KEY, "");
+        blueprint = input.read(BLUEPRINT_KEY, CompoundTag.CODEC).map(ValetConstructionBlueprint::readNbt).orElse(null);
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt) {
-        super.writeNbt(nbt);
-        nbt.putInt(CONSTRUCTION_ID_KEY, constructionId);
-        nbt.putString(CONSTRUCTION_NAME_KEY, constructionName);
+    protected void saveAdditional(ValueOutput output) {
+        super.saveAdditional(output);
+        output.putInt(CONSTRUCTION_ID_KEY, constructionId);
+        output.putString(CONSTRUCTION_NAME_KEY, constructionName);
         if (blueprint != null) {
-            nbt.put(BLUEPRINT_KEY, blueprint.writeNbt());
+            output.store(BLUEPRINT_KEY, CompoundTag.CODEC, blueprint.writeNbt());
         }
     }
 
     @Override
-    public NbtCompound toInitialChunkDataNbt() {
-        return createNbt();
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
     }
 
     @Nullable
     @Override
-    public Packet<ClientPlayPacketListener> toUpdatePacket() {
-        return BlockEntityUpdateS2CPacket.create(this);
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 }
