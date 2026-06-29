@@ -6,6 +6,7 @@ Bugs corriges / fonctionnalite :
 
 - Le `Poste d'artisan` utilise maintenant une pioche en bois et deux haches en bois.
 - Le `Poste de combattant` utilise maintenant deux epees en bois au lieu de deux epees en fer.
+- Le `Poste de combattant` utilise maintenant deux buches au lieu de deux lingots de fer.
 - Le `Poste de fermier` utilise maintenant une houe en bois au lieu d'une houe en fer.
 - La page GitHub des crafts est mise a jour avec les nouvelles recettes.
 

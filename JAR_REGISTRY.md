@@ -21,7 +21,7 @@ Regles obligatoires :
 | 0.2.0 | Portage Minecraft 26.2 | `v0.2.0` | `build/libs/valet-0.2.0.jar` | `919212508C48A3C5448AA907C22C50C398E4106EE83CB808DB6C3535B46DE6D8` |
 | 0.2.1 | Fermier local | `v0.2.1` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
 | 0.3.0 | Decoupage metiers | `v0.3.0` | `build/libs/valet-0.3.0.jar` | `CDA87ACD625BF55BB0DF7F616D5295C5EDE34AFA5F57C993C8FB64AB18D489B3` |
-| 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `5B667F19CFFA9DCC919964E8FF7F9247071E2766AB1B69C6A3C97632155916E8` |
+| 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -35,13 +35,14 @@ Bugs corriges / fonctionnalite :
 
 - Le `Poste d'artisan` utilise une pioche en bois et deux haches en bois.
 - Le `Poste de combattant` utilise deux epees en bois.
+- Le `Poste de combattant` utilise deux buches a la place des lingots de fer.
 - Le `Poste de fermier` utilise une houe en bois.
 - Le guide GitHub des objets et crafts est mis a jour.
 
 Verification :
 
 - Jar actuel : `valet-0.3.1.jar`
-- SHA-256 : `5B667F19CFFA9DCC919964E8FF7F9247071E2766AB1B69C6A3C97632155916E8`
+- SHA-256 : `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB`
 - Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.3.0 - Decoupage metiers
