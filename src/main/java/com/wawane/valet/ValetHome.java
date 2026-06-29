@@ -28,6 +28,15 @@ public final class ValetHome {
     }
 
     public static BlockPos get(ServerLevel world, Villager villager) {
+        GlobalPos storedHome = HOMES.get(villager.getUUID());
+        if (storedHome != null && storedHome.dimension().equals(world.dimension())) {
+            if (isValidWorkstation(world, storedHome.pos())) {
+                villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, storedHome);
+                return storedHome.pos();
+            }
+            HOMES.remove(villager.getUUID());
+        }
+
         Optional<GlobalPos> jobSite = villager.getBrain().getMemoryInternal(MemoryModuleType.JOB_SITE);
         if (jobSite.isPresent() && jobSite.get().dimension().equals(world.dimension())) {
             BlockPos pos = jobSite.get().pos();
@@ -38,25 +47,7 @@ public final class ValetHome {
             villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
             HOMES.remove(villager.getUUID());
         }
-        GlobalPos home = HOMES.get(villager.getUUID());
-        if (home == null || !home.dimension().equals(world.dimension())) {
-            BlockPos workstation = findNearbyWorkstation(world, villager.blockPosition());
-            if (workstation == null) {
-                return null;
-            }
-
-            GlobalPos recoveredHome = GlobalPos.of(world.dimension(), workstation);
-            villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, recoveredHome);
-            set(villager, recoveredHome);
-            return workstation;
-        }
-        if (!isValidWorkstation(world, home.pos())) {
-            HOMES.remove(villager.getUUID());
-            villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
-            return getOrRecover(world, villager, villager.blockPosition());
-        }
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, home);
-        return home.pos();
+        return null;
     }
 
     public static BlockPos getOrRecover(ServerLevel world, Villager villager, BlockPos recoveryOrigin) {
@@ -64,16 +55,7 @@ public final class ValetHome {
         if (home != null) {
             return home;
         }
-
-        BlockPos workstation = findNearbyWorkstation(world, recoveryOrigin);
-        if (workstation == null) {
-            return null;
-        }
-
-        GlobalPos recoveredHome = GlobalPos.of(world.dimension(), workstation);
-        villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, recoveredHome);
-        set(villager, recoveredHome);
-        return workstation;
+        return ValetMod.claimOrRecoverValetHome(world, villager, recoveryOrigin);
     }
 
     public static void set(Villager villager, BlockPos pos) {
@@ -94,7 +76,23 @@ public final class ValetHome {
     }
 
     private static boolean isValidWorkstation(ServerLevel world, BlockPos pos) {
-        return world.getBlockState(pos).is(ValetMod.VALET_WORKSTATION);
+        return ValetMod.isValetWorkstation(world.getBlockState(pos));
+    }
+
+    public static boolean isHome(ServerLevel world, Villager villager, BlockPos pos) {
+        GlobalPos home = HOMES.get(villager.getUUID());
+        return home != null && home.dimension().equals(world.dimension()) && home.pos().equals(pos);
+    }
+
+    public static boolean isClaimedHome(ServerLevel world, BlockPos pos, UUID ignored) {
+        for (Map.Entry<UUID, GlobalPos> entry : HOMES.entrySet()) {
+            if (!entry.getKey().equals(ignored)
+                    && entry.getValue().dimension().equals(world.dimension())
+                    && entry.getValue().pos().equals(pos)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean hasData(Villager villager) {

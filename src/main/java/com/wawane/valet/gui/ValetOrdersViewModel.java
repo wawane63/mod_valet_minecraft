@@ -1,6 +1,7 @@
 package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
@@ -14,6 +15,7 @@ import net.minecraft.world.item.ItemStack;
 
 public record ValetOrdersViewModel(
         int valetEntityId,
+        ValetRole role,
         ValetOrder currentOrder,
         int currentMineTargetIndex,
         int currentWoodTargetIndex,
@@ -76,6 +78,7 @@ public record ValetOrdersViewModel(
 
         return new ValetOrdersViewModel(
                 handler.getValetEntityId(),
+                handler.getRole(),
                 handler.getCurrentOrder(),
                 handler.getCurrentMineTargetIndex(),
                 handler.getCurrentWoodTargetIndex(),

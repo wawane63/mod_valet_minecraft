@@ -1,10 +1,12 @@
 package com.wawane.valet.progress;
 
+import com.wawane.valet.ValetRole;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetCombatProgress {
@@ -71,6 +73,9 @@ public final class ValetCombatProgress {
 
     public static boolean choosePerk(Villager villager, ValetCombatPerk perk) {
         if (perk == null || hasPerk(villager, perk)) {
+            return false;
+        }
+        if (!(villager.level() instanceof ServerLevel world) || ValetRole.get(world, villager) != ValetRole.COMBATANT) {
             return false;
         }
 
@@ -197,7 +202,11 @@ public final class ValetCombatProgress {
         return switch (perk) {
             case SWORD_STRENGTH, ALLY_AWARENESS -> true;
             case SWORD_RECOVERY, SWORD_DEFENSE -> data.perks[ValetCombatPerk.SWORD_STRENGTH.ordinal()];
+            case SWORD_REACH -> data.perks[ValetCombatPerk.SWORD_RECOVERY.ordinal()];
+            case SWORD_GUARDIAN -> data.perks[ValetCombatPerk.SWORD_DEFENSE.ordinal()];
             case BOW_QUICK_SHOT, BOW_STRENGTH -> data.perks[ValetCombatPerk.ALLY_AWARENESS.ordinal()];
+            case BOW_RANGE -> data.perks[ValetCombatPerk.BOW_STRENGTH.ordinal()];
+            case BOW_VOLLEY -> data.perks[ValetCombatPerk.BOW_QUICK_SHOT.ordinal()];
             case BOW_RECYCLE_ARROW -> data.perks[ValetCombatPerk.BOW_STRENGTH.ordinal()];
         };
     }

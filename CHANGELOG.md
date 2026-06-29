@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 - Decoupage metiers
+
+Bugs corriges / fonctionnalite :
+
+- Separation des valets en trois postes : `Poste d'artisan`, `Poste de combattant`, `Poste de fermier`.
+- L'artisan garde les ordres bois, minerais, construction et craft.
+- Le combattant est verrouille sur la defense/combat et ne recoit plus d'ordres de recolte.
+- Le fermier garde uniquement l'ordre `Recolter` et les options de champs.
+- Ajout d'un arbre fermier dedie : vitesse, portee, replantation, labour, stockage, intendant.
+- Extension des arbres combat epee/arc : portee, garde renforcee, tir lointain, volee.
+- L'UI affiche seulement les pages, ordres et perks compatibles avec le poste actif.
+- Les ordres incompatibles sont refuses cote serveur et nettoyes automatiquement si le poste change.
+- Les bonus de perks sont limites au metier actif pour eviter les effets croises.
+- Ajout des assets, recettes, loot tables et traductions des nouveaux postes.
+- Correction : un valet conserve son poste stocke au lieu de suivre une memoire vanilla changee.
+- Correction : un villageois oisif ne peut plus garder/prendre le `JOB_SITE` d'un poste Valet deja reserve.
+- Correction : le scan d'attribution ne retraite plus le meme villageois plusieurs fois dans le meme tick.
+- Correction : le glow pose par le mod est retire meme si Minecraft a deja retire le metier avant le nettoyage Valet.
+
+Limitations :
+
+- Verification visible en jeu encore a faire sur les trois postes avec plusieurs valets.
+
 ## 0.2.1 - Fermier local
 
 Bugs corriges / fonctionnalite :

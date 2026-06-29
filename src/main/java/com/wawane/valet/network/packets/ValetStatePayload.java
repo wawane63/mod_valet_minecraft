@@ -1,6 +1,7 @@
 package com.wawane.valet.network.packets;
 
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetMiningScanner;
 import com.wawane.valet.order.ValetOrders;
@@ -24,6 +25,7 @@ import net.minecraft.world.item.ItemStack;
 
 public record ValetStatePayload(
         int valetEntityId,
+        int roleIndex,
         int orderIndex,
         int mineTargetIndex,
         int woodTargetIndex,
@@ -67,6 +69,7 @@ public record ValetStatePayload(
     public static ValetStatePayload from(ServerLevel world, Villager villager) {
         return new ValetStatePayload(
                 villager.getId(),
+                ValetRole.get(world, villager).ordinal(),
                 ValetOrders.get(villager).ordinal(),
                 getCurrentMineTargetIndex(villager),
                 getCurrentWoodTargetIndex(villager),
@@ -100,6 +103,7 @@ public record ValetStatePayload(
 
     public static ValetStatePayload read(RegistryFriendlyByteBuf buf) {
         int valetEntityId = buf.readInt();
+        int roleIndex = buf.readInt();
         int orderIndex = buf.readInt();
         int mineTargetIndex = buf.readInt();
         int woodTargetIndex = buf.readInt();
@@ -133,11 +137,12 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
         buf.writeInt(valetEntityId);
+        buf.writeInt(roleIndex);
         buf.writeInt(orderIndex);
         buf.writeInt(mineTargetIndex);
         buf.writeInt(woodTargetIndex);

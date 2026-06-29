@@ -1,10 +1,12 @@
 package com.wawane.valet.progress;
 
+import com.wawane.valet.ValetRole;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetProgress {
@@ -92,7 +94,7 @@ public final class ValetProgress {
     public static boolean choosePerk(Villager villager, ValetPerk perk) {
         Data data = data(villager);
         normalize(data);
-        if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk) || !canChoosePerk(data, perk)) {
+        if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk) || !isRolePerk(villager, perk) || !canChoosePerk(data, perk)) {
             return false;
         }
 
@@ -155,8 +157,20 @@ public final class ValetProgress {
         return switch (perk) {
             case SPEED -> true;
             case VISION, MOVEMENT -> data.perks[ValetPerk.SPEED.ordinal()];
-            default -> true;
+            case STORAGE -> data.perks[ValetPerk.SPEED.ordinal()];
+            case PATHING -> data.perks[ValetPerk.MOVEMENT.ordinal()];
+            case VEIN -> data.perks[ValetPerk.VISION.ordinal()];
+            case HAUL -> data.perks[ValetPerk.STORAGE.ordinal()];
+            case LIGHTING -> data.perks[ValetPerk.PATHING.ordinal()];
+            case FARM_HANDS -> true;
+            case FARM_RANGE, FARM_REPLANTING, FARM_TILLING -> data.perks[ValetPerk.FARM_HANDS.ordinal()];
+            case FARM_STORAGE -> data.perks[ValetPerk.FARM_REPLANTING.ordinal()];
+            case FARM_STEWARD -> data.perks[ValetPerk.FARM_RANGE.ordinal()] && data.perks[ValetPerk.FARM_STORAGE.ordinal()];
         };
+    }
+
+    private static boolean isRolePerk(Villager villager, ValetPerk perk) {
+        return villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == perk.getRole();
     }
 
     private static final class Data {

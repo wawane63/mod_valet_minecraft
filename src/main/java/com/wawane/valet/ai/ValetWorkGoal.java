@@ -1,6 +1,7 @@
 package com.wawane.valet.ai;
 
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.ValetConversations;
 import com.wawane.valet.ValetDebug;
 import com.wawane.valet.ValetHome;
@@ -192,6 +193,7 @@ public class ValetWorkGoal extends Goal {
         constructionTask.tickCooldown();
         miningTask.tickCooldown();
         farmingTask.tickCooldown();
+        sanitizeOrderForRole(world);
         String currentOrderKey = currentOrderKey();
         if (RESTART_REQUESTS.remove(villager.getUUID()) || !currentOrderKey.equals(activeOrderKey)) {
             resetForCurrentOrder("restarts");
@@ -243,6 +245,7 @@ public class ValetWorkGoal extends Goal {
     public String debugSummary() {
         Container inventory = villager.getInventory();
         return "state=" + state
+                + " role=" + currentRoleName()
                 + " order=" + currentOrderKey()
                 + " pos=" + ValetDebug.shortPos(villager.blockPosition())
                 + " inv=" + inventoryItemCount(inventory) + "/" + getUsableInventorySlots(inventory)
@@ -265,20 +268,25 @@ public class ValetWorkGoal extends Goal {
 
     private boolean hasMiningOrder() {
         ValetOrder order = ValetOrders.get(villager);
-        return order == ValetOrder.MINE_ORES && ValetOrders.getMineTarget(villager) != null
-                || order == ValetOrder.CHOP_WOOD && ValetOrders.getWoodTarget(villager) != null;
+        return isOrderAllowed(order)
+                && (order == ValetOrder.MINE_ORES && ValetOrders.getMineTarget(villager) != null
+                || order == ValetOrder.CHOP_WOOD && ValetOrders.getWoodTarget(villager) != null);
     }
 
     private boolean hasConstructionOrder() {
-        return ValetOrders.get(villager) == ValetOrder.BUILD_STRUCTURE && ValetOrders.getConstructionTargetId(villager) >= 0;
+        return isOrderAllowed(ValetOrders.get(villager))
+                && ValetOrders.get(villager) == ValetOrder.BUILD_STRUCTURE
+                && ValetOrders.getConstructionTargetId(villager) >= 0;
     }
 
     private boolean hasFarmOrder() {
-        return ValetOrders.get(villager) == ValetOrder.HARVEST_CROPS;
+        return isOrderAllowed(ValetOrders.get(villager)) && ValetOrders.get(villager) == ValetOrder.HARVEST_CROPS;
     }
 
     private boolean hasCraftOrder() {
-        return ValetOrders.get(villager) == ValetOrder.CRAFT && ValetOrders.getCraftTarget(villager) != null;
+        return isOrderAllowed(ValetOrders.get(villager))
+                && ValetOrders.get(villager) == ValetOrder.CRAFT
+                && ValetOrders.getCraftTarget(villager) != null;
     }
 
     private boolean hasActiveOrder() {
@@ -307,6 +315,35 @@ public class ValetWorkGoal extends Goal {
 
     private String currentOrderKey() {
         return ValetOrderKey.of(villager);
+    }
+
+    private boolean isOrderAllowed(ValetOrder order) {
+        return villager.level() instanceof ServerLevel world && ValetRole.get(world, villager).allows(order);
+    }
+
+    private void sanitizeOrderForRole(ServerLevel world) {
+        ValetOrder order = ValetOrders.get(villager);
+        ValetRole role = ValetRole.get(world, villager);
+        if (role.allows(order)) {
+            return;
+        }
+
+        ValetDebug.record(villager, "order_cleared role=" + role.name().toLowerCase() + " order=" + order.name().toLowerCase());
+        ValetOrders.set(villager, ValetOrder.NONE);
+        clearPathState();
+        miningTask.clearAll();
+        farmingTask.clearAll();
+        constructionTask.clearBuildState();
+        craftingTask.clearTarget();
+        state = chooseStartState();
+        activeOrderKey = currentOrderKey();
+    }
+
+    private String currentRoleName() {
+        if (!(villager.level() instanceof ServerLevel world)) {
+            return "-";
+        }
+        return ValetRole.get(world, villager).name().toLowerCase();
     }
 
     private boolean shouldReturnToChestBeforeWork() {
@@ -922,7 +959,7 @@ public class ValetWorkGoal extends Goal {
                 && blockState.getFluidState().isEmpty()
                 && !ValetBlockReservations.isClaimedByOther(world, villager.getUUID(), pos)
                 && !wouldExposeFluid(world, pos)
-                && !blockState.is(ValetMod.VALET_WORKSTATION)
+                && !ValetMod.isValetWorkstation(blockState)
                 && !blockState.is(ValetMod.CONSTRUCTION_BEACON)
                 && !blockState.is(ValetMod.CONSTRUCTION_BLUEPRINT)
                 && !blockState.is(ValetMod.FARM_BEACON)
@@ -1153,6 +1190,11 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
+        if (villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == ValetRole.COMBATANT) {
+            equipMainHand(Items.WOODEN_SWORD);
+            return;
+        }
+
         if (state == State.IDLE) {
             equipMainHand(Items.COOKIE);
             return;
@@ -1325,7 +1367,7 @@ public class ValetWorkGoal extends Goal {
 
         @Override
         public boolean isDefenseEnabled() {
-            return true;
+            return villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == ValetRole.COMBATANT;
         }
 
         @Override
@@ -1381,6 +1423,11 @@ public class ValetWorkGoal extends Goal {
         @Override
         public boolean combatHasDefense() {
             return settings.combatHasDefense();
+        }
+
+        @Override
+        public int combatDefenseAmplifier() {
+            return settings.combatDefenseAmplifier();
         }
 
         @Override
@@ -1810,12 +1857,12 @@ public class ValetWorkGoal extends Goal {
 
         @Override
         public int farmRadius() {
-            return ValetWorkGoal.this.mineRadius();
+            return settings.farmRadius();
         }
 
         @Override
         public int farmVerticalRadius() {
-            return ValetWorkGoal.this.mineVerticalRadius();
+            return settings.farmVerticalRadius();
         }
 
         @Override

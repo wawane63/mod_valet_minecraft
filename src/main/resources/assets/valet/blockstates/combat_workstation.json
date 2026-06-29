@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "valet:block/combat_workstation"
+    }
+  }
+}

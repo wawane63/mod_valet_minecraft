@@ -1,6 +1,7 @@
 package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetFarmCrop;
@@ -61,13 +62,16 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private static final int TREE_CENTER_X = 124;
     private static final int TREE_LEFT_X = 72;
     private static final int TREE_RIGHT_X = 176;
+    private static final int TREE_FAR_LEFT_X = 30;
+    private static final int TREE_FAR_RIGHT_X = 218;
     private static final int INVENTORY_TOP_OFFSET = 184;
     private static final int INVENTORY_COLUMNS = 6;
     private static final int INVENTORY_SLOT_SIZE = 18;
     private static final int INVENTORY_SLOT_GAP = 5;
-    private static final ValetPerk[] RESOURCE_TREE_PERKS = {ValetPerk.SPEED, ValetPerk.VISION, ValetPerk.MOVEMENT};
-    private static final ValetCombatPerk[] SWORD_TREE_PERKS = {ValetCombatPerk.SWORD_STRENGTH, ValetCombatPerk.SWORD_RECOVERY, ValetCombatPerk.SWORD_DEFENSE};
-    private static final ValetCombatPerk[] BOW_TREE_PERKS = {ValetCombatPerk.ALLY_AWARENESS, ValetCombatPerk.BOW_QUICK_SHOT, ValetCombatPerk.BOW_STRENGTH, ValetCombatPerk.BOW_RECYCLE_ARROW};
+    private static final ValetPerk[] ARTISAN_TREE_PERKS = {ValetPerk.SPEED, ValetPerk.VISION, ValetPerk.MOVEMENT, ValetPerk.STORAGE, ValetPerk.PATHING, ValetPerk.VEIN, ValetPerk.HAUL, ValetPerk.LIGHTING};
+    private static final ValetPerk[] FARMER_TREE_PERKS = {ValetPerk.FARM_HANDS, ValetPerk.FARM_RANGE, ValetPerk.FARM_REPLANTING, ValetPerk.FARM_TILLING, ValetPerk.FARM_STORAGE, ValetPerk.FARM_STEWARD};
+    private static final ValetCombatPerk[] SWORD_TREE_PERKS = {ValetCombatPerk.SWORD_STRENGTH, ValetCombatPerk.SWORD_RECOVERY, ValetCombatPerk.SWORD_DEFENSE, ValetCombatPerk.SWORD_REACH, ValetCombatPerk.SWORD_GUARDIAN};
+    private static final ValetCombatPerk[] BOW_TREE_PERKS = {ValetCombatPerk.ALLY_AWARENESS, ValetCombatPerk.BOW_QUICK_SHOT, ValetCombatPerk.BOW_STRENGTH, ValetCombatPerk.BOW_RANGE, ValetCombatPerk.BOW_VOLLEY, ValetCombatPerk.BOW_RECYCLE_ARROW};
 
     private final List<OrderEntry> orderEntries = new ArrayList<>();
     private final ValetOrdersViewModel viewModel;
@@ -85,6 +89,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Button bowPageButton;
     private Button inventoryPageButton;
     private RightPage selectedRightPage = RightPage.GENERAL;
+    private ValetRole localRole;
     private TargetCategory selectedCategory = TargetCategory.NONE;
     private int selectedMineTargetIndex = -1;
     private int selectedWoodTargetIndex = -1;
@@ -122,6 +127,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         viewModel = ValetOrdersViewModel.fromHandler(handler);
         localFarmAreas = new ArrayList<>(viewModel.farmAreas());
         localConstructions = new ArrayList<>(viewModel.constructions());
+        localRole = viewModel.role();
+        selectedRightPage = localRole == ValetRole.COMBATANT ? RightPage.SWORD : RightPage.GENERAL;
+        selectedPerk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
         ValetOrder currentOrder = viewModel.currentOrder();
         selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = viewModel.currentMineTargetIndex();
@@ -232,7 +240,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         generalPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
                 .bounds(rightLeft + 10, top + 132, 58, 18)
                 .build());
-        swordPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_sword"), button -> selectRightPage(RightPage.SWORD))
+        swordPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_sword"), button -> selectRightPage(localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD))
                 .bounds(rightLeft + 72, top + 132, 48, 18)
                 .build());
         bowPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
@@ -255,12 +263,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         drawOrderPanel(context, mouseX, mouseY);
         drawInfoPanel(context);
         if (selectedRightPage == RightPage.GENERAL) {
-            if (selectedCategory == TargetCategory.FARM) {
-                drawFarmOptions(context);
-            } else {
-                drawPerkTree(context, mouseX, mouseY);
-                drawPerkDetails(context, mouseX, mouseY);
-            }
+            drawPerkTree(context, mouseX, mouseY);
+            drawPerkDetails(context, mouseX, mouseY);
+        } else if (selectedRightPage == RightPage.FARM_OPTIONS) {
+            drawFarmOptions(context);
         } else if (selectedRightPage == RightPage.INVENTORY) {
             drawInventoryPanel(context);
         } else {
@@ -297,6 +303,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         int top = getPanelTop();
 
         context.text(font, Component.translatable("screen.valet.rename"), left + 10, top + 9, 0xFF303030, false);
+        Component roleLabel = Component.translatable(localRole.getTranslationKey());
+        context.text(font, roleLabel, left + RIGHT_WIDTH - font.width(roleLabel) - 10, top + 9, 0xFF5A5142, false);
         context.text(font, getAvailableTitle(), left + 10, top + 45, 0xFF303030, false);
         context.text(font, getSelectedText(), left + 10, top + 60, 0xFF1F1F1F, false);
         context.text(font, getHintText(), left + 10, top + 75, 0xFF5A5142, false);
@@ -304,13 +312,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         context.text(font, Component.translatable("screen.valet.level", localLevel), left + 10, top + 93, 0xFF202020, false);
         drawXpBar(context, left + 10, top + 108);
 
-        if (selectedRightPage == RightPage.GENERAL && selectedCategory == TargetCategory.FARM) {
-            return;
-        }
-
         Component pageTitle = getRightPageTitle();
         context.text(font, pageTitle, left + 10, top + TREE_TITLE_OFFSET, 0xFF303030, false);
-        if (selectedRightPage != RightPage.INVENTORY) {
+        if (selectedRightPage == RightPage.GENERAL || selectedRightPage == RightPage.SWORD || selectedRightPage == RightPage.BOW) {
             int points = selectedRightPage == RightPage.GENERAL ? localPendingPerks : getCombatPendingPoints(selectedRightPage);
             context.text(font, Component.translatable("screen.valet.pending_points", points), left + RIGHT_WIDTH - 72, top + TREE_TITLE_OFFSET, points > 0 ? 0xFF8A5A00 : 0xFF606060, false);
         }
@@ -318,7 +322,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private Component getRightPageTitle() {
         return switch (selectedRightPage) {
-            case GENERAL -> Component.translatable("screen.valet.skill_tree");
+            case GENERAL -> Component.translatable(localRole == ValetRole.FARMER ? "screen.valet.farmer_tree" : "screen.valet.skill_tree");
+            case FARM_OPTIONS -> Component.translatable("screen.valet.farm_options");
             case SWORD -> Component.translatable("screen.valet.sword_tree");
             case BOW -> Component.translatable("screen.valet.bow_tree");
             case INVENTORY -> Component.translatable("screen.valet.inventory_title");
@@ -408,14 +413,21 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
         if (page == RightPage.SWORD) {
             CombatPerkNode strength = getCombatNode(ValetCombatPerk.SWORD_STRENGTH);
-            drawCombatConnection(context, strength, getCombatNode(ValetCombatPerk.SWORD_RECOVERY));
-            drawCombatConnection(context, strength, getCombatNode(ValetCombatPerk.SWORD_DEFENSE));
+            CombatPerkNode recovery = getCombatNode(ValetCombatPerk.SWORD_RECOVERY);
+            CombatPerkNode defense = getCombatNode(ValetCombatPerk.SWORD_DEFENSE);
+            drawCombatConnection(context, strength, recovery);
+            drawCombatConnection(context, strength, defense);
+            drawCombatConnection(context, recovery, getCombatNode(ValetCombatPerk.SWORD_REACH));
+            drawCombatConnection(context, defense, getCombatNode(ValetCombatPerk.SWORD_GUARDIAN));
         } else {
             CombatPerkNode awareness = getCombatNode(ValetCombatPerk.ALLY_AWARENESS);
             CombatPerkNode strength = getCombatNode(ValetCombatPerk.BOW_STRENGTH);
+            CombatPerkNode quickShot = getCombatNode(ValetCombatPerk.BOW_QUICK_SHOT);
             drawCombatConnection(context, awareness, getCombatNode(ValetCombatPerk.BOW_QUICK_SHOT));
             drawCombatConnection(context, awareness, strength);
+            drawCombatConnection(context, strength, getCombatNode(ValetCombatPerk.BOW_RANGE));
             drawCombatConnection(context, strength, getCombatNode(ValetCombatPerk.BOW_RECYCLE_ARROW));
+            drawCombatConnection(context, quickShot, getCombatNode(ValetCombatPerk.BOW_VOLLEY));
         }
 
         for (ValetCombatPerk perk : getCombatTreePerks(page)) {
@@ -493,14 +505,30 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private void drawPerkTree(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        PerkNode speed = getNode(ValetPerk.SPEED);
-        PerkNode vision = getNode(ValetPerk.VISION);
-        PerkNode movement = getNode(ValetPerk.MOVEMENT);
+        if (localRole == ValetRole.FARMER) {
+            PerkNode hands = getNode(ValetPerk.FARM_HANDS);
+            PerkNode range = getNode(ValetPerk.FARM_RANGE);
+            PerkNode replanting = getNode(ValetPerk.FARM_REPLANTING);
+            drawConnection(context, hands, range);
+            drawConnection(context, hands, replanting);
+            drawConnection(context, hands, getNode(ValetPerk.FARM_TILLING));
+            drawConnection(context, replanting, getNode(ValetPerk.FARM_STORAGE));
+            drawConnection(context, range, getNode(ValetPerk.FARM_STEWARD));
+        } else {
+            PerkNode speed = getNode(ValetPerk.SPEED);
+            PerkNode vision = getNode(ValetPerk.VISION);
+            PerkNode movement = getNode(ValetPerk.MOVEMENT);
+            PerkNode storage = getNode(ValetPerk.STORAGE);
+            drawConnection(context, speed, vision);
+            drawConnection(context, speed, movement);
+            drawConnection(context, speed, storage);
+            drawConnection(context, movement, getNode(ValetPerk.PATHING));
+            drawConnection(context, vision, getNode(ValetPerk.VEIN));
+            drawConnection(context, storage, getNode(ValetPerk.HAUL));
+            drawConnection(context, getNode(ValetPerk.PATHING), getNode(ValetPerk.LIGHTING));
+        }
 
-        drawConnection(context, speed, vision);
-        drawConnection(context, speed, movement);
-
-        for (ValetPerk perk : RESOURCE_TREE_PERKS) {
+        for (ValetPerk perk : getPerkTreePerks()) {
             drawPerkNode(context, getNode(perk), mouseX, mouseY);
         }
     }
@@ -539,6 +567,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         ValetPerk perk = getHoveredPerk(mouseX, mouseY);
         if (perk == null) {
             perk = selectedPerk;
+        }
+        if (perk.getRole() != localRole) {
+            perk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
         }
 
         int left = getRightPanelLeft() + 10;
@@ -585,57 +616,79 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private void drawFarmOptions(GuiGraphicsExtractor context) {
         int left = getRightPanelLeft();
         int top = getPanelTop();
-        context.text(font, Component.translatable("screen.valet.farm_options"), left + 16, top + 154, 0xFF303030, false);
         context.text(font, Component.translatable("screen.valet.farm_crops"), left + 16, top + 204, 0xFF303030, false);
     }
 
     private void rebuildOrderEntries() {
+        if (!isCategoryAllowed(selectedCategory)) {
+            selectedCategory = defaultCategoryForRole();
+        }
+
         orderEntries.clear();
         orderEntries.add(OrderEntry.target(ValetOrder.NONE, -1, Component.translatable("order.valet.none")));
-        orderEntries.add(OrderEntry.category(TargetCategory.ORE, Component.translatable("screen.valet.category_ores")));
-        if (selectedCategory == TargetCategory.ORE) {
-            for (ValetMineTarget target : ValetMineTarget.values()) {
-                int count = getLocalOreCount(target);
-                if (count > 0) {
-                    orderEntries.add(OrderEntry.target(ValetOrder.MINE_ORES, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.ore_count", Component.translatable(target.getTranslationKey()), count))));
+
+        if (localRole == ValetRole.ARTISAN) {
+            orderEntries.add(OrderEntry.category(TargetCategory.ORE, Component.translatable("screen.valet.category_ores")));
+            if (selectedCategory == TargetCategory.ORE) {
+                for (ValetMineTarget target : ValetMineTarget.values()) {
+                    int count = getLocalOreCount(target);
+                    if (count > 0) {
+                        orderEntries.add(OrderEntry.target(ValetOrder.MINE_ORES, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.ore_count", Component.translatable(target.getTranslationKey()), count))));
+                    }
+                }
+            }
+
+            orderEntries.add(OrderEntry.category(TargetCategory.WOOD, Component.translatable("screen.valet.category_wood")));
+            if (selectedCategory == TargetCategory.WOOD) {
+                for (ValetWoodTarget target : ValetWoodTarget.values()) {
+                    int count = getLocalWoodCount(target);
+                    if (count > 0) {
+                        orderEntries.add(OrderEntry.target(ValetOrder.CHOP_WOOD, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.wood_count", Component.translatable(target.getTranslationKey()), count))));
+                    }
+                }
+            }
+
+            orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Component.translatable("screen.valet.category_constructions")));
+            if (selectedCategory == TargetCategory.CONSTRUCTION) {
+                for (ValetConstructionBlueprint construction : localConstructions) {
+                    orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Component.literal("  ").append(Component.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
+                }
+            }
+
+            orderEntries.add(OrderEntry.category(TargetCategory.CRAFT, Component.translatable("screen.valet.category_craft")));
+            if (selectedCategory == TargetCategory.CRAFT) {
+                for (ValetCraftTarget target : ValetCraftTarget.values()) {
+                    orderEntries.add(OrderEntry.target(ValetOrder.CRAFT, target.ordinal(), Component.literal("  ").append(Component.translatable(target.getTranslationKey()))));
                 }
             }
         }
 
-        orderEntries.add(OrderEntry.category(TargetCategory.WOOD, Component.translatable("screen.valet.category_wood")));
-        if (selectedCategory == TargetCategory.WOOD) {
-            for (ValetWoodTarget target : ValetWoodTarget.values()) {
-                int count = getLocalWoodCount(target);
-                if (count > 0) {
-                    orderEntries.add(OrderEntry.target(ValetOrder.CHOP_WOOD, target.ordinal(), Component.literal("  ").append(Component.translatable("screen.valet.wood_count", Component.translatable(target.getTranslationKey()), count))));
-                }
-            }
-        }
-
-        orderEntries.add(OrderEntry.category(TargetCategory.FARM, Component.translatable("screen.valet.category_farm")));
-        if (selectedCategory == TargetCategory.FARM) {
+        if (localRole == ValetRole.FARMER) {
+            orderEntries.add(OrderEntry.category(TargetCategory.FARM, Component.translatable("screen.valet.category_farm")));
             orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, -1, Component.literal("  ").append(Component.translatable("screen.valet.farm_all"))));
             for (ValetFarmArea area : localFarmAreas) {
                 orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.farm_area_count", area.name(), area.blockCount()))));
             }
         }
-
-        orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Component.translatable("screen.valet.category_constructions")));
-        if (selectedCategory == TargetCategory.CONSTRUCTION) {
-            for (ValetConstructionBlueprint construction : localConstructions) {
-                orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Component.literal("  ").append(Component.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
-            }
-        }
-
-        orderEntries.add(OrderEntry.category(TargetCategory.CRAFT, Component.translatable("screen.valet.category_craft")));
-        if (selectedCategory == TargetCategory.CRAFT) {
-            for (ValetCraftTarget target : ValetCraftTarget.values()) {
-                orderEntries.add(OrderEntry.target(ValetOrder.CRAFT, target.ordinal(), Component.literal("  ").append(Component.translatable(target.getTranslationKey()))));
-            }
-        }
         clampOrderScroll();
         updateConstructionButtons();
         updateFarmControls();
+    }
+
+    private TargetCategory defaultCategoryForRole() {
+        return localRole == ValetRole.FARMER ? TargetCategory.FARM : TargetCategory.NONE;
+    }
+
+    private boolean isCategoryAllowed(TargetCategory category) {
+        return switch (localRole) {
+            case ARTISAN -> category == TargetCategory.NONE
+                    || category == TargetCategory.ORE
+                    || category == TargetCategory.WOOD
+                    || category == TargetCategory.CONSTRUCTION
+                    || category == TargetCategory.CRAFT;
+            case FARMER -> category == TargetCategory.NONE || category == TargetCategory.FARM;
+            case COMBATANT -> category == TargetCategory.NONE;
+        };
     }
 
     private boolean isSelectedEntry(OrderEntry entry) {
@@ -755,7 +808,17 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case SPEED -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
             case VISION -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_MIDDLE_ROW);
             case MOVEMENT -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
-            default -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
+            case STORAGE -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_MIDDLE_ROW);
+            case PATHING -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
+            case VEIN -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_TOP_ROW);
+            case HAUL -> new PerkNode(perk, left + TREE_FAR_LEFT_X, top + TREE_TOP_ROW);
+            case LIGHTING -> new PerkNode(perk, left + TREE_FAR_RIGHT_X, top + TREE_TOP_ROW);
+            case FARM_HANDS -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
+            case FARM_RANGE -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_MIDDLE_ROW);
+            case FARM_REPLANTING -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_MIDDLE_ROW);
+            case FARM_TILLING -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
+            case FARM_STORAGE -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_TOP_ROW);
+            case FARM_STEWARD -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
         };
     }
 
@@ -766,15 +829,23 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case SWORD_STRENGTH -> new CombatPerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
             case SWORD_RECOVERY -> new CombatPerkNode(perk, left + TREE_LEFT_X, top + TREE_MIDDLE_ROW);
             case SWORD_DEFENSE -> new CombatPerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
+            case SWORD_REACH -> new CombatPerkNode(perk, left + TREE_LEFT_X, top + TREE_TOP_ROW);
+            case SWORD_GUARDIAN -> new CombatPerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
             case ALLY_AWARENESS -> new CombatPerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
             case BOW_QUICK_SHOT -> new CombatPerkNode(perk, left + TREE_LEFT_X, top + TREE_MIDDLE_ROW);
             case BOW_STRENGTH -> new CombatPerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
-            case BOW_RECYCLE_ARROW -> new CombatPerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
+            case BOW_RANGE -> new CombatPerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
+            case BOW_VOLLEY -> new CombatPerkNode(perk, left + TREE_LEFT_X, top + TREE_TOP_ROW);
+            case BOW_RECYCLE_ARROW -> new CombatPerkNode(perk, left + TREE_FAR_RIGHT_X, top + TREE_TOP_ROW);
         };
     }
 
+    private ValetPerk[] getPerkTreePerks() {
+        return localRole == ValetRole.FARMER ? FARMER_TREE_PERKS : ARTISAN_TREE_PERKS;
+    }
+
     private ValetPerk getHoveredPerk(int mouseX, int mouseY) {
-        for (ValetPerk perk : RESOURCE_TREE_PERKS) {
+        for (ValetPerk perk : getPerkTreePerks()) {
             PerkNode node = getNode(perk);
             if (isInside(mouseX, mouseY, node.left, node.top, NODE_SIZE, NODE_SIZE)) {
                 return perk;
@@ -801,7 +872,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (page) {
             case SWORD -> perk.getTree() == com.wawane.valet.progress.ValetCombatSkillTree.SWORD;
             case BOW -> perk.getTree() == com.wawane.valet.progress.ValetCombatSkillTree.BOW;
-            case GENERAL, INVENTORY -> false;
+            case GENERAL, FARM_OPTIONS, INVENTORY -> false;
         };
     }
 
@@ -883,10 +954,21 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private boolean canLearnPerk(ValetPerk perk) {
+        if (perk.getRole() != localRole) {
+            return false;
+        }
         return switch (perk) {
             case SPEED -> true;
             case VISION, MOVEMENT -> hasLocalPerk(ValetPerk.SPEED);
-            default -> true;
+            case STORAGE -> hasLocalPerk(ValetPerk.SPEED);
+            case PATHING -> hasLocalPerk(ValetPerk.MOVEMENT);
+            case VEIN -> hasLocalPerk(ValetPerk.VISION);
+            case HAUL -> hasLocalPerk(ValetPerk.STORAGE);
+            case LIGHTING -> hasLocalPerk(ValetPerk.PATHING);
+            case FARM_HANDS -> true;
+            case FARM_RANGE, FARM_REPLANTING, FARM_TILLING -> hasLocalPerk(ValetPerk.FARM_HANDS);
+            case FARM_STORAGE -> hasLocalPerk(ValetPerk.FARM_REPLANTING);
+            case FARM_STEWARD -> hasLocalPerk(ValetPerk.FARM_RANGE) && hasLocalPerk(ValetPerk.FARM_STORAGE);
         };
     }
 
@@ -894,7 +976,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (perk) {
             case SWORD_STRENGTH, ALLY_AWARENESS -> true;
             case SWORD_RECOVERY, SWORD_DEFENSE -> hasLocalCombatPerk(ValetCombatPerk.SWORD_STRENGTH);
+            case SWORD_REACH -> hasLocalCombatPerk(ValetCombatPerk.SWORD_RECOVERY);
+            case SWORD_GUARDIAN -> hasLocalCombatPerk(ValetCombatPerk.SWORD_DEFENSE);
             case BOW_QUICK_SHOT, BOW_STRENGTH -> hasLocalCombatPerk(ValetCombatPerk.ALLY_AWARENESS);
+            case BOW_RANGE -> hasLocalCombatPerk(ValetCombatPerk.BOW_STRENGTH);
+            case BOW_VOLLEY -> hasLocalCombatPerk(ValetCombatPerk.BOW_QUICK_SHOT);
             case BOW_RECYCLE_ARROW -> hasLocalCombatPerk(ValetCombatPerk.BOW_STRENGTH);
         };
     }
@@ -908,7 +994,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case SWORD -> localSwordPendingPerks;
             case BOW -> localBowPendingPerks;
             case GENERAL -> localPendingPerks;
-            case INVENTORY -> 0;
+            case FARM_OPTIONS, INVENTORY -> 0;
         };
     }
 
@@ -993,7 +1079,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             }
         }
 
-        if (selectedRightPage == RightPage.GENERAL && selectedCategory != TargetCategory.FARM) {
+        if (selectedRightPage == RightPage.GENERAL) {
             ValetPerk hoveredPerk = getHoveredPerk((int) mouseX, (int) mouseY);
             if (hoveredPerk != null) {
                 selectedPerk = hoveredPerk;
@@ -1002,7 +1088,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 }
                 return true;
             }
-        } else if (selectedRightPage != RightPage.INVENTORY) {
+        } else if (selectedRightPage == RightPage.SWORD || selectedRightPage == RightPage.BOW) {
             ValetCombatPerk hoveredPerk = getHoveredCombatPerk((int) mouseX, (int) mouseY, selectedRightPage);
             if (hoveredPerk != null) {
                 selectedCombatPerk = hoveredPerk;
@@ -1029,7 +1115,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+        localRole = ValetRole.fromIndex(roleIndex);
+        ensurePageForRole();
+        if (selectedPerk.getRole() != localRole && localRole != ValetRole.COMBATANT) {
+            selectedPerk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
+        }
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
         selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = mineTargetIndex;
@@ -1210,6 +1301,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private void selectRightPage(RightPage page) {
+        if (!isPageAllowed(page)) {
+            page = defaultPageForRole();
+        }
         selectedRightPage = page;
         if ((page == RightPage.SWORD || page == RightPage.BOW) && !combatPerkBelongsToPage(selectedCombatPerk, page)) {
             selectedCombatPerk = getDefaultCombatPerk(page);
@@ -1219,19 +1313,38 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         updateFarmControls();
     }
 
-    private void updatePageButtons() {
-        updatePageButton(generalPageButton, RightPage.GENERAL, "screen.valet.page_general");
-        updatePageButton(swordPageButton, RightPage.SWORD, "screen.valet.page_sword");
-        updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow");
-        updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory");
+    private void ensurePageForRole() {
+        if (!isPageAllowed(selectedRightPage)) {
+            selectedRightPage = defaultPageForRole();
+        }
     }
 
-    private void updatePageButton(Button button, RightPage page, String translationKey) {
+    private RightPage defaultPageForRole() {
+        return localRole == ValetRole.COMBATANT ? RightPage.SWORD : RightPage.GENERAL;
+    }
+
+    private boolean isPageAllowed(RightPage page) {
+        return switch (localRole) {
+            case ARTISAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
+            case FARMER -> page == RightPage.GENERAL || page == RightPage.FARM_OPTIONS || page == RightPage.INVENTORY;
+            case COMBATANT -> page == RightPage.SWORD || page == RightPage.BOW || page == RightPage.INVENTORY;
+        };
+    }
+
+    private void updatePageButtons() {
+        updatePageButton(generalPageButton, RightPage.GENERAL, localRole == ValetRole.FARMER ? "screen.valet.page_farmer" : "screen.valet.page_artisan", localRole != ValetRole.COMBATANT);
+        updatePageButton(swordPageButton, localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole != ValetRole.ARTISAN);
+        updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow", localRole == ValetRole.COMBATANT);
+        updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory", true);
+    }
+
+    private void updatePageButton(Button button, RightPage page, String translationKey, boolean visible) {
         if (button == null) {
             return;
         }
 
-        button.active = selectedRightPage != page;
+        button.visible = visible;
+        button.active = visible && selectedRightPage != page;
         button.setMessage(Component.literal(selectedRightPage == page ? "> " : "").append(Component.translatable(translationKey)));
     }
 
@@ -1254,7 +1367,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             return;
         }
 
-        boolean visible = selectedRightPage == RightPage.GENERAL && selectedCategory == TargetCategory.FARM;
+        boolean visible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.FARM;
         replantFarmCheckbox.visible = visible;
         replantFarmCheckbox.active = visible;
         if (tillFarmCheckbox != null) {
@@ -1317,6 +1430,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private enum RightPage {
         GENERAL,
+        FARM_OPTIONS,
         SWORD,
         BOW,
         INVENTORY

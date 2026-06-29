@@ -6,6 +6,7 @@ import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetFarmCrop;
 import com.wawane.valet.order.ValetOrders;
+import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -233,7 +234,11 @@ public final class FarmingRuntimeTask {
         world.destroyBlock(targetPos, false, control.villager());
 
         boolean replanted = tryReplant(world, targetPos, currentState);
-        ValetProgress.addXp(control.villager(), replanted ? 5 : 4);
+        int xp = replanted ? 5 : 4;
+        if (replanted && ValetProgress.hasPerk(control.villager(), ValetPerk.FARM_REPLANTING)) {
+            xp++;
+        }
+        ValetProgress.addXp(control.villager(), xp);
         ValetDebug.record(control.villager(), "farm harvested target=" + ValetDebug.shortPos(targetPos) + " replanted=" + replanted);
 
         control.setState(afterFarmActionState());
@@ -263,7 +268,7 @@ public final class FarmingRuntimeTask {
         rememberFailedTarget(targetPos);
 
         if (tilled) {
-            ValetProgress.addXp(control.villager(), 2);
+            ValetProgress.addXp(control.villager(), ValetProgress.hasPerk(control.villager(), ValetPerk.FARM_TILLING) ? 3 : 2);
         }
         ValetDebug.record(control.villager(), "farm tilled target=" + ValetDebug.shortPos(targetPos) + " success=" + tilled);
         control.setState(afterFarmActionState());

@@ -102,10 +102,11 @@ public final class ValetNetworking {
 
         if (!world.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             villager.addEffect(new MobEffectInstance(MobEffects.GLOWING, GLOW_TICKS, 0, false, false));
+            ValetMod.markValetGlow(villager);
             if (villager.hasCustomName()) {
                 villager.setCustomNameVisible(true);
             }
-            ValetHome.getOrRecover(serverPlayer.level(), villager, serverPlayer.blockPosition());
+            ValetMod.claimOrRecoverValetHome(serverPlayer.level(), villager, serverPlayer.blockPosition());
             ValetConversations.begin(villager);
             int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager);
             int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.level(), villager);
@@ -118,6 +119,7 @@ public final class ValetNetworking {
                         buf.writeInt(villager.getId());
                         buf.writeUUID(villager.getUUID());
                         buf.writeIdentifier(serverPlayer.level().dimension().identifier());
+                        buf.writeInt(ValetRole.get(serverPlayer.level(), villager).ordinal());
                         buf.writeInt(ValetOrders.get(villager).ordinal());
                         buf.writeInt(getCurrentMineTargetIndex(villager));
                         buf.writeInt(getCurrentWoodTargetIndex(villager));
@@ -153,6 +155,7 @@ public final class ValetNetworking {
                             villager.getId(),
                             villager.getUUID(),
                             serverPlayer.level().dimension().identifier(),
+                            ValetRole.get(serverPlayer.level(), villager).ordinal(),
                             ValetOrders.get(villager).ordinal(),
                             getCurrentMineTargetIndex(villager),
                             getCurrentWoodTargetIndex(villager),
@@ -281,7 +284,13 @@ public final class ValetNetworking {
 
             ValetOrder order = payload.order();
             int targetIndex = payload.targetIndex();
-            ValetHome.getOrRecover(player.level(), villager, player.blockPosition());
+            ValetRole role = ValetRole.get(player.level(), villager);
+            if (!role.allows(order)) {
+                player.sendOverlayMessage(Component.translatable("message.valet.role_locked", Component.translatable(role.getTranslationKey())));
+                sendValetState(player, villager);
+                return;
+            }
+            ValetMod.claimOrRecoverValetHome(player.level(), villager, player.blockPosition());
             if (order == ValetOrder.NONE) {
                 ValetOrders.set(villager, ValetOrder.NONE);
                 ValetWorkGoal.requestRestart(villager);
@@ -388,6 +397,13 @@ public final class ValetNetworking {
                 return;
             }
 
+            ValetRole role = ValetRole.get(player.level(), villager);
+            if (!role.allows(ValetOrder.HARVEST_CROPS)) {
+                player.sendOverlayMessage(Component.translatable("message.valet.role_locked", Component.translatable(role.getTranslationKey())));
+                sendValetState(player, villager);
+                return;
+            }
+
             int farmAreaId = payload.farmAreaId();
             ValetFarmArea area = farmAreaId < 0 ? null : ValetFarmStorage.get(player.level()).getArea(farmAreaId);
             if (farmAreaId >= 0 && area == null) {
@@ -396,7 +412,7 @@ public final class ValetNetworking {
                 return;
             }
 
-            ValetHome.getOrRecover(player.level(), villager, player.blockPosition());
+            ValetMod.claimOrRecoverValetHome(player.level(), villager, player.blockPosition());
             ValetOrders.setHarvestCrops(villager, farmAreaId, payload.cropMask(), payload.replant(), payload.tillSoil());
             ValetWorkGoal.requestRestart(villager);
             ValetMod.LOGGER.info("Valet {} order set to farm area={} crops={} replant={} till={}", villager.getUUID(), farmAreaId, payload.cropMask(), payload.replant(), payload.tillSoil());
@@ -502,6 +518,11 @@ public final class ValetNetworking {
             }
 
             if (!isValidValetInteraction(player, villager)) {
+                return;
+            }
+
+            if (ValetRole.get(player.level(), villager) != ValetRole.COMBATANT) {
+                sendValetState(player, villager);
                 return;
             }
 

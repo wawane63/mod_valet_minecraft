@@ -1,9 +1,11 @@
 package com.wawane.valet.ai.core;
 
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetProgress;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.npc.villager.Villager;
 
@@ -18,6 +20,10 @@ public final class ValetWorkSettings {
     private static final int BASE_INVENTORY_SLOTS = 4;
     private static final int STORAGE_PERK_BONUS_SLOTS = 4;
     private static final int CHEST_RADIUS_BONUS = 8;
+    private static final int FARM_RADIUS = 18;
+    private static final int FARM_VERTICAL_RADIUS = 5;
+    private static final int FARM_RADIUS_BONUS = 8;
+    private static final int FARM_VERTICAL_RADIUS_BONUS = 3;
     private static final int MAX_PATH_NODES_BONUS = 9000;
     private static final int MAX_PATH_LENGTH_BONUS = 48;
     private static final int MAX_VEIN_BLOCKS_BONUS = 64;
@@ -32,6 +38,8 @@ public final class ValetWorkSettings {
     private static final double COMBAT_SEARCH_RADIUS_BONUS = 4.0D;
     private static final double COMBAT_CHASE_RADIUS_BONUS = 6.0D;
     private static final double COMBAT_ATTACK_RANGE_SQUARED = 2.25D;
+    private static final double COMBAT_ATTACK_RANGE_BONUS = 0.75D;
+    private static final double COMBAT_BOW_RANGE_BONUS = 4.0D;
     private static final double COMBAT_MOVE_SPEED = 1.0D;
     private static final double COMBAT_MOVE_SPEED_BONUS = 0.15D;
     private static final float COMBAT_ATTACK_DAMAGE = 4.0F;
@@ -49,23 +57,23 @@ public final class ValetWorkSettings {
     }
 
     public int mineRadius() {
-        return ValetProgress.hasPerk(villager, ValetPerk.VISION) ? MINE_RADIUS + 8 : MINE_RADIUS;
+        return hasRolePerk(ValetPerk.VISION) ? MINE_RADIUS + 8 : MINE_RADIUS;
     }
 
     public int mineVerticalRadius() {
-        return ValetProgress.hasPerk(villager, ValetPerk.VISION) ? MINE_VERTICAL_RADIUS + 4 : MINE_VERTICAL_RADIUS;
+        return hasRolePerk(ValetPerk.VISION) ? MINE_VERTICAL_RADIUS + 4 : MINE_VERTICAL_RADIUS;
     }
 
     public int actionDelayTicks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.SPEED) ? FAST_ACTION_DELAY_TICKS : BASE_ACTION_DELAY_TICKS;
+        return hasRolePerk(ValetPerk.SPEED) || hasRolePerk(ValetPerk.FARM_HANDS) ? FAST_ACTION_DELAY_TICKS : BASE_ACTION_DELAY_TICKS;
     }
 
     public int pathStepDelayTicks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.MOVEMENT) ? FAST_PATH_STEP_DELAY_TICKS : BASE_PATH_STEP_DELAY_TICKS;
+        return hasRolePerk(ValetPerk.MOVEMENT) ? FAST_PATH_STEP_DELAY_TICKS : BASE_PATH_STEP_DELAY_TICKS;
     }
 
     public int chestRadius() {
-        return ValetProgress.hasPerk(villager, ValetPerk.HAUL) ? CHEST_RADIUS + CHEST_RADIUS_BONUS : CHEST_RADIUS;
+        return hasRolePerk(ValetPerk.HAUL) || hasRolePerk(ValetPerk.FARM_STEWARD) ? CHEST_RADIUS + CHEST_RADIUS_BONUS : CHEST_RADIUS;
     }
 
     public int materialRadius() {
@@ -73,24 +81,24 @@ public final class ValetWorkSettings {
     }
 
     public int maxPathNodes() {
-        return ValetProgress.hasPerk(villager, ValetPerk.PATHING) ? MAX_PATH_NODES + MAX_PATH_NODES_BONUS : MAX_PATH_NODES;
+        return hasRolePerk(ValetPerk.PATHING) ? MAX_PATH_NODES + MAX_PATH_NODES_BONUS : MAX_PATH_NODES;
     }
 
     public int maxPathLength() {
-        return ValetProgress.hasPerk(villager, ValetPerk.PATHING) ? MAX_PATH_LENGTH + MAX_PATH_LENGTH_BONUS : MAX_PATH_LENGTH;
+        return hasRolePerk(ValetPerk.PATHING) ? MAX_PATH_LENGTH + MAX_PATH_LENGTH_BONUS : MAX_PATH_LENGTH;
     }
 
     public int maxVeinBlocks() {
-        return ValetProgress.hasPerk(villager, ValetPerk.VEIN) ? MAX_VEIN_BLOCKS + MAX_VEIN_BLOCKS_BONUS : MAX_VEIN_BLOCKS;
+        return hasRolePerk(ValetPerk.VEIN) ? MAX_VEIN_BLOCKS + MAX_VEIN_BLOCKS_BONUS : MAX_VEIN_BLOCKS;
     }
 
     public int torchLightThreshold() {
-        return ValetProgress.hasPerk(villager, ValetPerk.LIGHTING) ? COMFORT_TORCH_BLOCK_LIGHT : MONSTER_SPAWN_BLOCK_LIGHT;
+        return hasRolePerk(ValetPerk.LIGHTING) ? COMFORT_TORCH_BLOCK_LIGHT : MONSTER_SPAWN_BLOCK_LIGHT;
     }
 
     public int usableInventorySlots(Container inventory) {
         int slots = BASE_INVENTORY_SLOTS;
-        if (ValetProgress.hasPerk(villager, ValetPerk.STORAGE)) {
+        if (hasRolePerk(ValetPerk.STORAGE) || hasRolePerk(ValetPerk.FARM_STORAGE)) {
             slots += STORAGE_PERK_BONUS_SLOTS;
         }
         return Math.min(inventory.getContainerSize(), slots);
@@ -100,8 +108,16 @@ public final class ValetWorkSettings {
         return NO_TARGET_DELAY_TICKS;
     }
 
+    public int farmRadius() {
+        return hasRolePerk(ValetPerk.FARM_RANGE) ? FARM_RADIUS + FARM_RADIUS_BONUS : FARM_RADIUS;
+    }
+
+    public int farmVerticalRadius() {
+        return hasRolePerk(ValetPerk.FARM_RANGE) ? FARM_VERTICAL_RADIUS + FARM_VERTICAL_RADIUS_BONUS : FARM_VERTICAL_RADIUS;
+    }
+
     public double combatSearchRadius() {
-        return ValetProgress.hasPerk(villager, ValetPerk.VISION) ? COMBAT_SEARCH_RADIUS + COMBAT_SEARCH_RADIUS_BONUS : COMBAT_SEARCH_RADIUS;
+        return hasRolePerk(ValetPerk.VISION) ? COMBAT_SEARCH_RADIUS + COMBAT_SEARCH_RADIUS_BONUS : COMBAT_SEARCH_RADIUS;
     }
 
     public double combatChaseRadius() {
@@ -109,16 +125,22 @@ public final class ValetWorkSettings {
     }
 
     public double combatAttackRangeSquared() {
-        return COMBAT_ATTACK_RANGE_SQUARED;
+        double range = ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_REACH)
+                ? Math.sqrt(COMBAT_ATTACK_RANGE_SQUARED) + COMBAT_ATTACK_RANGE_BONUS
+                : Math.sqrt(COMBAT_ATTACK_RANGE_SQUARED);
+        return range * range;
     }
 
     public double combatRangedAttackRangeSquared() {
         double range = combatSearchRadius();
+        if (ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_RANGE)) {
+            range += COMBAT_BOW_RANGE_BONUS;
+        }
         return range * range;
     }
 
     public double combatMoveSpeed() {
-        return ValetProgress.hasPerk(villager, ValetPerk.MOVEMENT) ? COMBAT_MOVE_SPEED + COMBAT_MOVE_SPEED_BONUS : COMBAT_MOVE_SPEED;
+        return hasRolePerk(ValetPerk.MOVEMENT) ? COMBAT_MOVE_SPEED + COMBAT_MOVE_SPEED_BONUS : COMBAT_MOVE_SPEED;
     }
 
     public float combatAttackDamage() {
@@ -140,13 +162,22 @@ public final class ValetWorkSettings {
     }
 
     public int combatArrowCooldownTicks() {
-        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_QUICK_SHOT)
-                ? Math.max(1, COMBAT_ARROW_COOLDOWN_TICKS - COMBAT_ARROW_COOLDOWN_BONUS)
-                : COMBAT_ARROW_COOLDOWN_TICKS;
+        int cooldown = COMBAT_ARROW_COOLDOWN_TICKS;
+        if (ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_QUICK_SHOT)) {
+            cooldown -= COMBAT_ARROW_COOLDOWN_BONUS;
+        }
+        if (ValetCombatProgress.hasPerk(villager, ValetCombatPerk.BOW_VOLLEY)) {
+            cooldown -= COMBAT_ARROW_COOLDOWN_BONUS / 2;
+        }
+        return Math.max(1, cooldown);
     }
 
     public boolean combatHasDefense() {
         return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_DEFENSE);
+    }
+
+    public int combatDefenseAmplifier() {
+        return ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_GUARDIAN) ? 1 : 0;
     }
 
     public boolean combatCanRecycleArrow() {
@@ -155,5 +186,11 @@ public final class ValetWorkSettings {
 
     public int combatArrowRestockCount() {
         return COMBAT_ARROW_RESTOCK_COUNT;
+    }
+
+    private boolean hasRolePerk(ValetPerk perk) {
+        return ValetProgress.hasPerk(villager, perk)
+                && villager.level() instanceof ServerLevel world
+                && ValetRole.get(world, villager) == perk.getRole();
     }
 }

@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "valet:valet_workstation"
+    "valet:valet_workstation",
+    "valet:combat_workstation",
+    "valet:farmer_workstation"
   ]
 }

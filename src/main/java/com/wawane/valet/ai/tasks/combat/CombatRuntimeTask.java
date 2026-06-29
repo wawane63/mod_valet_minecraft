@@ -182,7 +182,7 @@ public final class CombatRuntimeTask {
 
     private void applyDefensePerk() {
         if (control.combatHasDefense()) {
-            control.villager().addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 40, 0, true, false));
+            control.villager().addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 40, control.combatDefenseAmplifier(), true, false));
         }
     }
 
@@ -483,6 +483,8 @@ public final class CombatRuntimeTask {
         int combatArrowRestockCount();
 
         boolean combatHasDefense();
+
+        int combatDefenseAmplifier();
 
         boolean combatCanRecycleArrow();
 

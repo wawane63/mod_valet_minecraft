@@ -14,15 +14,15 @@ La tracabilite des jars, bugs corriges et changements par version est tenue dans
 | 0.1.3 | Better UI + correctifs craft | [`v0.1.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.1.3) |
 | 0.2.0 | Portage Minecraft 26.2 | [`v0.2.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.2.0) |
 | 0.2.1 | Fermier local | [`v0.2.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.2.1) |
+| 0.3.0 | Decoupage metiers | [`v0.3.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.0) |
 
 ## Depart
 
-- Place un `Poste de valet`.
-- Un villageois sans metier peut le prendre comme poste de travail.
-- Le valet cherche autour de lui :
-  - cultures mures a recolter/replanter ;
-  - minerais proches a miner ;
-  - coffres ou barils proches pour deposer son inventaire.
+- Place un `Poste d'artisan`, un `Poste de combattant` ou un `Poste de fermier`.
+- Un villageois sans metier peut prendre un de ces postes comme travail.
+- Artisan : minerais, bois, construction, craft.
+- Combattant : defense locale, arbre epee et arbre arc.
+- Fermier : recolte, replantation, houe, zones de ferme.
 
 ## Build
 

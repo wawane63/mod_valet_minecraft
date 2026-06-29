@@ -20,8 +20,38 @@ Regles obligatoires :
 | 0.1.3 | Better UI + correctifs craft | `v0.1.3` | `build/libs/valet-0.1.3.jar` | `B49BBF6280A23EE60C51B4714467410C340FC73EFC919B6DEEE6B0C2A33A495D` |
 | 0.2.0 | Portage Minecraft 26.2 | `v0.2.0` | `build/libs/valet-0.2.0.jar` | `919212508C48A3C5448AA907C22C50C398E4106EE83CB808DB6C3535B46DE6D8` |
 | 0.2.1 | Fermier local | `v0.2.1` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
+| 0.3.0 | Decoupage metiers | `v0.3.0` | `build/libs/valet-0.3.0.jar` | `CDA87ACD625BF55BB0DF7F616D5295C5EDE34AFA5F57C993C8FB64AB18D489B3` |
 
-Le jar `0.2.1` ajoute l'ordre fermier en build local apres la release `0.2.0`.
+Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
+Le jar `0.3.0` correspond a la release `v0.3.0`.
+
+## 0.3.0 - Decoupage metiers
+
+Objectif : separer les competences en metiers distincts avec un poste dedie par role.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout de trois postes : artisan, combattant et fermier.
+- L'artisan garde les ordres minerais, bois, construction et craft.
+- Le combattant est limite au combat defensif et aux arbres epee/arc.
+- Le fermier est limite a la recolte et aux options de champs.
+- Ajout d'un arbre fermier dedie : vitesse, portee, replantation, labour, stockage, intendant.
+- Extension des arbres combat : portee epee, garde renforcee, tir lointain et volee.
+- L'UI masque les ordres, pages et perks non compatibles avec le role actif.
+- Les payloads reseau refusent les ordres/perks hors role.
+- Le goal nettoie automatiquement un ordre incompatible si le poste change.
+- Les bonus de perks sont limites au metier actif.
+- Les nouveaux postes ont assets, loot tables, recettes, tags de minage et traductions.
+- Le poste stocke du valet redevient prioritaire sur la memoire vanilla `JOB_SITE`.
+- Les claims `JOB_SITE` de villageois non-valets sur un poste Valet reserve sont nettoyes.
+- Le scan d'attribution ignore les doublons quand plusieurs joueurs couvrent le meme villageois.
+- Le glow pose par le mod est suivi et retire sur tous les chemins de perte/restauration impossible du metier.
+
+Verification :
+
+- Jar actuel : `valet-0.3.0.jar`
+- SHA-256 : `CDA87ACD625BF55BB0DF7F616D5295C5EDE34AFA5F57C993C8FB64AB18D489B3`
+- Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.2.1 - Fermier local
 
