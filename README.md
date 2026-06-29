@@ -4,6 +4,10 @@ Mod Fabric 26.2 qui ajoute le metier de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
+## Guides
+
+- [Objets et crafts Valet](docs/crafts.md)
+
 ## Versions disponibles
 
 | Version | Theme | Code GitHub |
