@@ -14,8 +14,8 @@ Role : bois, minerais, construction et craft.
 
 | | Table de craft | |
 | --- | --- | --- |
-|  | Pioche en fer |  |
-| Houe en fer | Coffre | Houe en fer |
+|  | Pioche en bois |  |
+| Hache en bois | Coffre | Hache en bois |
 | Planches | Planches | Planches |
 
 Sortie : `1 Poste d'artisan`
@@ -28,7 +28,7 @@ Role : defense locale, arbre epee et arbre arc.
 
 | | Table de craft | |
 | --- | --- | --- |
-| Epee en fer | Arc | Epee en fer |
+| Epee en bois | Arc | Epee en bois |
 | Lingot de fer | Coffre | Lingot de fer |
 | Planches | Planches | Planches |
 
@@ -42,7 +42,7 @@ Role : recolte, replantation, passage de houe et zones de ferme.
 
 | | Table de craft | |
 | --- | --- | --- |
-| Graines de ble | Houe en fer | Graines de ble |
+| Graines de ble | Houe en bois | Graines de ble |
 | Composteur | Planches | Composteur |
 | Planches | Planches | Planches |
 

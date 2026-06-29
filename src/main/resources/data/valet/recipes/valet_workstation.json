@@ -7,10 +7,10 @@
   ],
   "key": {
     "P": {
-      "item": "minecraft:iron_pickaxe"
+      "item": "minecraft:wooden_pickaxe"
     },
     "H": {
-      "item": "minecraft:iron_hoe"
+      "item": "minecraft:wooden_axe"
     },
     "C": {
       "item": "minecraft:chest"
