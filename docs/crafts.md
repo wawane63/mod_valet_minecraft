@@ -29,7 +29,7 @@ Role : defense locale, arbre epee et arbre arc.
 | | Table de craft | |
 | --- | --- | --- |
 | Epee en bois | Arc | Epee en bois |
-| Lingot de fer | Coffre | Lingot de fer |
+| Buche | Coffre | Buche |
 | Planches | Planches | Planches |
 
 Sortie : `1 Poste de combattant`
@@ -97,5 +97,6 @@ Obtention : pas de recette de survie actuellement. Objet reserve au mode creatif
 ## Legende
 
 - `Planches` accepte le tag Minecraft `minecraft:planks`, donc n'importe quel type de planches.
+- `Buche` accepte le tag Minecraft `minecraft:logs`, donc n'importe quel type de buche.
 - Les recettes sont des recettes de table de craft 3x3.
 - Les noms affiches ici suivent la traduction francaise du mod.

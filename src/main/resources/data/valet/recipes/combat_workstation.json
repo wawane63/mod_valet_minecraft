@@ -13,7 +13,7 @@
       "item": "minecraft:bow"
     },
     "I": {
-      "item": "minecraft:iron_ingot"
+      "tag": "minecraft:logs"
     },
     "C": {
       "item": "minecraft:chest"
