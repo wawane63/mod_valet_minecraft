@@ -19,7 +19,7 @@ Regles obligatoires :
 | 0.1.2 | Craft | `v0.1.2` | `build/libs/valet-0.1.2.jar` | `2C803C8974BCDA6433285BC2C57532A73991E52D3E3666BB227B9E7B65CEC2CE` |
 | 0.1.3 | Better UI + correctifs craft | `v0.1.3` | `build/libs/valet-0.1.3.jar` | `B49BBF6280A23EE60C51B4714467410C340FC73EFC919B6DEEE6B0C2A33A495D` |
 | 0.2.0 | Portage Minecraft 26.2 | `v0.2.0` | `build/libs/valet-0.2.0.jar` | `919212508C48A3C5448AA907C22C50C398E4106EE83CB808DB6C3535B46DE6D8` |
-| 0.2.1 | Fermier local | `local` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
+| 0.2.1 | Fermier local | `v0.2.1` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
 
 Le jar `0.2.1` ajoute l'ordre fermier en build local apres la release `0.2.0`.
 
