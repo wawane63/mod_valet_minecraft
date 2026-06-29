@@ -19,6 +19,36 @@ Regles obligatoires :
 | 0.1.2 | Craft | `v0.1.2` | `build/libs/valet-0.1.2.jar` | `2C803C8974BCDA6433285BC2C57532A73991E52D3E3666BB227B9E7B65CEC2CE` |
 | 0.1.3 | Better UI + correctifs craft | `v0.1.3` | `build/libs/valet-0.1.3.jar` | `B49BBF6280A23EE60C51B4714467410C340FC73EFC919B6DEEE6B0C2A33A495D` |
 | 0.2.0 | Portage Minecraft 26.2 | `v0.2.0` | `build/libs/valet-0.2.0.jar` | `919212508C48A3C5448AA907C22C50C398E4106EE83CB808DB6C3535B46DE6D8` |
+| 0.2.1 | Fermier local | `local` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
+
+Le jar `0.2.1` ajoute l'ordre fermier en build local apres la release `0.2.0`.
+
+## 0.2.1 - Fermier local
+
+Objectif : recolter automatiquement les cultures mures, avec zone optionnelle, choix des cultures, replantation et passage de houe.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout de l'ordre `Recolter` dans l'UI du valet.
+- Ajout de la `Balise de ferme` verte pour creer une zone de travail avec deux marqueurs.
+- Selection possible entre toutes les cultures proches et une zone de ferme balisee.
+- Choix des cultures travaillees : ble, carottes, patates, betteraves, verrues du Nether.
+- Ajout des checkboxes `Replanter` et `Passer la houe`.
+- Replantation depuis l'inventaire du valet pour ble, carottes, pommes de terre, betteraves et verrues du Nether.
+- Passage de houe sur les sols de la zone pour transformer les sols nus en terre labouree.
+- Le valet fermier tient une houe ; le valet sans travail tient un cookie ou une torche.
+- Integration avec les chemins, reservations de blocs et depots en coffre existants.
+- Les zones de ferme sont limitees a la couche haute des deux balises.
+- Le fermier ne casse plus les blocs du terrain pour atteindre une culture.
+- Le panneau fermier est separe de l'arbre de competences dans l'UI.
+- La neige fine est ignoree ou retiree quand elle couvre le passage, une culture ou un sol a labourer.
+- La terre labouree est maintenant un support de marche valide pour atteindre les cultures interieures.
+- Les sols tentes a la houe sont mis en pause temporaire, meme si le bloc refuse ou reperd son etat laboure.
+- Les cibles fermier changees/interrompues sont marquees puis liberees pour mieux repartir avec plusieurs valets.
+
+Limites connues :
+
+- Test visible en jeu encore a faire sur plusieurs champs et plusieurs valets.
 
 Le jar `0.2.0` ouvre la branche post-`0.1.3` et inclut le portage Minecraft `26.2`, Fabric Loader `0.19.3`, Fabric API `0.153.0+26.2`, Java `25` et l'UI complete portee en 26.2.
 

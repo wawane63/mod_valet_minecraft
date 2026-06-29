@@ -4,6 +4,7 @@ public enum ValetOrder {
     NONE("none", "order.valet.none"),
     MINE_ORES("mine_ores", "order.valet.mine_ores"),
     CHOP_WOOD("chop_wood", "order.valet.chop_wood"),
+    HARVEST_CROPS("harvest_crops", "order.valet.harvest_crops"),
     BUILD_STRUCTURE("build_structure", "order.valet.build_structure"),
     CRAFT("craft", "order.valet.craft");
 
@@ -33,7 +34,7 @@ public enum ValetOrder {
 
     public static ValetOrder fromId(String id) {
         for (ValetOrder order : values()) {
-            if (order.id.equals(id) || order.name().equals(id)) {
+            if (order.id.equals(id) || order.name().equals(id) || order == HARVEST_CROPS && "FARM".equals(id)) {
                 return order;
             }
         }

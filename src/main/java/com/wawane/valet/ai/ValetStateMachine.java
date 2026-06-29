@@ -17,17 +17,17 @@ public final class ValetStateMachine {
         return State.FIND_TARGET;
     }
 
-    public static State interruptedPathState(PathPurpose purpose, boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
+    public static State interruptedPathState(PathPurpose purpose, boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasFarmOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
         return switch (purpose) {
             case CHEST -> State.RETURNING;
             case HOME -> State.RETURNING_HOME;
-            case BUILD, CRAFT -> State.FIND_TARGET;
-            case ORE -> interruptedWorkState(hasConstructionOrder, hasMiningOrder, hasCraftOrder, hasInventorySpace, hasInventoryItems);
+            case BUILD, CRAFT, CROP -> State.FIND_TARGET;
+            case ORE -> interruptedWorkState(hasConstructionOrder, hasMiningOrder, hasFarmOrder, hasCraftOrder, hasInventorySpace, hasInventoryItems);
         };
     }
 
-    public static State interruptedWorkState(boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
-        if (hasConstructionOrder || hasCraftOrder || hasMiningOrder && hasInventorySpace) {
+    public static State interruptedWorkState(boolean hasConstructionOrder, boolean hasMiningOrder, boolean hasFarmOrder, boolean hasCraftOrder, boolean hasInventorySpace, boolean hasInventoryItems) {
+        if (hasConstructionOrder || hasCraftOrder || (hasMiningOrder || hasFarmOrder) && hasInventorySpace) {
             return State.FIND_TARGET;
         }
         return hasInventoryItems ? State.RETURNING : State.RETURNING_HOME;
@@ -38,6 +38,7 @@ public final class ValetStateMachine {
         FIND_TARGET,
         EXECUTING_PATH,
         MINING,
+        HARVESTING,
         PLACING,
         CRAFTING,
         COLLECTING,
@@ -48,6 +49,7 @@ public final class ValetStateMachine {
 
     public enum PathPurpose {
         ORE,
+        CROP,
         BUILD,
         CRAFT,
         CHEST,

@@ -27,6 +27,10 @@ public record ValetStatePayload(
         int orderIndex,
         int mineTargetIndex,
         int woodTargetIndex,
+        int farmAreaId,
+        int farmCropMask,
+        boolean farmReplant,
+        boolean farmTillSoil,
         int constructionTargetId,
         int craftTargetIndex,
         int[] oreCounts,
@@ -66,6 +70,10 @@ public record ValetStatePayload(
                 ValetOrders.get(villager).ordinal(),
                 getCurrentMineTargetIndex(villager),
                 getCurrentWoodTargetIndex(villager),
+                ValetOrders.getFarmAreaId(villager),
+                ValetOrders.getFarmCropMask(villager),
+                ValetOrders.shouldReplantFarm(villager),
+                ValetOrders.shouldTillFarm(villager),
                 ValetOrders.getConstructionTargetId(villager),
                 getCurrentCraftTargetIndex(villager),
                 ValetMiningScanner.countNearbyOres(world, villager),
@@ -95,6 +103,10 @@ public record ValetStatePayload(
         int orderIndex = buf.readInt();
         int mineTargetIndex = buf.readInt();
         int woodTargetIndex = buf.readInt();
+        int farmAreaId = buf.readInt();
+        int farmCropMask = buf.readInt();
+        boolean farmReplant = buf.readBoolean();
+        boolean farmTillSoil = buf.readBoolean();
         int constructionTargetId = buf.readInt();
         int craftTargetIndex = buf.readInt();
         int[] oreCounts = readOreCounts(buf);
@@ -121,7 +133,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -129,6 +141,10 @@ public record ValetStatePayload(
         buf.writeInt(orderIndex);
         buf.writeInt(mineTargetIndex);
         buf.writeInt(woodTargetIndex);
+        buf.writeInt(farmAreaId);
+        buf.writeInt(farmCropMask);
+        buf.writeBoolean(farmReplant);
+        buf.writeBoolean(farmTillSoil);
         buf.writeInt(constructionTargetId);
         buf.writeInt(craftTargetIndex);
         for (int count : oreCounts) {

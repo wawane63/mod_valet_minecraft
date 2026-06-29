@@ -17,7 +17,7 @@ public class ValetClient implements ClientModInitializer {
             context.client().execute(() -> {
                 ValetOrdersScreen screen = ValetOrdersScreen.current();
                 if (screen != null && screen.getValetEntityId() == payload.valetEntityId()) {
-                    screen.applyServerState(payload.orderIndex(), payload.mineTargetIndex(), payload.woodTargetIndex(), payload.constructionTargetId(), payload.craftTargetIndex(), payload.oreCounts(), payload.woodCounts(), payload.valetInventory(), payload.level(), payload.xp(), payload.nextLevelXp(), payload.pendingPerks(), payload.perks(), payload.combatPerks(), payload.swordLevel(), payload.swordXp(), payload.swordNextLevelXp(), payload.swordPendingPerks(), payload.bowLevel(), payload.bowXp(), payload.bowNextLevelXp(), payload.bowPendingPerks(), payload.allyAwareness(), payload.valetName());
+                    screen.applyServerState(payload.orderIndex(), payload.mineTargetIndex(), payload.woodTargetIndex(), payload.farmAreaId(), payload.farmCropMask(), payload.farmReplant(), payload.farmTillSoil(), payload.constructionTargetId(), payload.craftTargetIndex(), payload.oreCounts(), payload.woodCounts(), payload.valetInventory(), payload.level(), payload.xp(), payload.nextLevelXp(), payload.pendingPerks(), payload.perks(), payload.combatPerks(), payload.swordLevel(), payload.swordXp(), payload.swordNextLevelXp(), payload.swordPendingPerks(), payload.bowLevel(), payload.bowXp(), payload.bowNextLevelXp(), payload.bowPendingPerks(), payload.allyAwareness(), payload.valetName());
                 }
             });
         });

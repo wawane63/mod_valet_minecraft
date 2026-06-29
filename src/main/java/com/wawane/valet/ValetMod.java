@@ -10,6 +10,8 @@ import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.ai.core.ValetBlockReservations;
 import com.wawane.valet.combat.InfiniteArrowChestBlock;
+import com.wawane.valet.farm.FarmBeaconBlock;
+import com.wawane.valet.farm.ValetFarmMarkers;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetData;
@@ -61,6 +63,7 @@ public class ValetMod implements ModInitializer {
     private static final int WORKSTATION_SEARCH_RADIUS = 8;
     public static final Identifier VALET_WORKSTATION_ID = id("valet_workstation");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
+    public static final Identifier FARM_BEACON_ID = id("farm_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
     public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
     public static final ResourceKey<PoiType> VALET_POI_KEY = ResourceKey.create(
@@ -94,6 +97,18 @@ public class ValetMod implements ModInitializer {
             BuiltInRegistries.ITEM,
             CONSTRUCTION_BEACON_ID,
             new BlockItem(CONSTRUCTION_BEACON, itemProperties(CONSTRUCTION_BEACON_ID))
+    );
+
+    public static final Block FARM_BEACON = Registry.register(
+            BuiltInRegistries.BLOCK,
+            FARM_BEACON_ID,
+            new FarmBeaconBlock(blockProperties(FARM_BEACON_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.SCAFFOLDING).strength(0.8F)))
+    );
+
+    public static final Item FARM_BEACON_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            FARM_BEACON_ID,
+            new BlockItem(FARM_BEACON, itemProperties(FARM_BEACON_ID))
     );
 
     public static final Block CONSTRUCTION_BLUEPRINT = Registry.register(
@@ -169,12 +184,14 @@ public class ValetMod implements ModInitializer {
     public void onInitialize() {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(INFINITE_ARROW_CHEST_ITEM));
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ValetConstructionMarkers.clear(handler.player.getUUID());
+            ValetFarmMarkers.clear(handler.player.getUUID());
             ValetDebug.clear(handler.player.getUUID());
         });
         ServerTickEvents.END_LEVEL_TICK.register(world -> {
@@ -200,6 +217,7 @@ public class ValetMod implements ModInitializer {
         ValetWorkDriver.clearAll();
         ValetData.clearAllVillagerRuntime();
         ValetConstructionMarkers.clearAll();
+        ValetFarmMarkers.clearAll();
         ValetDebug.clearAll();
         ValetBlockReservations.clearAll();
     }

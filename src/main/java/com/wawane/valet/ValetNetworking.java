@@ -6,6 +6,8 @@ import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintNbt;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.construction.ValetConstructionStorage;
+import com.wawane.valet.farm.ValetFarmArea;
+import com.wawane.valet.farm.ValetFarmStorage;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
@@ -21,6 +23,7 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import com.wawane.valet.network.packets.ValetStatePayload;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
@@ -64,6 +67,7 @@ public final class ValetNetworking {
     public static void registerServerReceivers() {
         registerPayloadTypes();
         ServerPlayNetworking.registerGlobalReceiver(SetOrderPayload.TYPE, ValetNetworking::setValetOrder);
+        ServerPlayNetworking.registerGlobalReceiver(SetFarmOrderPayload.TYPE, ValetNetworking::setFarmOrder);
         ServerPlayNetworking.registerGlobalReceiver(ChoosePerkPayload.TYPE, ValetNetworking::chooseValetPerk);
         ServerPlayNetworking.registerGlobalReceiver(ChooseCombatPerkPayload.TYPE, ValetNetworking::chooseValetCombatPerk);
         ServerPlayNetworking.registerGlobalReceiver(RenameValetPayload.TYPE, ValetNetworking::renameValet);
@@ -76,6 +80,7 @@ public final class ValetNetworking {
         }
         payloadTypesRegistered = true;
         PayloadTypeRegistry.serverboundPlay().register(SetOrderPayload.TYPE, SetOrderPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SetFarmOrderPayload.TYPE, SetFarmOrderPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ChoosePerkPayload.TYPE, ChoosePerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ChooseCombatPerkPayload.TYPE, ChooseCombatPerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RenameValetPayload.TYPE, RenameValetPayload.CODEC);
@@ -104,6 +109,7 @@ public final class ValetNetworking {
             ValetConversations.begin(villager);
             int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager);
             int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.level(), villager);
+            List<ValetFarmArea> farmAreas = ValetFarmStorage.get(serverPlayer.level()).getAreas();
             List<ValetConstructionBlueprint> constructions = ValetConstructionStorage.get(serverPlayer.level()).getBlueprints();
             OptionalInt openedScreen = serverPlayer.openMenu(new ExtendedMenuProvider<ValetOrdersScreenHandler.OpeningData>() {
                 @Override
@@ -115,6 +121,10 @@ public final class ValetNetworking {
                         buf.writeInt(ValetOrders.get(villager).ordinal());
                         buf.writeInt(getCurrentMineTargetIndex(villager));
                         buf.writeInt(getCurrentWoodTargetIndex(villager));
+                        buf.writeInt(ValetOrders.getFarmAreaId(villager));
+                        buf.writeInt(ValetOrders.getFarmCropMask(villager));
+                        buf.writeBoolean(ValetOrders.shouldReplantFarm(villager));
+                        buf.writeBoolean(ValetOrders.shouldTillFarm(villager));
                         buf.writeInt(ValetOrders.getConstructionTargetId(villager));
                         buf.writeInt(getCurrentCraftTargetIndex(villager));
                         for (int count : oreCounts) {
@@ -123,6 +133,7 @@ public final class ValetNetworking {
                         for (int count : woodCounts) {
                             buf.writeInt(count);
                         }
+                        writeFarmAreas(farmAreas, buf);
                         writeConstructions(constructions, buf);
                         writeValetInventory(villager.getInventory(), buf);
                         writeValetProgress(villager, buf);
@@ -145,10 +156,15 @@ public final class ValetNetworking {
                             ValetOrders.get(villager).ordinal(),
                             getCurrentMineTargetIndex(villager),
                             getCurrentWoodTargetIndex(villager),
+                            ValetOrders.getFarmAreaId(villager),
+                            ValetOrders.getFarmCropMask(villager),
+                            ValetOrders.shouldReplantFarm(villager),
+                            ValetOrders.shouldTillFarm(villager),
                             ValetOrders.getConstructionTargetId(villager),
                             getCurrentCraftTargetIndex(villager),
                             oreCounts,
                             woodCounts,
+                            farmAreas,
                             constructions,
                             copyInventory(villager.getInventory()),
                             ValetProgress.getLevel(villager),
@@ -225,6 +241,13 @@ public final class ValetNetworking {
         buf.writeInt(blueprints.size());
         for (ValetConstructionBlueprint blueprint : blueprints) {
             buf.writeNbt(blueprint.writeNbt());
+        }
+    }
+
+    private static void writeFarmAreas(List<ValetFarmArea> farmAreas, RegistryFriendlyByteBuf buf) {
+        buf.writeInt(farmAreas.size());
+        for (ValetFarmArea area : farmAreas) {
+            buf.writeNbt(area.writeNbt());
         }
     }
 
@@ -347,6 +370,40 @@ public final class ValetNetworking {
                 finishOrderInteraction(player, villager);
                 sendValetState(player, villager);
                 return;
+            }
+            sendValetState(player, villager);
+        });
+    }
+
+    private static void setFarmOrder(SetFarmOrderPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
+        server.execute(() -> {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
+                return;
+            }
+
+            if (!isValidValetInteraction(player, villager)) {
+                return;
+            }
+
+            int farmAreaId = payload.farmAreaId();
+            ValetFarmArea area = farmAreaId < 0 ? null : ValetFarmStorage.get(player.level()).getArea(farmAreaId);
+            if (farmAreaId >= 0 && area == null) {
+                player.sendOverlayMessage(Component.translatable("message.valet.no_farm_area"));
+                sendValetState(player, villager);
+                return;
+            }
+
+            ValetHome.getOrRecover(player.level(), villager, player.blockPosition());
+            ValetOrders.setHarvestCrops(villager, farmAreaId, payload.cropMask(), payload.replant(), payload.tillSoil());
+            ValetWorkGoal.requestRestart(villager);
+            ValetMod.LOGGER.info("Valet {} order set to farm area={} crops={} replant={} till={}", villager.getUUID(), farmAreaId, payload.cropMask(), payload.replant(), payload.tillSoil());
+            Component target = area == null ? Component.translatable("screen.valet.farm_all") : Component.literal(area.name());
+            player.sendOverlayMessage(Component.translatable("message.valet.farm_target_set", target));
+            if (payload.closeScreen()) {
+                finishOrderInteraction(player, villager);
             }
             sendValetState(player, villager);
         });

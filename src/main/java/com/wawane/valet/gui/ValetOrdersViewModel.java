@@ -1,6 +1,7 @@
 package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
@@ -16,10 +17,15 @@ public record ValetOrdersViewModel(
         ValetOrder currentOrder,
         int currentMineTargetIndex,
         int currentWoodTargetIndex,
+        int currentFarmAreaId,
+        int currentFarmCropMask,
+        boolean farmReplant,
+        boolean farmTillSoil,
         int currentConstructionTargetId,
         int currentCraftTargetIndex,
         int[] oreCounts,
         int[] woodCounts,
+        List<ValetFarmArea> farmAreas,
         List<ValetConstructionBlueprint> constructions,
         List<ItemStack> valetInventory,
         int level,
@@ -42,6 +48,7 @@ public record ValetOrdersViewModel(
     public ValetOrdersViewModel {
         oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
         woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
+        farmAreas = List.copyOf(farmAreas);
         constructions = List.copyOf(constructions);
         valetInventory = copyInventory(valetInventory);
         perks = Arrays.copyOf(perks, ValetPerk.values().length);
@@ -72,10 +79,15 @@ public record ValetOrdersViewModel(
                 handler.getCurrentOrder(),
                 handler.getCurrentMineTargetIndex(),
                 handler.getCurrentWoodTargetIndex(),
+                handler.getCurrentFarmAreaId(),
+                handler.getCurrentFarmCropMask(),
+                handler.shouldReplantFarm(),
+                handler.shouldTillFarm(),
                 handler.getCurrentConstructionTargetId(),
                 handler.getCurrentCraftTargetIndex(),
                 oreCounts,
                 woodCounts,
+                handler.getFarmAreas(),
                 handler.getConstructions(),
                 handler.getValetInventory(),
                 handler.getLevel(),

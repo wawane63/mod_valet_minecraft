@@ -13,6 +13,11 @@ public final class ValetOrderKey {
         return switch (order) {
             case MINE_ORES -> order.getId() + ":" + ValetOrders.getMineTarget(villager);
             case CHOP_WOOD -> order.getId() + ":" + ValetOrders.getWoodTarget(villager);
+            case HARVEST_CROPS -> order.getId()
+                    + ":" + ValetOrders.getFarmAreaId(villager)
+                    + ":" + ValetOrders.getFarmCropMask(villager)
+                    + ":" + ValetOrders.shouldReplantFarm(villager)
+                    + ":" + ValetOrders.shouldTillFarm(villager);
             case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
             case CRAFT -> order.getId() + ":" + ValetOrders.getCraftTarget(villager);
             case NONE -> order.getId();

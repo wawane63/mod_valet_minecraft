@@ -1,7 +1,9 @@
 package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetCraftTarget;
+import com.wawane.valet.order.ValetFarmCrop;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetWoodTarget;
@@ -11,11 +13,13 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.world.entity.player.Inventory;
@@ -67,11 +71,15 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private final List<OrderEntry> orderEntries = new ArrayList<>();
     private final ValetOrdersViewModel viewModel;
+    private final List<ValetFarmArea> localFarmAreas;
     private final List<ValetConstructionBlueprint> localConstructions;
     private EditBox nameField;
     private Button renameButton;
     private Button buildConstructionButton;
     private Button deleteConstructionButton;
+    private Checkbox replantFarmCheckbox;
+    private Checkbox tillFarmCheckbox;
+    private final List<Checkbox> farmCropCheckboxes = new ArrayList<>();
     private Button generalPageButton;
     private Button swordPageButton;
     private Button bowPageButton;
@@ -80,6 +88,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private TargetCategory selectedCategory = TargetCategory.NONE;
     private int selectedMineTargetIndex = -1;
     private int selectedWoodTargetIndex = -1;
+    private int selectedFarmAreaId = -1;
     private int selectedConstructionTargetId = -1;
     private int selectedCraftTargetIndex = -1;
     private int localLevel;
@@ -95,6 +104,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int localBowNextLevelXp;
     private int localBowPendingPerks;
     private boolean localAllyAwareness;
+    private int localFarmCropMask;
+    private boolean localFarmReplant;
+    private boolean localFarmTillSoil;
     private int[] localOreCounts;
     private int[] localWoodCounts;
     private List<ItemStack> localInventoryStacks;
@@ -108,11 +120,16 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     public ValetOrdersScreen(ValetOrdersScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title, SCREEN_WIDTH, SCREEN_HEIGHT);
         viewModel = ValetOrdersViewModel.fromHandler(handler);
+        localFarmAreas = new ArrayList<>(viewModel.farmAreas());
         localConstructions = new ArrayList<>(viewModel.constructions());
         ValetOrder currentOrder = viewModel.currentOrder();
-        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
+        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = viewModel.currentMineTargetIndex();
         selectedWoodTargetIndex = viewModel.currentWoodTargetIndex();
+        selectedFarmAreaId = viewModel.currentFarmAreaId();
+        localFarmCropMask = viewModel.currentFarmCropMask();
+        localFarmReplant = viewModel.farmReplant();
+        localFarmTillSoil = viewModel.farmTillSoil();
         selectedConstructionTargetId = viewModel.currentConstructionTargetId();
         selectedCraftTargetIndex = viewModel.currentCraftTargetIndex();
         localLevel = viewModel.level();
@@ -165,6 +182,53 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         deleteConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
                 .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
                 .build());
+        int farmOptionsLeft = rightLeft + 16;
+        int farmOptionsTop = top + 170;
+        replantFarmCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.replant_crop"), font)
+                .pos(farmOptionsLeft, farmOptionsTop)
+                .selected(localFarmReplant)
+                .maxWidth(116)
+                .onValueChange((checkbox, selected) -> {
+                    localFarmReplant = selected;
+                    if (selectedCategory == TargetCategory.FARM) {
+                        sendFarmSelection(false);
+                    }
+                })
+                .build());
+        tillFarmCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.till_soil"), font)
+                .pos(farmOptionsLeft + 128, farmOptionsTop)
+                .selected(localFarmTillSoil)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localFarmTillSoil = selected;
+                    if (selectedCategory == TargetCategory.FARM) {
+                        sendFarmSelection(false);
+                    }
+                })
+                .build());
+        farmCropCheckboxes.clear();
+        int cropIndex = 0;
+        for (ValetFarmCrop crop : ValetFarmCrop.values()) {
+            int column = cropIndex % 2;
+            int row = cropIndex / 2;
+            Checkbox checkbox = addRenderableWidget(Checkbox.builder(Component.translatable(crop.getTranslationKey()), font)
+                    .pos(farmOptionsLeft + column * 128, farmOptionsTop + 44 + row * 18)
+                    .selected(crop.isEnabled(localFarmCropMask))
+                    .maxWidth(118)
+                    .onValueChange((box, selected) -> {
+                        if (selected) {
+                            localFarmCropMask |= crop.mask();
+                        } else {
+                            localFarmCropMask &= ~crop.mask();
+                        }
+                        if (selectedCategory == TargetCategory.FARM) {
+                            sendFarmSelection(false);
+                        }
+                    })
+                    .build());
+            farmCropCheckboxes.add(checkbox);
+            cropIndex++;
+        }
         generalPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
                 .bounds(rightLeft + 10, top + 132, 58, 18)
                 .build());
@@ -179,6 +243,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .build());
         updatePageButtons();
         updateConstructionButtons();
+        updateFarmControls();
     }
 
     @Override
@@ -190,8 +255,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         drawOrderPanel(context, mouseX, mouseY);
         drawInfoPanel(context);
         if (selectedRightPage == RightPage.GENERAL) {
-            drawPerkTree(context, mouseX, mouseY);
-            drawPerkDetails(context, mouseX, mouseY);
+            if (selectedCategory == TargetCategory.FARM) {
+                drawFarmOptions(context);
+            } else {
+                drawPerkTree(context, mouseX, mouseY);
+                drawPerkDetails(context, mouseX, mouseY);
+            }
         } else if (selectedRightPage == RightPage.INVENTORY) {
             drawInventoryPanel(context);
         } else {
@@ -234,6 +303,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         drawTargetPreview(context, left + RIGHT_WIDTH - CONSTRUCTION_PREVIEW_SIZE - 10, top + 66);
         context.text(font, Component.translatable("screen.valet.level", localLevel), left + 10, top + 93, 0xFF202020, false);
         drawXpBar(context, left + 10, top + 108);
+
+        if (selectedRightPage == RightPage.GENERAL && selectedCategory == TargetCategory.FARM) {
+            return;
+        }
 
         Component pageTitle = getRightPageTitle();
         context.text(font, pageTitle, left + 10, top + TREE_TITLE_OFFSET, 0xFF303030, false);
@@ -509,6 +582,13 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         context.fill(left + 2, top + 2, left + width - 2, top + height - 2, fill);
     }
 
+    private void drawFarmOptions(GuiGraphicsExtractor context) {
+        int left = getRightPanelLeft();
+        int top = getPanelTop();
+        context.text(font, Component.translatable("screen.valet.farm_options"), left + 16, top + 154, 0xFF303030, false);
+        context.text(font, Component.translatable("screen.valet.farm_crops"), left + 16, top + 204, 0xFF303030, false);
+    }
+
     private void rebuildOrderEntries() {
         orderEntries.clear();
         orderEntries.add(OrderEntry.target(ValetOrder.NONE, -1, Component.translatable("order.valet.none")));
@@ -532,6 +612,14 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             }
         }
 
+        orderEntries.add(OrderEntry.category(TargetCategory.FARM, Component.translatable("screen.valet.category_farm")));
+        if (selectedCategory == TargetCategory.FARM) {
+            orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, -1, Component.literal("  ").append(Component.translatable("screen.valet.farm_all"))));
+            for (ValetFarmArea area : localFarmAreas) {
+                orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.farm_area_count", area.name(), area.blockCount()))));
+            }
+        }
+
         orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Component.translatable("screen.valet.category_constructions")));
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             for (ValetConstructionBlueprint construction : localConstructions) {
@@ -547,6 +635,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
         clampOrderScroll();
         updateConstructionButtons();
+        updateFarmControls();
     }
 
     private boolean isSelectedEntry(OrderEntry entry) {
@@ -562,6 +651,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (entry.order == ValetOrder.CHOP_WOOD) {
             return selectedCategory == TargetCategory.WOOD && selectedWoodTargetIndex == entry.targetIndex;
         }
+        if (entry.order == ValetOrder.HARVEST_CROPS) {
+            return selectedCategory == TargetCategory.FARM && selectedFarmAreaId == entry.targetIndex;
+        }
         if (entry.order == ValetOrder.BUILD_STRUCTURE) {
             return selectedCategory == TargetCategory.CONSTRUCTION && selectedConstructionTargetId == entry.targetIndex;
         }
@@ -575,6 +667,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (selectedCategory) {
             case ORE -> Component.translatable("screen.valet.available_ores");
             case WOOD -> Component.translatable("screen.valet.available_wood");
+            case FARM -> Component.translatable("screen.valet.available_farm");
             case CONSTRUCTION -> Component.translatable("screen.valet.available_constructions");
             case CRAFT -> Component.translatable("screen.valet.available_craft");
             case NONE -> Component.translatable("screen.valet.available_targets");
@@ -585,6 +678,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (category) {
             case ORE -> Component.translatable("screen.valet.category_ores");
             case WOOD -> Component.translatable("screen.valet.category_wood");
+            case FARM -> Component.translatable("screen.valet.category_farm");
             case CONSTRUCTION -> Component.translatable("screen.valet.category_constructions");
             case CRAFT -> Component.translatable("screen.valet.category_craft");
             case NONE -> Component.translatable("order.valet.none");
@@ -604,6 +698,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             ValetWoodTarget target = ValetWoodTarget.fromIndex(selectedWoodTargetIndex);
             return target == null ? getCategoryText(TargetCategory.WOOD) : Component.translatable(target.getTranslationKey());
         }
+        if (selectedCategory == TargetCategory.FARM) {
+            ValetFarmArea area = getSelectedFarmArea();
+            return area == null ? Component.translatable("screen.valet.farm_all") : Component.literal(area.name());
+        }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             ValetConstructionBlueprint construction = getSelectedConstruction();
             return construction == null ? getCategoryText(TargetCategory.CONSTRUCTION) : Component.literal(construction.name());
@@ -622,7 +720,19 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (selectedCategory == TargetCategory.CRAFT) {
             return Component.translatable("screen.valet.craft_hint");
         }
+        if (selectedCategory == TargetCategory.FARM) {
+            return localFarmAreas.isEmpty() ? Component.translatable("screen.valet.farm_hint") : Component.translatable("screen.valet.farm_beacon_hint");
+        }
         return Component.translatable("screen.valet.mine_hint");
+    }
+
+    private ValetFarmArea getSelectedFarmArea() {
+        for (ValetFarmArea area : localFarmAreas) {
+            if (area.id() == selectedFarmAreaId) {
+                return area;
+            }
+        }
+        return null;
     }
 
     private ValetConstructionBlueprint getSelectedConstruction() {
@@ -883,7 +993,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             }
         }
 
-        if (selectedRightPage == RightPage.GENERAL) {
+        if (selectedRightPage == RightPage.GENERAL && selectedCategory != TargetCategory.FARM) {
             ValetPerk hoveredPerk = getHoveredPerk((int) mouseX, (int) mouseY);
             if (hoveredPerk != null) {
                 selectedPerk = hoveredPerk;
@@ -919,11 +1029,15 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
-        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
+        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = mineTargetIndex;
         selectedWoodTargetIndex = woodTargetIndex;
+        selectedFarmAreaId = farmAreaId;
+        localFarmCropMask = farmCropMask;
+        localFarmReplant = farmReplant;
+        localFarmTillSoil = farmTillSoil;
         selectedConstructionTargetId = constructionTargetId;
         selectedCraftTargetIndex = craftTargetIndex;
         localLevel = level;
@@ -1002,6 +1116,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             selectedCategory = TargetCategory.NONE;
             selectedMineTargetIndex = -1;
             selectedWoodTargetIndex = -1;
+            selectedFarmAreaId = -1;
             selectedConstructionTargetId = -1;
             selectedCraftTargetIndex = -1;
         } else if (order == ValetOrder.MINE_ORES) {
@@ -1010,6 +1125,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         } else if (order == ValetOrder.CHOP_WOOD) {
             selectedCategory = TargetCategory.WOOD;
             selectedWoodTargetIndex = targetIndex;
+        } else if (order == ValetOrder.HARVEST_CROPS) {
+            selectedCategory = TargetCategory.FARM;
+            selectedFarmAreaId = targetIndex;
         } else if (order == ValetOrder.BUILD_STRUCTURE) {
             selectedCategory = TargetCategory.CONSTRUCTION;
             selectedConstructionTargetId = targetIndex;
@@ -1019,7 +1137,16 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
         rebuildOrderEntries();
 
+        if (order == ValetOrder.HARVEST_CROPS) {
+            sendFarmSelection(true);
+            return;
+        }
+
         ClientPlayNetworking.send(new SetOrderPayload(viewModel.valetEntityId(), order, targetIndex));
+    }
+
+    private void sendFarmSelection(boolean closeScreen) {
+        ClientPlayNetworking.send(new SetFarmOrderPayload(viewModel.valetEntityId(), selectedFarmAreaId, localFarmCropMask, localFarmReplant, localFarmTillSoil, closeScreen));
     }
 
     private void sendPerkSelection(ValetPerk perk) {
@@ -1089,6 +1216,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
         updatePageButtons();
         updateConstructionButtons();
+        updateFarmControls();
     }
 
     private void updatePageButtons() {
@@ -1119,6 +1247,24 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
         deleteConstructionButton.visible = hasSelectedConstruction;
         deleteConstructionButton.active = hasSelectedConstruction;
+    }
+
+    private void updateFarmControls() {
+        if (replantFarmCheckbox == null) {
+            return;
+        }
+
+        boolean visible = selectedRightPage == RightPage.GENERAL && selectedCategory == TargetCategory.FARM;
+        replantFarmCheckbox.visible = visible;
+        replantFarmCheckbox.active = visible;
+        if (tillFarmCheckbox != null) {
+            tillFarmCheckbox.visible = visible;
+            tillFarmCheckbox.active = visible;
+        }
+        for (Checkbox checkbox : farmCropCheckboxes) {
+            checkbox.visible = visible;
+            checkbox.active = visible;
+        }
     }
 
     private void drawConstructionPreview(GuiGraphicsExtractor context, ValetConstructionBlueprint blueprint, int left, int top) {
@@ -1180,6 +1326,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         NONE,
         ORE,
         WOOD,
+        FARM,
         CONSTRUCTION,
         CRAFT
     }

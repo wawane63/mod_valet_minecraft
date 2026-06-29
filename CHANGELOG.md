@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.1 - Fermier local
+
+Bugs corriges / fonctionnalite :
+
+- Ajout de l'ordre `Recolter` pour ramasser les cultures mures proches.
+- Ajout de la `Balise de ferme` verte : deux balises definissent une zone de travail selectionnable dans l'UI.
+- Ajout du choix des cultures travaillees : ble, carottes, patates, betteraves, verrues du Nether.
+- Ajout des options `Replanter` et `Passer la houe`.
+- Le valet fermier tient une houe ; le valet sans travail tient un cookie ou une torche.
+- Depot des recoltes via la logistique coffre existante.
+- Correction : une zone de ferme ne garde plus que la couche haute des balises.
+- Correction : le fermier ne creuse plus pour rejoindre une culture.
+- Correction : le panneau fermier ne se superpose plus avec l'arbre de competences.
+- Correction : la fine couche de neige ne bloque plus le trajet, la recolte, la replantation ou le passage de houe.
+- Correction : le fermier peut marcher sur la terre labouree pour atteindre les cultures au centre du champ.
+- Correction : un sol tente a la houe est ignore temporairement s'il refuse ou reperd son etat laboure.
+- Correction : les cibles changees/interrompues sont liberees et replanifiees plus proprement avec plusieurs valets.
+
+Limitations :
+
+- Verification visible en jeu encore a faire sur champs multi-cultures.
+
 ## 0.2.0 - Portage Minecraft 26.2
 
 Bugs corriges / portage :

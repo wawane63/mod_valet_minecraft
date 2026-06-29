@@ -29,7 +29,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasConstructionOrder() && !control.hasCraftOrder()) {
+        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasFarmOrder() && !control.hasConstructionOrder() && !control.hasCraftOrder()) {
             ValetDebug.record(control.villager(), "logistics no_items");
             control.setState(State.RETURNING_HOME);
             return;
@@ -99,6 +99,11 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
+        if (control.hasFarmOrder()) {
+            control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
+            return;
+        }
+
         if (control.hasMiningOrder()) {
             control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
             return;
@@ -142,7 +147,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        control.setState(control.hasConstructionOrder() || control.hasCraftOrder() || control.hasMiningOrder() && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
+        control.setState(control.hasConstructionOrder() || control.hasCraftOrder() || (control.hasMiningOrder() || control.hasFarmOrder()) && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
         control.setDelayTicks(4);
     }
 
@@ -156,7 +161,7 @@ public final class LogisticsRuntimeTask {
 
     private boolean canResumeWorkWithoutDepositing() {
         return control.hasInventorySpace()
-                && (control.hasMiningOrder() || control.hasConstructionOrder() || control.hasCraftOrder());
+                && (control.hasMiningOrder() || control.hasFarmOrder() || control.hasConstructionOrder() || control.hasCraftOrder());
     }
 
     private BlockPos findNearestContainer(ServerLevel world, BlockPos origin) {
@@ -220,6 +225,8 @@ public final class LogisticsRuntimeTask {
         BlockPos getWorkOrigin(ServerLevel world);
 
         boolean hasMiningOrder();
+
+        boolean hasFarmOrder();
 
         boolean hasConstructionOrder();
 

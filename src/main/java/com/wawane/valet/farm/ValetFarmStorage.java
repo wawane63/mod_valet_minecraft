@@ -1,0 +1,90 @@
+package com.wawane.valet.farm;
+
+import com.mojang.serialization.Codec;
+import com.wawane.valet.ValetMod;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
+
+public final class ValetFarmStorage extends SavedData {
+    private static final String KEY = "valet_farms";
+    private static final Codec<ValetFarmStorage> CODEC = CompoundTag.CODEC.xmap(ValetFarmStorage::fromNbt, ValetFarmStorage::saveToNbt);
+    private static final SavedDataType<ValetFarmStorage> TYPE = new SavedDataType<>(
+            ValetMod.id(KEY),
+            ValetFarmStorage::new,
+            CODEC,
+            DataFixTypes.LEVEL
+    );
+    public static final int MAX_AREAS = 64;
+
+    private final List<ValetFarmArea> areas = new ArrayList<>();
+    private int nextId = 1;
+
+    public static ValetFarmStorage get(ServerLevel world) {
+        return world.getDataStorage().computeIfAbsent(TYPE);
+    }
+
+    public ValetFarmArea addArea(String name, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        if (areas.size() >= MAX_AREAS) {
+            return null;
+        }
+
+        ValetFarmArea area = new ValetFarmArea(nextId, name, minX, minY, minZ, maxX, maxY, maxZ);
+        nextId++;
+        areas.add(area);
+        setDirty();
+        return area;
+    }
+
+    public ValetFarmArea getArea(int id) {
+        for (ValetFarmArea area : areas) {
+            if (area.id() == id) {
+                return area;
+            }
+        }
+        return null;
+    }
+
+    public List<ValetFarmArea> getAreas() {
+        return areas.stream()
+                .sorted(Comparator.comparingInt(ValetFarmArea::id))
+                .toList();
+    }
+
+    public String nextDefaultName() {
+        return "Champ " + nextId;
+    }
+
+    private CompoundTag saveToNbt() {
+        CompoundTag nbt = new CompoundTag();
+        nbt.putInt("NextId", nextId);
+        ListTag list = new ListTag();
+        for (ValetFarmArea area : areas) {
+            list.add(area.writeNbt());
+        }
+        nbt.put("Areas", list);
+        return nbt;
+    }
+
+    private static ValetFarmStorage fromNbt(CompoundTag nbt) {
+        ValetFarmStorage storage = new ValetFarmStorage();
+        storage.nextId = Math.max(1, nbt.getIntOr("NextId", 1));
+        ListTag list = nbt.getListOrEmpty("Areas");
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag areaNbt = list.getCompound(i).orElse(null);
+            if (areaNbt == null) {
+                continue;
+            }
+            ValetFarmArea area = ValetFarmArea.readNbt(areaNbt);
+            storage.areas.add(area);
+            storage.nextId = Math.max(storage.nextId, area.id() + 1);
+        }
+        return storage;
+    }
+}
