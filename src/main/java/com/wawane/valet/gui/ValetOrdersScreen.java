@@ -14,6 +14,7 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -49,7 +50,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private static final int XP_BAR_WIDTH = 162;
     private static final int XP_BAR_HEIGHT = 9;
     private static final int ORDER_LIST_TOP_OFFSET = 24;
-    private static final int ORDER_LIST_BOTTOM_PADDING = 8;
+    private static final int ORDER_LIST_BOTTOM_PADDING = 54;
     private static final int ORDER_ROW_STRIDE = ORDER_ROW_HEIGHT + 3;
     private static final int CONSTRUCTION_PREVIEW_SIZE = 58;
     private static final int TREE_TITLE_OFFSET = 158;
@@ -70,6 +71,15 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private static final int INVENTORY_SLOT_GAP = 5;
     private static final ValetPerk[] ARTISAN_TREE_PERKS = {ValetPerk.SPEED, ValetPerk.VISION, ValetPerk.MOVEMENT, ValetPerk.STORAGE, ValetPerk.PATHING, ValetPerk.VEIN, ValetPerk.HAUL, ValetPerk.LIGHTING};
     private static final ValetPerk[] FARMER_TREE_PERKS = {ValetPerk.FARM_HANDS, ValetPerk.FARM_RANGE, ValetPerk.FARM_REPLANTING, ValetPerk.FARM_TILLING, ValetPerk.FARM_STORAGE, ValetPerk.FARM_STEWARD};
+    private static final ValetPerk[] MAGIC_TREE_PERKS = {
+            ValetPerk.MAGIC_ICE,
+            ValetPerk.MAGIC_FANGS,
+            ValetPerk.MAGIC_SHATTER,
+            ValetPerk.MAGIC_HEAL,
+            ValetPerk.MAGIC_REGEN_AURA,
+            ValetPerk.MAGIC_WARD,
+            ValetPerk.MAGIC_WEAKEN
+    };
     private static final ValetCombatPerk[] SWORD_TREE_PERKS = {ValetCombatPerk.SWORD_STRENGTH, ValetCombatPerk.SWORD_RECOVERY, ValetCombatPerk.SWORD_DEFENSE, ValetCombatPerk.SWORD_REACH, ValetCombatPerk.SWORD_GUARDIAN};
     private static final ValetCombatPerk[] BOW_TREE_PERKS = {ValetCombatPerk.ALLY_AWARENESS, ValetCombatPerk.BOW_QUICK_SHOT, ValetCombatPerk.BOW_STRENGTH, ValetCombatPerk.BOW_RANGE, ValetCombatPerk.BOW_VOLLEY, ValetCombatPerk.BOW_RECYCLE_ARROW};
 
@@ -83,6 +93,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Button deleteConstructionButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
+    private Checkbox avoidNightReturnCheckbox;
+    private Checkbox freeBehaviorCheckbox;
     private final List<Checkbox> farmCropCheckboxes = new ArrayList<>();
     private Button generalPageButton;
     private Button swordPageButton;
@@ -112,6 +124,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int localFarmCropMask;
     private boolean localFarmReplant;
     private boolean localFarmTillSoil;
+    private boolean localAvoidNightReturn;
+    private boolean localFreeBehavior;
     private int[] localOreCounts;
     private int[] localWoodCounts;
     private List<ItemStack> localInventoryStacks;
@@ -128,8 +142,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localFarmAreas = new ArrayList<>(viewModel.farmAreas());
         localConstructions = new ArrayList<>(viewModel.constructions());
         localRole = viewModel.role();
-        selectedRightPage = localRole == ValetRole.COMBATANT ? RightPage.SWORD : RightPage.GENERAL;
-        selectedPerk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
+        selectedRightPage = defaultPageForRole();
+        selectedPerk = defaultPerkForRole();
         ValetOrder currentOrder = viewModel.currentOrder();
         selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = viewModel.currentMineTargetIndex();
@@ -138,6 +152,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localFarmCropMask = viewModel.currentFarmCropMask();
         localFarmReplant = viewModel.farmReplant();
         localFarmTillSoil = viewModel.farmTillSoil();
+        localAvoidNightReturn = viewModel.avoidNightReturn();
+        localFreeBehavior = viewModel.freeBehavior();
         selectedConstructionTargetId = viewModel.currentConstructionTargetId();
         selectedCraftTargetIndex = viewModel.currentCraftTargetIndex();
         localLevel = viewModel.level();
@@ -189,6 +205,26 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .build());
         deleteConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
                 .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
+                .build());
+        int behaviorLeft = getLeftPanelLeft() + 8;
+        int behaviorTop = getPanelTop() + PANEL_HEIGHT - 44;
+        avoidNightReturnCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.avoid_night_return"), font)
+                .pos(behaviorLeft, behaviorTop)
+                .selected(localAvoidNightReturn)
+                .maxWidth(120)
+                .onValueChange((checkbox, selected) -> {
+                    localAvoidNightReturn = selected;
+                    sendBehaviorSettings();
+                })
+                .build());
+        freeBehaviorCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.free_behavior"), font)
+                .pos(behaviorLeft, behaviorTop + 20)
+                .selected(localFreeBehavior)
+                .maxWidth(120)
+                .onValueChange((checkbox, selected) -> {
+                    localFreeBehavior = selected;
+                    sendBehaviorSettings();
+                })
                 .build());
         int farmOptionsLeft = rightLeft + 16;
         int farmOptionsTop = top + 170;
@@ -322,7 +358,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private Component getRightPageTitle() {
         return switch (selectedRightPage) {
-            case GENERAL -> Component.translatable(localRole == ValetRole.FARMER ? "screen.valet.farmer_tree" : "screen.valet.skill_tree");
+            case GENERAL -> Component.translatable(localRole == ValetRole.FARMER ? "screen.valet.farmer_tree" : localRole == ValetRole.MAGICIAN ? "screen.valet.magic_tree" : "screen.valet.skill_tree");
             case FARM_OPTIONS -> Component.translatable("screen.valet.farm_options");
             case SWORD -> Component.translatable("screen.valet.sword_tree");
             case BOW -> Component.translatable("screen.valet.bow_tree");
@@ -514,6 +550,20 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             drawConnection(context, hands, getNode(ValetPerk.FARM_TILLING));
             drawConnection(context, replanting, getNode(ValetPerk.FARM_STORAGE));
             drawConnection(context, range, getNode(ValetPerk.FARM_STEWARD));
+        } else if (localRole == ValetRole.MAGICIAN) {
+            PerkNode ice = getNode(ValetPerk.MAGIC_ICE);
+            PerkNode fangs = getNode(ValetPerk.MAGIC_FANGS);
+            PerkNode heal = getNode(ValetPerk.MAGIC_HEAL);
+            PerkNode ward = getNode(ValetPerk.MAGIC_WARD);
+            drawConnection(context, ice, fangs);
+            drawConnection(context, fangs, getNode(ValetPerk.MAGIC_SHATTER));
+            drawConnection(context, ice, heal);
+            drawConnection(context, heal, getNode(ValetPerk.MAGIC_REGEN_AURA));
+            drawConnection(context, ice, ward);
+            drawConnection(context, ward, getNode(ValetPerk.MAGIC_WEAKEN));
+            context.centeredText(font, Component.translatable("screen.valet.magic_branch_destruction"), fangs.centerX(), fangs.top - 12, 0xFF5A5142);
+            context.centeredText(font, Component.translatable("screen.valet.magic_branch_healing"), heal.centerX(), heal.top - 12, 0xFF5A5142);
+            context.centeredText(font, Component.translatable("screen.valet.magic_branch_alteration"), ward.centerX(), ward.top - 12, 0xFF5A5142);
         } else {
             PerkNode speed = getNode(ValetPerk.SPEED);
             PerkNode vision = getNode(ValetPerk.VISION);
@@ -569,7 +619,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             perk = selectedPerk;
         }
         if (perk.getRole() != localRole) {
-            perk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
+            perk = defaultPerkForRole();
         }
 
         int left = getRightPanelLeft() + 10;
@@ -688,6 +738,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                     || category == TargetCategory.CRAFT;
             case FARMER -> category == TargetCategory.NONE || category == TargetCategory.FARM;
             case COMBATANT -> category == TargetCategory.NONE;
+            case MAGICIAN -> category == TargetCategory.NONE;
         };
     }
 
@@ -767,6 +818,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private Component getHintText() {
+        if (selectedCategory == TargetCategory.NONE && localRole == ValetRole.MAGICIAN) {
+            return Component.translatable("screen.valet.magic_hint");
+        }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             return localConstructions.isEmpty() ? Component.translatable("screen.valet.no_constructions") : Component.translatable("screen.valet.build_hint");
         }
@@ -819,6 +873,13 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case FARM_TILLING -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
             case FARM_STORAGE -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_TOP_ROW);
             case FARM_STEWARD -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_TOP_ROW);
+            case MAGIC_ICE -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_BOTTOM_ROW);
+            case MAGIC_FANGS -> new PerkNode(perk, left + TREE_LEFT_X, top + TREE_MIDDLE_ROW);
+            case MAGIC_SHATTER -> new PerkNode(perk, left + TREE_FAR_LEFT_X, top + TREE_TOP_ROW);
+            case MAGIC_HEAL -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_MIDDLE_ROW);
+            case MAGIC_REGEN_AURA -> new PerkNode(perk, left + TREE_CENTER_X, top + TREE_TOP_ROW);
+            case MAGIC_WARD -> new PerkNode(perk, left + TREE_RIGHT_X, top + TREE_MIDDLE_ROW);
+            case MAGIC_WEAKEN -> new PerkNode(perk, left + TREE_FAR_RIGHT_X, top + TREE_TOP_ROW);
         };
     }
 
@@ -841,7 +902,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private ValetPerk[] getPerkTreePerks() {
-        return localRole == ValetRole.FARMER ? FARMER_TREE_PERKS : ARTISAN_TREE_PERKS;
+        return switch (localRole) {
+            case FARMER -> FARMER_TREE_PERKS;
+            case MAGICIAN -> MAGIC_TREE_PERKS;
+            case ARTISAN, COMBATANT -> ARTISAN_TREE_PERKS;
+        };
     }
 
     private ValetPerk getHoveredPerk(int mouseX, int mouseY) {
@@ -969,6 +1034,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case FARM_RANGE, FARM_REPLANTING, FARM_TILLING -> hasLocalPerk(ValetPerk.FARM_HANDS);
             case FARM_STORAGE -> hasLocalPerk(ValetPerk.FARM_REPLANTING);
             case FARM_STEWARD -> hasLocalPerk(ValetPerk.FARM_RANGE) && hasLocalPerk(ValetPerk.FARM_STORAGE);
+            case MAGIC_ICE -> true;
+            case MAGIC_FANGS, MAGIC_HEAL, MAGIC_WARD -> true;
+            case MAGIC_SHATTER -> hasLocalPerk(ValetPerk.MAGIC_FANGS);
+            case MAGIC_REGEN_AURA -> hasLocalPerk(ValetPerk.MAGIC_HEAL);
+            case MAGIC_WEAKEN -> hasLocalPerk(ValetPerk.MAGIC_WARD);
         };
     }
 
@@ -1115,11 +1185,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         localRole = ValetRole.fromIndex(roleIndex);
         ensurePageForRole();
-        if (selectedPerk.getRole() != localRole && localRole != ValetRole.COMBATANT) {
-            selectedPerk = localRole == ValetRole.FARMER ? ValetPerk.FARM_HANDS : ValetPerk.SPEED;
+        if (selectedPerk.getRole() != localRole) {
+            selectedPerk = defaultPerkForRole();
         }
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
         selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
@@ -1129,6 +1199,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localFarmCropMask = farmCropMask;
         localFarmReplant = farmReplant;
         localFarmTillSoil = farmTillSoil;
+        localAvoidNightReturn = avoidNightReturn;
+        localFreeBehavior = freeBehavior;
         selectedConstructionTargetId = constructionTargetId;
         selectedCraftTargetIndex = craftTargetIndex;
         localLevel = level;
@@ -1240,6 +1312,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         ClientPlayNetworking.send(new SetFarmOrderPayload(viewModel.valetEntityId(), selectedFarmAreaId, localFarmCropMask, localFarmReplant, localFarmTillSoil, closeScreen));
     }
 
+    private void sendBehaviorSettings() {
+        ClientPlayNetworking.send(new SetBehaviorPayload(viewModel.valetEntityId(), localFreeBehavior, localAvoidNightReturn));
+    }
+
     private void sendPerkSelection(ValetPerk perk) {
         if (localPendingPerks <= 0 || hasLocalPerk(perk) || !canLearnPerk(perk)) {
             return;
@@ -1320,7 +1396,19 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private RightPage defaultPageForRole() {
-        return localRole == ValetRole.COMBATANT ? RightPage.SWORD : RightPage.GENERAL;
+        return switch (localRole) {
+            case COMBATANT -> RightPage.SWORD;
+            case MAGICIAN -> RightPage.GENERAL;
+            case ARTISAN, FARMER -> RightPage.GENERAL;
+        };
+    }
+
+    private ValetPerk defaultPerkForRole() {
+        return switch (localRole) {
+            case FARMER -> ValetPerk.FARM_HANDS;
+            case MAGICIAN -> ValetPerk.MAGIC_ICE;
+            case ARTISAN, COMBATANT -> ValetPerk.SPEED;
+        };
     }
 
     private boolean isPageAllowed(RightPage page) {
@@ -1328,12 +1416,18 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case ARTISAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
             case FARMER -> page == RightPage.GENERAL || page == RightPage.FARM_OPTIONS || page == RightPage.INVENTORY;
             case COMBATANT -> page == RightPage.SWORD || page == RightPage.BOW || page == RightPage.INVENTORY;
+            case MAGICIAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
         };
     }
 
     private void updatePageButtons() {
-        updatePageButton(generalPageButton, RightPage.GENERAL, localRole == ValetRole.FARMER ? "screen.valet.page_farmer" : "screen.valet.page_artisan", localRole != ValetRole.COMBATANT);
-        updatePageButton(swordPageButton, localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole != ValetRole.ARTISAN);
+        String generalPageKey = switch (localRole) {
+            case FARMER -> "screen.valet.page_farmer";
+            case MAGICIAN -> "screen.valet.page_magic";
+            case ARTISAN, COMBATANT -> "screen.valet.page_artisan";
+        };
+        updatePageButton(generalPageButton, RightPage.GENERAL, generalPageKey, localRole == ValetRole.ARTISAN || localRole == ValetRole.FARMER || localRole == ValetRole.MAGICIAN);
+        updatePageButton(swordPageButton, localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole == ValetRole.FARMER || localRole == ValetRole.COMBATANT);
         updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow", localRole == ValetRole.COMBATANT);
         updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory", true);
     }

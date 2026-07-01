@@ -45,11 +45,17 @@ public final class ValetProgress {
     }
 
     public static boolean hasPerk(Villager villager, ValetPerk perk) {
-        return perk != null && data(villager).perks[perk.ordinal()];
+        return perk != null && (isIntrinsicPerk(villager, perk) || data(villager).perks[perk.ordinal()]);
     }
 
     public static boolean[] getPerks(Villager villager) {
-        return Arrays.copyOf(data(villager).perks, ValetPerk.values().length);
+        boolean[] perks = Arrays.copyOf(data(villager).perks, ValetPerk.values().length);
+        for (ValetPerk perk : ValetPerk.values()) {
+            if (isIntrinsicPerk(villager, perk)) {
+                perks[perk.ordinal()] = true;
+            }
+        }
+        return perks;
     }
 
     public static boolean hasData(Villager villager) {
@@ -166,11 +172,22 @@ public final class ValetProgress {
             case FARM_RANGE, FARM_REPLANTING, FARM_TILLING -> data.perks[ValetPerk.FARM_HANDS.ordinal()];
             case FARM_STORAGE -> data.perks[ValetPerk.FARM_REPLANTING.ordinal()];
             case FARM_STEWARD -> data.perks[ValetPerk.FARM_RANGE.ordinal()] && data.perks[ValetPerk.FARM_STORAGE.ordinal()];
+            case MAGIC_ICE -> true;
+            case MAGIC_FANGS, MAGIC_HEAL, MAGIC_WARD -> true;
+            case MAGIC_SHATTER -> data.perks[ValetPerk.MAGIC_FANGS.ordinal()];
+            case MAGIC_REGEN_AURA -> data.perks[ValetPerk.MAGIC_HEAL.ordinal()];
+            case MAGIC_WEAKEN -> data.perks[ValetPerk.MAGIC_WARD.ordinal()];
         };
     }
 
     private static boolean isRolePerk(Villager villager, ValetPerk perk) {
         return villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == perk.getRole();
+    }
+
+    private static boolean isIntrinsicPerk(Villager villager, ValetPerk perk) {
+        return perk == ValetPerk.MAGIC_ICE
+                && villager.level() instanceof ServerLevel world
+                && ValetRole.get(world, villager) == ValetRole.MAGICIAN;
     }
 
     private static final class Data {

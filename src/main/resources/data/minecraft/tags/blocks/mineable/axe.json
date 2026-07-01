@@ -3,6 +3,7 @@
   "values": [
     "valet:valet_workstation",
     "valet:combat_workstation",
-    "valet:farmer_workstation"
+    "valet:farmer_workstation",
+    "valet:magic_workstation"
   ]
 }

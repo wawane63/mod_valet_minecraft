@@ -22,10 +22,54 @@ Regles obligatoires :
 | 0.2.1 | Fermier local | `v0.2.1` | `build/libs/valet-0.2.1.jar` | `B6AB19489870FA8161BC3D61E4BC26CEB9D558A038AD9FC8DA16B3D31B9F1D3A` |
 | 0.3.0 | Decoupage metiers | `v0.3.0` | `build/libs/valet-0.3.0.jar` | `CDA87ACD625BF55BB0DF7F616D5295C5EDE34AFA5F57C993C8FB64AB18D489B3` |
 | 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB` |
+| 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
 Le jar `0.3.1` correspond a la release `v0.3.1`.
+Le jar `0.3.2` correspond a la release `v0.3.2`.
+
+## 0.3.2 - Tri coffre + magicien
+
+Objectif : ajouter un tri rapide dans les coffres/barils et un role magicien.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout d'un bouton `Tri` dans l'ecran des coffres/barils.
+- Le tri passe par un payload serveur `sort_container`.
+- Le serveur trie uniquement le `ChestMenu` actuellement ouvert.
+- Les piles identiques sont fusionnees, puis rangees par identifiant d'item.
+- Ajout du role `Magicien`.
+- Ajout du `Poste de magicien`.
+- Le magicien defend localement avec un sort de glace : projectile boule de neige, degats et ralentissement, sans incendie.
+- Ajout d'un arbre magie en 3 branches : `Destruction`, `Soin`, `Alteration`.
+- Le perk `Gel` est acquis automatiquement par les magiciens et ne consomme pas de point.
+- Branche `Destruction` : `Gel`, `Crocs magiques`, `Fracas`.
+- Branche `Soin` : `Soin`, `Aura de soin`.
+- Branche `Alteration` : `Rempart`, `Affaiblir`.
+- Le perk `Crocs magiques` lance des crocs apres 3 sorts de glace.
+- Correction : les reservations fantomes de poste deja utilise ne bloquent plus le nouveau magicien.
+- Correction : la perte du metier nettoie aussi la fiole tenue.
+- Correction : le magicien ne tient plus de fiole en main et garde les bras normaux hors combat.
+- Correction : le compteur des crocs reste actif entre changements de cible et la portee magique passe a 12 blocs.
+- Le craft du poste de magicien reprend celui du poste de combattant avec des fioles a la place des epees.
+- Premiere couche client d'animations player-like pour les valets : modele joueur, item en main, pose arc, swing outils/epee.
+- Correction : le magicien utilise aussi le renderer player-like et leve les bras seulement pendant le lancement d'un sort.
+- Correction : le nom generique `profession.valet.valet` est masque, mais les vrais noms saisis restent affiches.
+- Correction : le deplacement metier fiable est restaure pour craft, ressources, construction, retour poste et champs.
+- Correction : les valets font face a la prochaine case pendant le deplacement metier.
+- Restauration de l'aperçu monde quand un blueprint de construction est tenu.
+- Correction : poser un villageois par oeuf ne crash plus le rendu client du renderer valet.
+- Correction : les valets ne suivent plus les memoires vanilla de village/cloche quand ils ont un poste.
+- Ajout des options `Ne pas aller se coucher` et `Comportement libre` dans l'UI.
+- L'option `Ne pas aller se coucher` est decochee par defaut : les valets vont dormir la nuit. Si elle est cochee, ils ne vont plus au lit.
+- Clic droit sur un poste : le valet lie revient au poste meme avec un ordre actif, et y reste 5 secondes avant de reprendre sa routine libre si l'option est active.
+
+Verification :
+
+- Jar actuel : `valet-0.3.2.jar`
+- SHA-256 : `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3`
+- Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.3.1 - Crafts bois
 

@@ -6,9 +6,15 @@ import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
+import com.wawane.valet.progress.ValetPerk;
+import com.wawane.valet.progress.ValetProgress;
+import com.wawane.valet.network.packets.ValetMagicCastPayload;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
@@ -19,8 +25,10 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -33,6 +41,16 @@ public final class CombatRuntimeTask {
     private static final double ARROW_CHEST_REACH_SQUARED = 5.0D;
     private static final int SWORD_XP_PER_ATTACK = 2;
     private static final int BOW_XP_PER_SHOT = 2;
+    private static final int MAGIC_ICE_XP_PER_SHOT = 2;
+    private static final int MAGIC_ICE_SHOTS_BEFORE_FANGS = 3;
+    private static final int MAGIC_FANG_COUNT = 6;
+    private static final float MAGIC_ICE_DAMAGE = 3.0F;
+    private static final float MAGIC_ICE_DAMAGE_BONUS = 1.0F;
+    private static final float MAGIC_SHATTER_DAMAGE_BONUS = 1.0F;
+    private static final int MAGIC_ICE_SLOW_TICKS = 80;
+    private static final int MAGIC_SUPPORT_COOLDOWN_TICKS = 80;
+    private static final double MAGIC_SUPPORT_RADIUS = 8.0D;
+    private static final float MAGIC_HEAL_AMOUNT = 2.0F;
 
     private final Control control;
     private LivingEntity target;
@@ -40,6 +58,8 @@ public final class CombatRuntimeTask {
     private int attackCooldownTicks;
     private int pathRefreshTicks;
     private int arrowSearchCooldownTicks;
+    private int magicIceShots;
+    private int magicSupportCooldownTicks;
 
     public CombatRuntimeTask(Control control) {
         this.control = control;
@@ -55,11 +75,20 @@ public final class CombatRuntimeTask {
         if (arrowSearchCooldownTicks > 0) {
             arrowSearchCooldownTicks--;
         }
+        if (magicSupportCooldownTicks > 0) {
+            magicSupportCooldownTicks--;
+        }
 
-        if (!control.isDefenseEnabled()) {
+        if (!control.isDefenseEnabled() && !control.isMagicEnabled()) {
+            magicIceShots = 0;
+            magicSupportCooldownTicks = 0;
             clearTarget();
             ensureWoodenPickaxe();
             return false;
+        }
+
+        if (control.isMagicEnabled()) {
+            tickMagicSupport(world);
         }
 
         LivingEntity nextTarget = ValetCombatTargeting.chooseTarget(
@@ -74,7 +103,11 @@ public final class CombatRuntimeTask {
                 clearTarget();
                 control.onCombatFinished();
             }
-            ensureWoodenPickaxe();
+            if (control.isMagicEnabled()) {
+                clearHeldItem();
+            } else {
+                ensureWoodenPickaxe();
+            }
             return false;
         }
 
@@ -91,13 +124,18 @@ public final class CombatRuntimeTask {
     }
 
     public String debugSummary() {
-        return control.isDefenseEnabled()
+        return control.isDefenseEnabled() || control.isMagicEnabled()
                 ? "combat=" + (target == null ? "ready" : ValetDebug.shortPos(target.blockPosition()))
+                + " mode=" + (control.isMagicEnabled() ? "magic" : "combatant")
                 + " arrows=" + countInventoryItem(control.villager().getInventory(), Items.ARROW, control.getUsableInventorySlots(control.villager().getInventory()))
                 + " arrowChest=" + shortPos(arrowChestPos)
                 + " sword=" + skillSummary(control.villager(), ValetCombatSkillTree.SWORD)
                 + " bow=" + skillSummary(control.villager(), ValetCombatSkillTree.BOW)
                 + " allyAware=" + hasAllyAwareness(control.villager())
+                + (control.isMagicEnabled()
+                ? " ice=" + magicIceShots + "/" + MAGIC_ICE_SHOTS_BEFORE_FANGS
+                + " fangs=" + ValetProgress.hasPerk(control.villager(), ValetPerk.MAGIC_FANGS)
+                : "")
                 : "combat=inactive";
     }
 
@@ -105,6 +143,11 @@ public final class CombatRuntimeTask {
         Villager villager = control.villager();
         villager.getLookControl().setLookAt(target, 30.0F, 30.0F);
         double distanceSquared = villager.distanceToSqr(target);
+
+        if (control.isMagicEnabled()) {
+            fightWithMagic(world, target, distanceSquared);
+            return;
+        }
 
         if (distanceSquared <= control.combatAttackRangeSquared()) {
             ensureWoodenSword();
@@ -146,6 +189,153 @@ public final class CombatRuntimeTask {
 
         ensureWoodenSword();
         chaseTarget(target);
+    }
+
+    private void fightWithMagic(ServerLevel world, LivingEntity target, double distanceSquared) {
+        Villager villager = control.villager();
+        clearHeldItem();
+        if (distanceSquared <= control.magicAttackRangeSquared()) {
+            villager.getNavigation().stop();
+            if (attackCooldownTicks <= 0 && villager.hasLineOfSight(target)) {
+                if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_FANGS) && magicIceShots >= MAGIC_ICE_SHOTS_BEFORE_FANGS) {
+                    castFangs(world, target);
+                } else {
+                    shootIceBolt(world, target);
+                }
+            }
+            return;
+        }
+
+        chaseTarget(target);
+    }
+
+    private void castFangs(ServerLevel world, LivingEntity target) {
+        Villager villager = control.villager();
+        playMagicCast(world, villager, SoundEvents.EVOKER_PREPARE_ATTACK, 1.0F);
+
+        double dx = target.getX() - villager.getX();
+        double dz = target.getZ() - villager.getZ();
+        double distance = Math.sqrt(dx * dx + dz * dz);
+        float yaw = (float) Math.atan2(dz, dx);
+        if (distance < 0.001D) {
+            spawnFangs(world, target.getX(), target.getY(), target.getZ(), yaw, 0);
+        } else {
+            for (int i = 1; i <= MAGIC_FANG_COUNT; i++) {
+                double step = Math.min(distance, i * 1.25D);
+                double x = villager.getX() + Math.cos(yaw) * step;
+                double z = villager.getZ() + Math.sin(yaw) * step;
+                spawnFangs(world, x, target.getY(), z, yaw, i * 2);
+            }
+        }
+
+        applyEnemyAlteration(villager, target);
+        attackCooldownTicks = control.magicAttackCooldownTicks();
+        magicIceShots = 0;
+        ValetDebug.record(villager, "combat magic_fangs target=" + ValetDebug.shortPos(target.blockPosition()));
+    }
+
+    private void spawnFangs(ServerLevel world, double x, double y, double z, float yaw, int warmupTicks) {
+        world.addFreshEntity(new EvokerFangs(world, x, y, z, yaw, warmupTicks, control.villager()));
+    }
+
+    private void shootIceBolt(ServerLevel world, LivingEntity target) {
+        Villager villager = control.villager();
+        playMagicCast(world, villager, SoundEvents.SNOWBALL_THROW, 0.85F);
+
+        Vec3 start = new Vec3(villager.getX(), villager.getEyeY() - 0.1D, villager.getZ());
+        Vec3 direction = new Vec3(target.getX() - start.x, target.getY(0.5D) - start.y, target.getZ() - start.z);
+        if (direction.lengthSqr() < 1.0E-7D) {
+            direction = villager.getLookAngle();
+        }
+
+        Snowball iceBolt = new Snowball(world, villager, new ItemStack(Items.SNOWBALL));
+        iceBolt.setPos(start.x, start.y, start.z);
+        iceBolt.shoot(direction.x, direction.y, direction.z, 1.45F, 2.0F);
+        world.addFreshEntity(iceBolt);
+        applyIceDamage(world, villager, iceBolt, target);
+        addMagicXp(villager, MAGIC_ICE_XP_PER_SHOT);
+        if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_FANGS)) {
+            magicIceShots = Math.min(MAGIC_ICE_SHOTS_BEFORE_FANGS, magicIceShots + 1);
+        } else {
+            magicIceShots = 0;
+        }
+        attackCooldownTicks = control.magicAttackCooldownTicks();
+        ValetDebug.record(villager, "combat magic_ice target=" + ValetDebug.shortPos(target.blockPosition())
+                + " ice=" + magicIceShots + "/" + MAGIC_ICE_SHOTS_BEFORE_FANGS
+                + " fangs=" + ValetProgress.hasPerk(villager, ValetPerk.MAGIC_FANGS));
+    }
+
+    private void applyIceDamage(ServerLevel world, Villager villager, Snowball iceBolt, LivingEntity target) {
+        float damage = MAGIC_ICE_DAMAGE;
+        if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_ICE)) {
+            damage += MAGIC_ICE_DAMAGE_BONUS;
+        }
+        if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_SHATTER)) {
+            damage += MAGIC_SHATTER_DAMAGE_BONUS;
+        }
+
+        target.hurt(world.damageSources().thrown(iceBolt, villager), damage);
+        int slowAmplifier = ValetProgress.hasPerk(villager, ValetPerk.MAGIC_ICE) ? 1 : 0;
+        target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, MAGIC_ICE_SLOW_TICKS, slowAmplifier, true, true));
+        if (target.canFreeze()) {
+            target.setTicksFrozen(Math.min(target.getTicksRequiredToFreeze(), target.getTicksFrozen() + 80));
+        }
+        applyEnemyAlteration(villager, target);
+    }
+
+    private void applyEnemyAlteration(Villager villager, LivingEntity target) {
+        if (!ValetProgress.hasPerk(villager, ValetPerk.MAGIC_WEAKEN)) {
+            return;
+        }
+
+        target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 120, 0, true, false));
+        target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 120, 1, true, true));
+    }
+
+    private void tickMagicSupport(ServerLevel world) {
+        Villager villager = control.villager();
+        boolean canHeal = ValetProgress.hasPerk(villager, ValetPerk.MAGIC_HEAL);
+        boolean canRegen = ValetProgress.hasPerk(villager, ValetPerk.MAGIC_REGEN_AURA);
+        boolean canWard = ValetProgress.hasPerk(villager, ValetPerk.MAGIC_WARD);
+        if ((!canHeal && !canRegen && !canWard) || magicSupportCooldownTicks > 0) {
+            return;
+        }
+
+        boolean cast = false;
+        AABB supportArea = villager.getBoundingBox().inflate(MAGIC_SUPPORT_RADIUS);
+        for (Villager ally : world.getEntitiesOfClass(Villager.class, supportArea, ally -> isValetAlly(villager, ally))) {
+            if (canHeal && ally.getHealth() < ally.getMaxHealth()) {
+                ally.heal(MAGIC_HEAL_AMOUNT);
+                cast = true;
+            }
+            if (canRegen) {
+                ally.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 120, 0, true, false));
+                cast = true;
+            }
+            if (canWard) {
+                ally.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 120, 0, true, false));
+                cast = true;
+            }
+        }
+
+        if (!cast) {
+            return;
+        }
+
+        playMagicCast(world, villager, SoundEvents.EVOKER_CAST_SPELL, 1.25F);
+        addMagicXp(villager, 1);
+        magicSupportCooldownTicks = MAGIC_SUPPORT_COOLDOWN_TICKS;
+        ValetDebug.record(villager, "combat magic_support heal=" + canHeal + " regen=" + canRegen + " ward=" + canWard);
+    }
+
+    private void playMagicCast(ServerLevel world, Villager villager, SoundEvent sound, float pitch) {
+        sendMagicCast(villager);
+        villager.swing(InteractionHand.MAIN_HAND, true);
+        world.getChunkSource().sendToTrackingPlayersAndSelf(
+                villager,
+                new ClientboundAnimatePacket(villager, ClientboundAnimatePacket.SWING_MAIN_HAND)
+        );
+        world.playSound(null, villager.blockPosition(), sound, SoundSource.NEUTRAL, 1.0F, pitch);
     }
 
     private void shootArrow(ServerLevel world, LivingEntity target) {
@@ -200,6 +390,13 @@ public final class CombatRuntimeTask {
                 + " level=" + ValetCombatProgress.getLevel(villager, tree)
                 + " xp=" + ValetCombatProgress.getXp(villager, tree)
                 + "/" + ValetCombatProgress.getNextLevelXp(villager, tree));
+    }
+
+    private void addMagicXp(Villager villager, int amount) {
+        ValetProgress.addXp(villager, amount);
+        ValetDebug.record(villager, "combat magic_xp level=" + ValetProgress.getLevel(villager)
+                + " xp=" + ValetProgress.getXp(villager)
+                + "/" + ValetProgress.getNextLevelXp(villager));
     }
 
     private boolean hasAllyInArrowPath(ServerLevel world, Villager shooter, LivingEntity target) {
@@ -410,6 +607,22 @@ public final class CombatRuntimeTask {
         ensureHeldItem(Items.WOODEN_PICKAXE);
     }
 
+    private void clearHeldItem() {
+        Villager villager = control.villager();
+        if (!villager.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()) {
+            villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        }
+    }
+
+    private void sendMagicCast(Villager villager) {
+        ValetMagicCastPayload payload = new ValetMagicCastPayload(villager.getId());
+        for (net.minecraft.server.level.ServerPlayer player : PlayerLookup.tracking(villager)) {
+            if (ServerPlayNetworking.canSend(player, ValetMagicCastPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        }
+    }
+
     private void ensureHeldItem(Item item) {
         Villager villager = control.villager();
         if (villager.getItemBySlot(EquipmentSlot.MAINHAND).is(item)) {
@@ -462,6 +675,8 @@ public final class CombatRuntimeTask {
 
         boolean isDefenseEnabled();
 
+        boolean isMagicEnabled();
+
         double combatSearchRadius();
 
         double combatChaseRadius();
@@ -479,6 +694,10 @@ public final class CombatRuntimeTask {
         float combatArrowDamage();
 
         int combatArrowCooldownTicks();
+
+        double magicAttackRangeSquared();
+
+        int magicAttackCooldownTicks();
 
         int combatArrowRestockCount();
 

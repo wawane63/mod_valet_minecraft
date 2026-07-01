@@ -9,7 +9,8 @@ import net.minecraft.world.level.block.state.BlockState;
 public enum ValetRole {
     ARTISAN("role.valet.artisan"),
     COMBATANT("role.valet.combatant"),
-    FARMER("role.valet.farmer");
+    FARMER("role.valet.farmer"),
+    MAGICIAN("role.valet.magician");
 
     private final String translationKey;
 
@@ -30,6 +31,7 @@ public enum ValetRole {
                     || order == ValetOrder.CRAFT;
             case COMBATANT -> order == ValetOrder.NONE;
             case FARMER -> order == ValetOrder.NONE || order == ValetOrder.HARVEST_CROPS;
+            case MAGICIAN -> order == ValetOrder.NONE;
         };
     }
 
@@ -47,6 +49,9 @@ public enum ValetRole {
         }
         if (state.is(ValetMod.FARMER_WORKSTATION)) {
             return FARMER;
+        }
+        if (state.is(ValetMod.MAGIC_WORKSTATION)) {
+            return MAGICIAN;
         }
         return ARTISAN;
     }

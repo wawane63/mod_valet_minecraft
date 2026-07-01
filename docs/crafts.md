@@ -48,6 +48,20 @@ Role : recolte, replantation, passage de houe et zones de ferme.
 
 Sortie : `1 Poste de fermier`
 
+### Poste de magicien
+
+`valet:magic_workstation`
+
+Role : defense locale avec sort de glace, puis arbre magie `Destruction` / `Soin` / `Alteration`.
+
+| | Table de craft | |
+| --- | --- | --- |
+| Fiole | Arc | Fiole |
+| Buche | Coffre | Buche |
+| Planches | Planches | Planches |
+
+Sortie : `1 Poste de magicien`
+
 ## Balises de zone
 
 Les balises servent a selectionner une zone dans le monde. Pose deux balises du meme type pour definir le volume.

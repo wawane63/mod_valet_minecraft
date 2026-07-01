@@ -1,6 +1,7 @@
 package com.wawane.valet;
 
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
+import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintNbt;
@@ -23,12 +24,17 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
+import com.wawane.valet.network.packets.SortContainerPayload;
+import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import com.wawane.valet.network.packets.ValetStatePayload;
+import com.wawane.valet.state.ValetBehavior;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -41,13 +47,17 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.EntityHitResult;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.OptionalInt;
 import java.util.List;
 
@@ -57,6 +67,8 @@ public final class ValetNetworking {
     public static final Identifier CHOOSE_COMBAT_PERK_PACKET_ID = ValetMod.id("choose_combat_perk");
     public static final Identifier RENAME_PACKET_ID = ValetMod.id("rename_valet");
     public static final Identifier DELETE_CONSTRUCTION_PACKET_ID = ValetMod.id("delete_construction");
+    public static final Identifier SORT_CONTAINER_PACKET_ID = ValetMod.id("sort_container");
+    public static final Identifier SET_BEHAVIOR_PACKET_ID = ValetMod.id("set_behavior");
     public static final Identifier VALET_STATE_PACKET_ID = ValetMod.id("valet_state");
     private static final int GLOW_TICKS = 20 * 60 * 30;
     private static boolean payloadTypesRegistered;
@@ -72,6 +84,8 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(ChooseCombatPerkPayload.TYPE, ValetNetworking::chooseValetCombatPerk);
         ServerPlayNetworking.registerGlobalReceiver(RenameValetPayload.TYPE, ValetNetworking::renameValet);
         ServerPlayNetworking.registerGlobalReceiver(DeleteConstructionPayload.TYPE, ValetNetworking::deleteConstruction);
+        ServerPlayNetworking.registerGlobalReceiver(SortContainerPayload.TYPE, ValetNetworking::sortOpenContainer);
+        ServerPlayNetworking.registerGlobalReceiver(SetBehaviorPayload.TYPE, ValetNetworking::setBehavior);
     }
 
     public static void registerPayloadTypes() {
@@ -85,6 +99,9 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(ChooseCombatPerkPayload.TYPE, ChooseCombatPerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RenameValetPayload.TYPE, RenameValetPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DeleteConstructionPayload.TYPE, DeleteConstructionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SortContainerPayload.TYPE, SortContainerPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SetBehaviorPayload.TYPE, SetBehaviorPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ValetMagicCastPayload.TYPE, ValetMagicCastPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetStatePayload.TYPE, ValetStatePayload.CODEC);
     }
 
@@ -103,9 +120,7 @@ public final class ValetNetworking {
         if (!world.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             villager.addEffect(new MobEffectInstance(MobEffects.GLOWING, GLOW_TICKS, 0, false, false));
             ValetMod.markValetGlow(villager);
-            if (villager.hasCustomName()) {
-                villager.setCustomNameVisible(true);
-            }
+            updateCustomNameVisibility(villager);
             ValetMod.claimOrRecoverValetHome(serverPlayer.level(), villager, serverPlayer.blockPosition());
             ValetConversations.begin(villager);
             int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager);
@@ -127,6 +142,8 @@ public final class ValetNetworking {
                         buf.writeInt(ValetOrders.getFarmCropMask(villager));
                         buf.writeBoolean(ValetOrders.shouldReplantFarm(villager));
                         buf.writeBoolean(ValetOrders.shouldTillFarm(villager));
+                        buf.writeBoolean(ValetBehavior.shouldAvoidNightReturn(villager));
+                        buf.writeBoolean(ValetBehavior.isFreeBehavior(villager));
                         buf.writeInt(ValetOrders.getConstructionTargetId(villager));
                         buf.writeInt(getCurrentCraftTargetIndex(villager));
                         for (int count : oreCounts) {
@@ -163,6 +180,8 @@ public final class ValetNetworking {
                             ValetOrders.getFarmCropMask(villager),
                             ValetOrders.shouldReplantFarm(villager),
                             ValetOrders.shouldTillFarm(villager),
+                            ValetBehavior.shouldAvoidNightReturn(villager),
+                            ValetBehavior.isFreeBehavior(villager),
                             ValetOrders.getConstructionTargetId(villager),
                             getCurrentCraftTargetIndex(villager),
                             oreCounts,
@@ -425,6 +444,36 @@ public final class ValetNetworking {
         });
     }
 
+    private static void setBehavior(SetBehaviorPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
+        server.execute(() -> {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager)) {
+                return;
+            }
+
+            if (!isValidValetInteraction(player, villager)) {
+                return;
+            }
+
+            ValetBehavior.setSettings(villager, payload.freeBehavior(), payload.avoidNightReturn());
+            ValetMod.claimOrRecoverValetHome(player.level(), villager, player.blockPosition());
+            if (payload.freeBehavior()) {
+                ValetWorkDriver.clear(villager.getUUID());
+                villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+                villager.refreshBrain(player.level());
+            } else {
+                if (!ValetBehavior.shouldUseVanillaBehavior(player.level(), villager)) {
+                    ValetMod.suppressVanillaVillageMemories(villager);
+                }
+                ValetWorkGoal.requestRestart(villager);
+            }
+            player.sendOverlayMessage(Component.translatable("message.valet.behavior_updated"));
+            sendValetState(player, villager);
+        });
+    }
+
     private static void finishOrderInteraction(ServerPlayer player, Villager villager) {
         ValetConversations.end(villager);
         player.closeContainer();
@@ -471,6 +520,69 @@ public final class ValetNetworking {
             player.sendOverlayMessage(Component.translatable("message.valet.construction_deleted"));
             sendValetState(player, villager);
         });
+    }
+
+    private static void sortOpenContainer(SortContainerPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
+        server.execute(() -> {
+            if (!(player.containerMenu instanceof ChestMenu menu) || !menu.stillValid(player)) {
+                return;
+            }
+
+            Container container = menu.getContainer();
+            List<ItemStack> sortedStacks = mergeAndSort(container);
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                container.setItem(slot, slot < sortedStacks.size() ? sortedStacks.get(slot) : ItemStack.EMPTY);
+            }
+            container.setChanged();
+            menu.slotsChanged(container);
+            menu.broadcastFullState();
+            player.sendOverlayMessage(Component.translatable("message.valet.container_sorted"));
+        });
+    }
+
+    private static List<ItemStack> mergeAndSort(Container container) {
+        List<ItemStack> stacks = new ArrayList<>();
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            mergeStack(stacks, stack.copy(), container);
+        }
+
+        stacks.sort(Comparator.comparing(ValetNetworking::getSortKey)
+                .thenComparing(stack -> stack.getHoverName().getString())
+                .thenComparing(Comparator.comparingInt(ItemStack::getCount).reversed()));
+        return stacks;
+    }
+
+    private static void mergeStack(List<ItemStack> stacks, ItemStack stack, Container container) {
+        for (ItemStack existing : stacks) {
+            if (!ItemStack.isSameItemSameComponents(existing, stack)) {
+                continue;
+            }
+            int limit = Math.min(existing.getMaxStackSize(), container.getMaxStackSize(existing));
+            int moved = Math.min(stack.getCount(), limit - existing.getCount());
+            if (moved > 0) {
+                existing.grow(moved);
+                stack.shrink(moved);
+            }
+            if (stack.isEmpty()) {
+                return;
+            }
+        }
+
+        while (!stack.isEmpty()) {
+            int limit = Math.min(stack.getMaxStackSize(), container.getMaxStackSize(stack));
+            stacks.add(stack.split(Math.min(stack.getCount(), limit)));
+        }
+    }
+
+    private static String getSortKey(ItemStack stack) {
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        return id == null ? "" : id.toString();
     }
 
     private static void removeBlueprintItems(ServerPlayer player, int constructionId) {
@@ -561,7 +673,27 @@ public final class ValetNetworking {
     }
 
     private static String getValetName(Villager villager) {
-        return villager.hasCustomName() && villager.getCustomName() != null ? villager.getCustomName().getString() : "";
+        if (!villager.hasCustomName() || villager.getCustomName() == null || isGenericValetName(villager.getCustomName())) {
+            return "";
+        }
+        return villager.getCustomName().getString();
+    }
+
+    private static void updateCustomNameVisibility(Villager villager) {
+        if (!villager.hasCustomName() || villager.getCustomName() == null) {
+            villager.setCustomNameVisible(false);
+            return;
+        }
+        if (isGenericValetName(villager.getCustomName())) {
+            villager.setCustomName(null);
+            villager.setCustomNameVisible(false);
+            return;
+        }
+        villager.setCustomNameVisible(true);
+    }
+
+    private static boolean isGenericValetName(Component name) {
+        return "profession.valet.valet".equals(name.getString());
     }
 
     private static boolean isValidValetInteraction(ServerPlayer player, Villager villager) {

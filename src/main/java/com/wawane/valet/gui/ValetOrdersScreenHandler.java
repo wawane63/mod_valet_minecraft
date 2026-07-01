@@ -42,6 +42,8 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final int currentFarmCropMask;
     private final boolean farmReplant;
     private final boolean farmTillSoil;
+    private final boolean avoidNightReturn;
+    private final boolean freeBehavior;
     private final int currentConstructionTargetId;
     private final int currentCraftTargetIndex;
     private final int[] oreCounts;
@@ -75,14 +77,14 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     }
 
     private ValetOrdersScreenHandler(int syncId, Inventory inventory, RegistryFriendlyByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
+        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
     }
 
     public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, true, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
     }
 
-    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, boolean avoidNightReturn, boolean freeBehavior, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -95,6 +97,8 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.currentFarmCropMask = currentFarmCropMask;
         this.farmReplant = farmReplant;
         this.farmTillSoil = farmTillSoil;
+        this.avoidNightReturn = avoidNightReturn;
+        this.freeBehavior = freeBehavior;
         this.currentConstructionTargetId = currentConstructionTargetId;
         this.currentCraftTargetIndex = currentCraftTargetIndex;
         this.oreCounts = oreCounts;
@@ -162,6 +166,14 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
 
     public boolean shouldTillFarm() {
         return farmTillSoil;
+    }
+
+    public boolean shouldAvoidNightReturn() {
+        return avoidNightReturn;
+    }
+
+    public boolean isFreeBehavior() {
+        return freeBehavior;
     }
 
     public int getCurrentConstructionTargetId() {

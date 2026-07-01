@@ -16,7 +16,14 @@ public enum ValetPerk {
     FARM_REPLANTING(ValetRole.FARMER, "perk.valet.farm_replanting", "ValetPerkFarmReplanting", "S"),
     FARM_TILLING(ValetRole.FARMER, "perk.valet.farm_tilling", "ValetPerkFarmTilling", "T"),
     FARM_STORAGE(ValetRole.FARMER, "perk.valet.farm_storage", "ValetPerkFarmStorage", "#"),
-    FARM_STEWARD(ValetRole.FARMER, "perk.valet.farm_steward", "ValetPerkFarmSteward", "C");
+    FARM_STEWARD(ValetRole.FARMER, "perk.valet.farm_steward", "ValetPerkFarmSteward", "C"),
+    MAGIC_ICE(ValetRole.MAGICIAN, "perk.valet.magic_ice", "ValetPerkMagicIce", "I"),
+    MAGIC_FANGS(ValetRole.MAGICIAN, "perk.valet.magic_fangs", "ValetPerkMagicFangs", "F"),
+    MAGIC_SHATTER(ValetRole.MAGICIAN, "perk.valet.magic_shatter", "ValetPerkMagicShatter", "X"),
+    MAGIC_HEAL(ValetRole.MAGICIAN, "perk.valet.magic_heal", "ValetPerkMagicHeal", "+"),
+    MAGIC_REGEN_AURA(ValetRole.MAGICIAN, "perk.valet.magic_regen_aura", "ValetPerkMagicRegenAura", "A"),
+    MAGIC_WARD(ValetRole.MAGICIAN, "perk.valet.magic_ward", "ValetPerkMagicWard", "B"),
+    MAGIC_WEAKEN(ValetRole.MAGICIAN, "perk.valet.magic_weaken", "ValetPerkMagicWeaken", "-");
 
     private final ValetRole role;
     private final String translationKey;

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.2 - Tri coffre + magicien
+
+Bugs corriges / fonctionnalite :
+
+- Ajout d'un bouton `Tri` dans les coffres/barils.
+- Le tri est valide cote serveur sur le conteneur ouvert.
+- Les piles identiques sont fusionnees puis rangees par identifiant d'item.
+- Ajout du role `Magicien` et du `Poste de magicien`.
+- Le magicien defend localement avec un sort de glace : projectile boule de neige, degats et ralentissement, sans incendie.
+- Ajout d'un arbre magie en 3 branches : `Destruction`, `Soin`, `Alteration`.
+- Le perk `Gel` est acquis automatiquement par les magiciens et ne consomme pas de point.
+- Branche `Destruction` : `Gel`, `Crocs magiques`, `Fracas`.
+- Branche `Soin` : `Soin`, `Aura de soin`.
+- Branche `Alteration` : `Rempart`, `Affaiblir`.
+- Le perk `Crocs magiques` lance des crocs apres 3 sorts de glace.
+- Correction : un poste deja utilise ne laisse plus une reservation fantome faire alterner le valet entre oisif et magicien.
+- Correction : un magicien qui perd son metier retire sa fiole et son glow.
+- Correction : le magicien ne tient plus de fiole en main et garde les bras normaux hors combat.
+- Correction : le compteur des crocs ne repart plus a zero quand la cible change, et la magie porte maintenant a 12 blocs.
+- Le craft du poste de magicien reprend celui du poste de combattant avec des fioles a la place des epees.
+- Premiere couche client d'animations player-like pour les valets : modele joueur, item en main, pose arc, swing outils/epee.
+- Correction : le magicien utilise aussi le renderer player-like et leve les bras seulement pendant le lancement d'un sort.
+- Correction : le nom generique `profession.valet.valet` est masque, mais les vrais noms saisis restent affiches.
+- Correction : le deplacement metier fiable est restaure pour craft, ressources, construction, retour poste et champs.
+- Correction : les valets font face a la prochaine case pendant le deplacement metier.
+- Restauration de l'aperçu monde quand un blueprint de construction est tenu.
+- Correction : poser un villageois par oeuf ne crash plus le rendu client du renderer valet.
+- Correction : les valets ne suivent plus les memoires vanilla de village/cloche quand ils ont un poste.
+- Ajout des options `Ne pas aller se coucher` et `Comportement libre` dans l'UI.
+- L'option `Ne pas aller se coucher` est decochee par defaut : les valets vont dormir la nuit. Si elle est cochee, ils ne vont plus au lit.
+- Clic droit sur un poste : le valet lie revient au poste meme avec un ordre actif, et y reste 5 secondes avant de reprendre sa routine libre si l'option est active.
+
 ## 0.3.1 - Crafts bois
 
 Bugs corriges / fonctionnalite :
@@ -185,5 +217,6 @@ Modifications structurelles :
 - `state/ValetData.java`, `VillagerEntityMixin.java`, `ValetMod.java`: centralise les operations lifecycle villager Valet sans fusionner les formats NBT existants; risque residuel faible.
 - `ai/tasks/MiningRuntimeTask.java`, `ValetWorkGoal.java`: extrait l'execution runtime mine/bois (cible, filon, minage, collecte) dans une task dediee; risque residuel moyen tant que les tests en jeu mine/bois ne sont pas faits.
 - `ai/tasks/ConstructionRuntimeTask.java`, `ValetWorkGoal.java`: extrait l'execution runtime construction (selection site, materiaux, pose, reports) dans une task dediee; risque residuel moyen tant que les tests en jeu construction ne sont pas faits.
-- `ValetWorkGoal.java`: remplace le deplacement par teleport `refreshPositionAndAngles` par navigation vanilla step-by-step avec timeout; risque residuel moyen, a verifier en jeu dans tunnels/escaliers.
+- `ValetWorkGoal.java`: annule la navigation vanilla step-by-step qui provoquait des `path step_timeout` et restaure le deplacement metier fiable; risque residuel faible pour craft/farm/build, animation de marche a reprendre proprement plus tard.
+- `ValetBehavior.java`, `ValetMod.java`, `ValetWorkGoal.java`, `ValetOrdersScreen.java`: ajoute les options de comportement libre et de nuit, conserve `HOME` pour le sommeil, efface seulement les memoires sociales/marche quand le mod controle le valet, et ajoute le rappel 5 secondes par clic droit sur le poste; risque residuel moyen, a verifier en jeu sur sommeil, reproduction et rappel poste.
 - `ai/tasks/LogisticsRuntimeTask.java`, `ValetWorkGoal.java`: extrait retour coffre, depot, retour poste et idle dans une task dediee; risque residuel moyen tant que les tests en jeu depot/retour poste ne sont pas faits.

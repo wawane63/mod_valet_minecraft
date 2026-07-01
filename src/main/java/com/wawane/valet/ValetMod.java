@@ -14,8 +14,10 @@ import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
+import com.wawane.valet.state.ValetBehavior;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -37,20 +39,26 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,11 +68,13 @@ public class ValetMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     private static final int JOB_ASSIGN_INTERVAL = 40;
     private static final int PLAYER_SCAN_RADIUS = 48;
+    private static final int WORKSTATION_RECALL_RADIUS = 128;
     private static final int WORKSTATION_SEARCH_RADIUS = 8;
     private static final java.util.Set<java.util.UUID> GLOWING_VALETS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     public static final Identifier VALET_WORKSTATION_ID = id("valet_workstation");
     public static final Identifier COMBAT_WORKSTATION_ID = id("combat_workstation");
     public static final Identifier FARMER_WORKSTATION_ID = id("farmer_workstation");
+    public static final Identifier MAGIC_WORKSTATION_ID = id("magic_workstation");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
     public static final Identifier FARM_BEACON_ID = id("farm_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
@@ -112,6 +122,18 @@ public class ValetMod implements ModInitializer {
             BuiltInRegistries.ITEM,
             FARMER_WORKSTATION_ID,
             new BlockItem(FARMER_WORKSTATION, itemProperties(FARMER_WORKSTATION_ID))
+    );
+
+    public static final Block MAGIC_WORKSTATION = Registry.register(
+            BuiltInRegistries.BLOCK,
+            MAGIC_WORKSTATION_ID,
+            new Block(blockProperties(MAGIC_WORKSTATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.ENCHANTING_TABLE).strength(2.5F)))
+    );
+
+    public static final Item MAGIC_WORKSTATION_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            MAGIC_WORKSTATION_ID,
+            new BlockItem(MAGIC_WORKSTATION, itemProperties(MAGIC_WORKSTATION_ID))
     );
 
     public static final Block CONSTRUCTION_BEACON = Registry.register(
@@ -174,7 +196,8 @@ public class ValetMod implements ModInitializer {
             1,
             VALET_WORKSTATION,
             COMBAT_WORKSTATION,
-            FARMER_WORKSTATION
+            FARMER_WORKSTATION,
+            MAGIC_WORKSTATION
     );
 
     public static final VillagerProfession VALET_PROFESSION = Registry.register(
@@ -214,10 +237,12 @@ public class ValetMod implements ModInitializer {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COMBAT_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARMER_WORKSTATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(MAGIC_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(INFINITE_ARROW_CHEST_ITEM));
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
+        UseBlockCallback.EVENT.register(ValetMod::recallValetAtWorkstation);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
@@ -241,6 +266,7 @@ public class ValetMod implements ModInitializer {
             ValetWorkGoal.clearRestartRequest(villager.getUUID());
             ValetConversations.clear(villager.getUUID());
             ValetBlockReservations.releaseAll(villager.getUUID());
+            ValetBehavior.clearRecall(villager.getUUID());
         }
     }
 
@@ -301,6 +327,7 @@ public class ValetMod implements ModInitializer {
         villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VALET_PROFESSION_KEY));
         villager.refreshBrain(world);
         ValetHome.set(villager, workstation);
+        suppressVanillaVillageMemoriesIfNeeded(world, villager);
         ValetDebug.record(villager, "profession_assigned role=" + ValetRole.fromWorkstation(world.getBlockState(workstation)).name().toLowerCase() + " home=" + ValetDebug.shortPos(workstation));
         return true;
     }
@@ -316,6 +343,7 @@ public class ValetMod implements ModInitializer {
                 return null;
             }
             ValetHome.set(villager, home);
+            suppressVanillaVillageMemoriesIfNeeded(world, villager);
             return home;
         }
 
@@ -324,6 +352,7 @@ public class ValetMod implements ModInitializer {
             return null;
         }
         ValetHome.set(villager, workstation);
+        suppressVanillaVillageMemoriesIfNeeded(world, villager);
         return workstation;
     }
 
@@ -338,11 +367,13 @@ public class ValetMod implements ModInitializer {
                 loseValetJob(world, villager, "job_site_claimed");
                 return false;
             }
+            suppressVanillaVillageMemoriesIfNeeded(world, villager);
             return true;
         }
         if (!ValetData.hasRuntimeData(villager)) {
             if (GLOWING_VALETS.contains(villager.getUUID())) {
                 clearValetGlow(villager);
+                clearValetHeldItem(villager);
                 ValetDebug.record(villager, "glow_removed reason=profession_lost_no_runtime");
             }
             return false;
@@ -363,6 +394,7 @@ public class ValetMod implements ModInitializer {
         }
         villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VALET_PROFESSION_KEY));
         villager.refreshBrain(world);
+        suppressVanillaVillageMemoriesIfNeeded(world, villager);
         ValetWorkGoal.requestRestart(villager);
         ValetDebug.record(villager, "profession_restored previous=" + previousProfession + " home=" + ValetDebug.shortPos(home));
         LOGGER.warn("Restored valet profession for {} from {} at {}", villager.getUUID(), previousProfession, home);
@@ -377,6 +409,7 @@ public class ValetMod implements ModInitializer {
         villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
         villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VillagerProfession.NONE));
         villager.refreshBrain(world);
+        clearValetHeldItem(villager);
         ValetWorkDriver.clear(villager.getUUID());
         ValetWorkGoal.clearRestartRequest(villager.getUUID());
         ValetConversations.clear(villager.getUUID());
@@ -393,6 +426,7 @@ public class ValetMod implements ModInitializer {
                 .filter(pos -> pos.dimension().equals(world.dimension()))
                 .ifPresent(pos -> world.getPoiManager().release(pos.pos()));
         villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        clearValetHeldItem(villager);
         ValetWorkDriver.clear(villager.getUUID());
         ValetWorkGoal.clearRestartRequest(villager.getUUID());
         ValetConversations.clear(villager.getUUID());
@@ -409,6 +443,12 @@ public class ValetMod implements ModInitializer {
         villager.removeEffect(MobEffects.GLOWING);
         villager.setGlowingTag(false);
         GLOWING_VALETS.remove(villager.getUUID());
+    }
+
+    private static void clearValetHeldItem(Villager villager) {
+        if (!villager.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()) {
+            villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        }
     }
 
     private static boolean shouldCheckValetJob(Villager villager) {
@@ -437,12 +477,11 @@ public class ValetMod implements ModInitializer {
     }
 
     private static boolean isWorkstationClaimed(ServerLevel world, BlockPos workstation, Villager ignored) {
-        if (ValetHome.isClaimedHome(world, workstation, ignored.getUUID())) {
-            return true;
-        }
         AABB box = new AABB(workstation).inflate(PLAYER_SCAN_RADIUS);
         return !world.getEntitiesOfClass(Villager.class, box, villager ->
                 villager != ignored
+                        && villager.isAlive()
+                        && !villager.isRemoved()
                         && (ValetMod.isValet(villager) || ValetData.hasRuntimeData(villager))
                         && (hasJobSite(villager, world, workstation) || ValetHome.isHome(world, villager, workstation))
         ).isEmpty();
@@ -480,12 +519,9 @@ public class ValetMod implements ModInitializer {
         }
         boolean alreadyAssigned = hasJobSite(villager, world, workstation);
         if (alreadyAssigned) {
-            world.getPoiManager().take(
-                    entry -> entry.is(VALET_POI_KEY),
-                    (entry, pos) -> pos.equals(workstation),
-                    workstation,
-                    1
-            );
+            villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(world.dimension(), workstation));
+            suppressVanillaVillageMemoriesIfNeeded(world, villager);
+            return true;
         } else {
             java.util.Optional<BlockPos> claimed = world.getPoiManager().take(
                     entry -> entry.is(VALET_POI_KEY),
@@ -494,11 +530,37 @@ public class ValetMod implements ModInitializer {
                     1
             );
             if (claimed.isEmpty()) {
-                return false;
+                world.getPoiManager().release(workstation);
+                claimed = world.getPoiManager().take(
+                        entry -> entry.is(VALET_POI_KEY),
+                        (entry, pos) -> pos.equals(workstation),
+                        workstation,
+                        1
+                );
+                if (claimed.isEmpty()) {
+                    return false;
+                }
+                ValetDebug.record(villager, "stale_job_site_reclaimed home=" + ValetDebug.shortPos(workstation));
             }
         }
         villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(world.dimension(), workstation));
+        suppressVanillaVillageMemoriesIfNeeded(world, villager);
         return true;
+    }
+
+    private static void suppressVanillaVillageMemoriesIfNeeded(ServerLevel world, Villager villager) {
+        if (!ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
+            suppressVanillaVillageMemories(villager);
+        }
+    }
+
+    public static void suppressVanillaVillageMemories(Villager villager) {
+        villager.getBrain().eraseMemory(MemoryModuleType.MEETING_POINT);
+        villager.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.SECONDARY_JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
     }
 
     public static boolean isValet(Villager villager) {
@@ -506,7 +568,7 @@ public class ValetMod implements ModInitializer {
     }
 
     public static boolean isValetWorkstation(net.minecraft.world.level.block.state.BlockState state) {
-        return state.is(VALET_WORKSTATION) || state.is(COMBAT_WORKSTATION) || state.is(FARMER_WORKSTATION);
+        return state.is(VALET_WORKSTATION) || state.is(COMBAT_WORKSTATION) || state.is(FARMER_WORKSTATION) || state.is(MAGIC_WORKSTATION);
     }
 
     public static boolean isValet(net.minecraft.world.entity.npc.villager.VillagerData data) {
@@ -515,5 +577,51 @@ public class ValetMod implements ModInitializer {
 
     public static boolean isUnemployed(Villager villager) {
         return villager.getVillagerData().profession().is(VillagerProfession.NONE);
+    }
+
+    private static InteractionResult recallValetAtWorkstation(Player player, net.minecraft.world.level.Level world, InteractionHand hand, BlockHitResult hitResult) {
+        if (hand != InteractionHand.MAIN_HAND || !isValetWorkstation(world.getBlockState(hitResult.getBlockPos()))) {
+            return InteractionResult.PASS;
+        }
+        if (world.isClientSide()) {
+            return InteractionResult.SUCCESS;
+        }
+        if (!(world instanceof ServerLevel serverWorld)) {
+            return InteractionResult.SUCCESS;
+        }
+
+        BlockPos workstation = hitResult.getBlockPos();
+        Villager villager = findValetForWorkstation(serverWorld, workstation);
+        if (villager == null) {
+            player.sendOverlayMessage(Component.translatable("message.valet.no_valet_at_post"));
+            return InteractionResult.SUCCESS;
+        }
+
+        ValetBehavior.recallToWorkstation(serverWorld, villager);
+        ValetWorkGoal.requestRestart(villager);
+        ValetDebug.record(villager, "post_recall home=" + ValetDebug.shortPos(workstation));
+        player.sendOverlayMessage(Component.translatable("message.valet.post_recall"));
+        return InteractionResult.SUCCESS;
+    }
+
+    private static Villager findValetForWorkstation(ServerLevel world, BlockPos workstation) {
+        AABB box = new AABB(workstation).inflate(WORKSTATION_RECALL_RADIUS);
+        Villager best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (Villager villager : world.getEntitiesOfClass(Villager.class, box, candidate ->
+                candidate.isAlive()
+                        && !candidate.isRemoved()
+                        && isValet(candidate))) {
+            BlockPos home = ValetHome.get(world, villager);
+            if (!workstation.equals(home) && !hasJobSite(villager, world, workstation)) {
+                continue;
+            }
+            double distance = villager.distanceToSqr(workstation.getX() + 0.5D, workstation.getY() + 0.5D, workstation.getZ() + 0.5D);
+            if (distance < bestDistance) {
+                best = villager;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 }

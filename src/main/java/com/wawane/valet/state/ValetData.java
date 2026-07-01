@@ -23,6 +23,7 @@ public final class ValetData {
     }
 
     public static void writeToNbt(Villager villager, CompoundTag nbt) {
+        ValetBehavior.writeToNbt(villager, nbt);
         ValetHome.writeToNbt(villager, nbt);
         ValetOrders.writeToNbt(villager, nbt);
         ValetProgress.writeToNbt(villager, nbt);
@@ -30,6 +31,7 @@ public final class ValetData {
     }
 
     public static void readFromNbt(Villager villager, CompoundTag nbt) {
+        ValetBehavior.readFromNbt(villager, nbt);
         ValetHome.readFromNbt(villager, nbt);
         ValetOrders.readFromNbt(villager, nbt);
         ValetProgress.readFromNbt(villager, nbt);
@@ -37,6 +39,7 @@ public final class ValetData {
     }
 
     public static void clearVillagerRuntime(UUID uuid) {
+        ValetBehavior.clear(uuid);
         ValetHome.clear(uuid);
         ValetConversations.clear(uuid);
         ValetOrders.clear(uuid);
@@ -45,6 +48,7 @@ public final class ValetData {
     }
 
     public static void clearAllVillagerRuntime() {
+        ValetBehavior.clearAll();
         ValetHome.clearAll();
         ValetConversations.clearAll();
         ValetOrders.clearAll();
@@ -53,11 +57,11 @@ public final class ValetData {
     }
 
     public static boolean hasRuntimeData(Villager villager) {
-        return ValetHome.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager) || ValetCombatProgress.hasData(villager);
+        return ValetBehavior.hasData(villager) || ValetHome.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager) || ValetCombatProgress.hasData(villager);
     }
 
     private static boolean hasPersistentData(CompoundTag nbt) {
-        return ValetHome.hasNbt(nbt) || ValetOrders.hasNbt(nbt) || ValetProgress.hasNbt(nbt) || ValetCombatProgress.hasNbt(nbt);
+        return ValetBehavior.hasNbt(nbt) || ValetHome.hasNbt(nbt) || ValetOrders.hasNbt(nbt) || ValetProgress.hasNbt(nbt) || ValetCombatProgress.hasNbt(nbt);
     }
 
     public static boolean isValet(Villager villager) {

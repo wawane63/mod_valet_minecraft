@@ -25,6 +25,7 @@ import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetWoodTarget;
+import com.wawane.valet.state.ValetBehavior;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -62,7 +63,6 @@ import net.minecraft.world.phys.AABB;
 public class ValetWorkGoal extends Goal {
     private static final Set<UUID> RESTART_REQUESTS = ConcurrentHashMap.newKeySet();
     private static final int PASSAGE_HEIGHT = 2;
-    private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 80;
     private static final int BUILD_HORIZONTAL_REACH = 4;
     private static final int BUILD_VERTICAL_REACH = 6;
 
@@ -127,8 +127,6 @@ public class ValetWorkGoal extends Goal {
     private PathPurpose pathPurpose = PathPurpose.ORE;
     private List<BlockPos> path = List.of();
     private int pathIndex;
-    private BlockPos navigationStepTarget;
-    private int navigationStepTicks;
     private int delayTicks;
     private String activeOrderKey = "";
     private BlockPos animatedContainerPos;
@@ -157,12 +155,12 @@ public class ValetWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return isAvailableValet() && (ValetConversations.isTalking(villager) || hasWorkOrigin() || hasActiveOrder() || hasInventoryItems());
+        return isAvailableValet() && shouldRunCustomControl();
     }
 
     @Override
     public boolean canContinueToUse() {
-        return isAvailableValet() && (ValetConversations.isTalking(villager) || hasWorkOrigin() || hasActiveOrder() || hasInventoryItems());
+        return isAvailableValet() && shouldRunCustomControl();
     }
 
     @Override
@@ -181,6 +179,9 @@ public class ValetWorkGoal extends Goal {
         ValetBlockReservations.releaseAll(villager.getUUID());
         closeAnimatedContainerNow();
         villager.getNavigation().stop();
+        if (villager.level() instanceof ServerLevel world && ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
+            villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        }
     }
 
     @Override
@@ -206,7 +207,7 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (shouldClaimMovement()) {
+        if (shouldClaimMovement(world)) {
             suppressVanillaMovementTargets();
         }
 
@@ -297,7 +298,23 @@ public class ValetWorkGoal extends Goal {
         return villager.level() instanceof ServerLevel world && getKnownWorkOrigin(world) != null;
     }
 
+    private boolean shouldRunCustomControl() {
+        if (!(villager.level() instanceof ServerLevel world)) {
+            return false;
+        }
+        if (ValetConversations.isTalking(villager)) {
+            return true;
+        }
+        if (ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
+            return false;
+        }
+        return hasWorkOrigin() || hasActiveOrder() || hasInventoryItems();
+    }
+
     private State chooseStartState() {
+        if (villager.level() instanceof ServerLevel world && ValetBehavior.isRecallActive(world, villager)) {
+            return State.RETURNING_HOME;
+        }
         return ValetStateMachine.chooseStartState(ValetConversations.isTalking(villager), hasActiveOrder(), shouldReturnToChestBeforeWork());
     }
 
@@ -374,6 +391,16 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void updatePassiveState() {
+        if (villager.level() instanceof ServerLevel world && ValetBehavior.isRecallActive(world, villager)) {
+            if (state != State.RETURNING_HOME && !isExecuting(PathPurpose.HOME)) {
+                clearPathState();
+                clearMiningState();
+                clearVeinState();
+                state = State.RETURNING_HOME;
+            }
+            return;
+        }
+
         if (hasMiningOrder()) {
             if (shouldPreemptForMiningOrder()) {
                 clearPathState();
@@ -570,23 +597,30 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void moveToPathStep(BlockPos step) {
-        boolean newStep = !step.equals(navigationStepTarget);
-        if (newStep) {
-            navigationStepTarget = step.immutable();
-            navigationStepTicks = NAVIGATION_STEP_TIMEOUT_TICKS;
-            villager.getNavigation().stop();
-        }
-
         suppressVanillaMovementTargets();
-        villager.getLookControl().setLookAt(step.getX() + 0.5D, step.getY() + 1.0D, step.getZ() + 0.5D);
-        villager.teleportTo(step.getX() + 0.5D, step.getY(), step.getZ() + 0.5D);
+        double targetX = step.getX() + 0.5D;
+        double targetZ = step.getZ() + 0.5D;
+        faceTarget(targetX, targetZ);
+        villager.getLookControl().setLookAt(targetX, step.getY() + 1.0D, targetZ);
+        villager.teleportTo(targetX, step.getY(), targetZ);
         villager.setDeltaMovement(0.0D, villager.getDeltaMovement().y, 0.0D);
         ValetDebug.record(villager, "path step purpose=" + pathPurpose + " step=" + ValetDebug.shortPos(step));
     }
 
+    private void faceTarget(double targetX, double targetZ) {
+        double dx = targetX - villager.getX();
+        double dz = targetZ - villager.getZ();
+        if (dx * dx + dz * dz < 1.0E-6D) {
+            return;
+        }
+        float yaw = (float) (Math.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F;
+        villager.setYRot(yaw);
+        villager.setYHeadRot(yaw);
+        villager.setYBodyRot(yaw);
+    }
+
     private void clearNavigationStep() {
-        navigationStepTarget = null;
-        navigationStepTicks = 0;
+        villager.getNavigation().stop();
     }
 
     private Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose) {
@@ -1190,9 +1224,16 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == ValetRole.COMBATANT) {
-            equipMainHand(Items.WOODEN_SWORD);
-            return;
+        if (villager.level() instanceof ServerLevel world) {
+            ValetRole role = ValetRole.get(world, villager);
+            if (role == ValetRole.COMBATANT) {
+                equipMainHand(Items.WOODEN_SWORD);
+                return;
+            }
+            if (role == ValetRole.MAGICIAN) {
+                equipMainHand(null);
+                return;
+            }
         }
 
         if (state == State.IDLE) {
@@ -1297,11 +1338,17 @@ public class ValetWorkGoal extends Goal {
         villager.setDeltaMovement(0.0D, villager.getDeltaMovement().y, 0.0D);
     }
 
-    private boolean shouldClaimMovement() {
-        return hasActiveOrder() || hasInventoryItems() || state != State.IDLE;
+    private boolean shouldClaimMovement(ServerLevel world) {
+        if (ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
+            return false;
+        }
+        return hasWorkOrigin() || hasActiveOrder() || hasInventoryItems() || state != State.IDLE;
     }
 
     private void suppressVanillaMovementTargets() {
+        villager.getBrain().eraseMemory(MemoryModuleType.MEETING_POINT);
+        villager.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.SECONDARY_JOB_SITE);
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
     }
@@ -1371,6 +1418,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public boolean isMagicEnabled() {
+            return villager.level() instanceof ServerLevel world && ValetRole.get(world, villager) == ValetRole.MAGICIAN;
+        }
+
+        @Override
         public double combatSearchRadius() {
             return settings.combatSearchRadius();
         }
@@ -1413,6 +1465,16 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int combatArrowCooldownTicks() {
             return settings.combatArrowCooldownTicks();
+        }
+
+        @Override
+        public double magicAttackRangeSquared() {
+            return settings.magicAttackRangeSquared();
+        }
+
+        @Override
+        public int magicAttackCooldownTicks() {
+            return settings.magicAttackCooldownTicks();
         }
 
         @Override

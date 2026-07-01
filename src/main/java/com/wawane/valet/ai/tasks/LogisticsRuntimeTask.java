@@ -5,6 +5,7 @@ import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.progress.ValetProgress;
+import com.wawane.valet.state.ValetBehavior;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -70,6 +71,7 @@ public final class LogisticsRuntimeTask {
 
         if (control.isNearWorkstation(world, workOrigin)) {
             ValetDebug.record(control.villager(), "logistics at_home");
+            ValetBehavior.markRecallArrived(world, control.villager());
             control.clearPathState();
             control.clearMiningState();
             control.setState(State.IDLE);
@@ -120,6 +122,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
+        ValetBehavior.markRecallArrived(world, control.villager());
         control.villager().getNavigation().stop();
         control.villager().setDeltaMovement(0.0D, control.villager().getDeltaMovement().y, 0.0D);
         control.villager().getLookControl().setLookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);

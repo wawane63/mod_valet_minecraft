@@ -3,7 +3,9 @@
   "package": "com.wawane.valet.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [],
-  "client": [],
+  "client": [
+    "AbstractContainerScreenMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

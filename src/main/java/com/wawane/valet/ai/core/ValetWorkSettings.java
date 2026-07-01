@@ -49,6 +49,8 @@ public final class ValetWorkSettings {
     private static final int COMBAT_ARROW_COOLDOWN_TICKS = 36;
     private static final int COMBAT_ARROW_COOLDOWN_BONUS = 10;
     private static final int COMBAT_ARROW_RESTOCK_COUNT = 16;
+    private static final double MAGIC_ATTACK_RANGE = 12.0D;
+    private static final int MAGIC_ATTACK_COOLDOWN_TICKS = 60;
 
     private final Villager villager;
 
@@ -186,6 +188,14 @@ public final class ValetWorkSettings {
 
     public int combatArrowRestockCount() {
         return COMBAT_ARROW_RESTOCK_COUNT;
+    }
+
+    public double magicAttackRangeSquared() {
+        return MAGIC_ATTACK_RANGE * MAGIC_ATTACK_RANGE;
+    }
+
+    public int magicAttackCooldownTicks() {
+        return MAGIC_ATTACK_COOLDOWN_TICKS;
     }
 
     private boolean hasRolePerk(ValetPerk perk) {

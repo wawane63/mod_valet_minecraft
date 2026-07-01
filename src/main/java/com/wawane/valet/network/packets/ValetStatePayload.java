@@ -12,6 +12,7 @@ import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
+import com.wawane.valet.state.ValetBehavior;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +34,8 @@ public record ValetStatePayload(
         int farmCropMask,
         boolean farmReplant,
         boolean farmTillSoil,
+        boolean avoidNightReturn,
+        boolean freeBehavior,
         int constructionTargetId,
         int craftTargetIndex,
         int[] oreCounts,
@@ -77,6 +80,8 @@ public record ValetStatePayload(
                 ValetOrders.getFarmCropMask(villager),
                 ValetOrders.shouldReplantFarm(villager),
                 ValetOrders.shouldTillFarm(villager),
+                ValetBehavior.shouldAvoidNightReturn(villager),
+                ValetBehavior.isFreeBehavior(villager),
                 ValetOrders.getConstructionTargetId(villager),
                 getCurrentCraftTargetIndex(villager),
                 ValetMiningScanner.countNearbyOres(world, villager),
@@ -111,6 +116,8 @@ public record ValetStatePayload(
         int farmCropMask = buf.readInt();
         boolean farmReplant = buf.readBoolean();
         boolean farmTillSoil = buf.readBoolean();
+        boolean avoidNightReturn = buf.readBoolean();
+        boolean freeBehavior = buf.readBoolean();
         int constructionTargetId = buf.readInt();
         int craftTargetIndex = buf.readInt();
         int[] oreCounts = readOreCounts(buf);
@@ -137,7 +144,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -150,6 +157,8 @@ public record ValetStatePayload(
         buf.writeInt(farmCropMask);
         buf.writeBoolean(farmReplant);
         buf.writeBoolean(farmTillSoil);
+        buf.writeBoolean(avoidNightReturn);
+        buf.writeBoolean(freeBehavior);
         buf.writeInt(constructionTargetId);
         buf.writeInt(craftTargetIndex);
         for (int count : oreCounts) {
@@ -271,6 +280,10 @@ public record ValetStatePayload(
     }
 
     private static String getValetName(Villager villager) {
-        return villager.hasCustomName() && villager.getCustomName() != null ? villager.getCustomName().getString() : "";
+        if (!villager.hasCustomName() || villager.getCustomName() == null) {
+            return "";
+        }
+        String name = villager.getCustomName().getString();
+        return "profession.valet.valet".equals(name) ? "" : name;
     }
 }
