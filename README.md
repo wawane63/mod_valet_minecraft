@@ -1,12 +1,15 @@
 # Valet
 
-Mod Fabric 26.2 qui ajoute le metier de villageois `Valet`.
+Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
+
+Derniere version : [0.3.2](https://github.com/wawane63/mod_valet_minecraft/releases/tag/v0.3.2) - tri coffre/baril, magicien, arbre de magie, comportements nuit/libre et rendu client.
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
+- [Notes 0.3.2](docs/releases/v0.3.2.md)
 
 ## Versions disponibles
 
@@ -20,14 +23,17 @@ La tracabilite des jars, bugs corriges et changements par version est tenue dans
 | 0.2.1 | Fermier local | [`v0.2.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.2.1) |
 | 0.3.0 | Decoupage metiers | [`v0.3.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.0) |
 | 0.3.1 | Crafts bois | [`v0.3.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.1) |
+| 0.3.2 | Tri coffre + magicien | [`v0.3.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.2) |
 
 ## Depart
 
-- Place un `Poste d'artisan`, un `Poste de combattant` ou un `Poste de fermier`.
+- Place un `Poste d'artisan`, un `Poste de combattant`, un `Poste de fermier` ou un `Poste de magicien`.
 - Un villageois sans metier peut prendre un de ces postes comme travail.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
 - Fermier : recolte, replantation, houe, zones de ferme.
+- Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
+- Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 
 ## Build
 
