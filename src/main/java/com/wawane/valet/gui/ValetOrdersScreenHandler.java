@@ -3,6 +3,7 @@ package com.wawane.valet.gui;
 import com.wawane.valet.ValetConversations;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
+import com.wawane.valet.breeding.ValetAnimalArea;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetCraftTarget;
@@ -42,6 +43,13 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final int currentFarmCropMask;
     private final boolean farmReplant;
     private final boolean farmTillSoil;
+    private final int currentAnimalAreaId;
+    private final boolean animalFeed;
+    private final boolean animalBreed;
+    private final boolean animalShear;
+    private final boolean animalCollectEggs;
+    private final boolean animalMilk;
+    private final int maxAnimals;
     private final boolean avoidNightReturn;
     private final boolean freeBehavior;
     private final int currentConstructionTargetId;
@@ -49,6 +57,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final int[] oreCounts;
     private final int[] woodCounts;
     private final List<ValetFarmArea> farmAreas;
+    private final List<ValetAnimalArea> animalAreas;
     private final List<ValetConstructionBlueprint> constructions;
     private final List<ItemStack> valetInventory;
     private final int level;
@@ -77,14 +86,14 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     }
 
     private ValetOrdersScreenHandler(int syncId, Inventory inventory, RegistryFriendlyByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
+        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readAnimalAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
     }
 
     public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, true, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, -1, true, true, true, true, true, com.wawane.valet.order.ValetOrders.DEFAULT_MAX_ANIMALS, true, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
     }
 
-    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, boolean avoidNightReturn, boolean freeBehavior, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, int currentAnimalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetAnimalArea> animalAreas, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -97,6 +106,13 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.currentFarmCropMask = currentFarmCropMask;
         this.farmReplant = farmReplant;
         this.farmTillSoil = farmTillSoil;
+        this.currentAnimalAreaId = currentAnimalAreaId;
+        this.animalFeed = animalFeed;
+        this.animalBreed = animalBreed;
+        this.animalShear = animalShear;
+        this.animalCollectEggs = animalCollectEggs;
+        this.animalMilk = animalMilk;
+        this.maxAnimals = maxAnimals;
         this.avoidNightReturn = avoidNightReturn;
         this.freeBehavior = freeBehavior;
         this.currentConstructionTargetId = currentConstructionTargetId;
@@ -104,6 +120,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.oreCounts = oreCounts;
         this.woodCounts = woodCounts;
         this.farmAreas = List.copyOf(farmAreas);
+        this.animalAreas = List.copyOf(animalAreas);
         this.constructions = constructions;
         this.valetInventory = copyInventory(valetInventory);
         this.level = level;
@@ -168,6 +185,34 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         return farmTillSoil;
     }
 
+    public int getCurrentAnimalAreaId() {
+        return currentAnimalAreaId;
+    }
+
+    public boolean shouldFeedAnimals() {
+        return animalFeed;
+    }
+
+    public boolean shouldBreedAnimals() {
+        return animalBreed;
+    }
+
+    public boolean shouldShearAnimals() {
+        return animalShear;
+    }
+
+    public boolean shouldCollectAnimalEggs() {
+        return animalCollectEggs;
+    }
+
+    public boolean shouldMilkAnimals() {
+        return animalMilk;
+    }
+
+    public int getMaxAnimals() {
+        return maxAnimals;
+    }
+
     public boolean shouldAvoidNightReturn() {
         return avoidNightReturn;
     }
@@ -206,6 +251,10 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
 
     public List<ValetFarmArea> getFarmAreas() {
         return farmAreas;
+    }
+
+    public List<ValetAnimalArea> getAnimalAreas() {
+        return animalAreas;
     }
 
     public List<ItemStack> getValetInventory() {
@@ -352,6 +401,18 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
             CompoundTag nbt = buf.readNbt();
             if (nbt != null) {
                 result.add(ValetFarmArea.readNbt(nbt));
+            }
+        }
+        return result;
+    }
+
+    private static List<ValetAnimalArea> readAnimalAreas(FriendlyByteBuf buf) {
+        int count = buf.readInt();
+        List<ValetAnimalArea> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            CompoundTag nbt = buf.readNbt();
+            if (nbt != null) {
+                result.add(ValetAnimalArea.readNbt(nbt));
             }
         }
         return result;

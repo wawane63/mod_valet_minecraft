@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PPP",
+    "CLC",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "C": {
+      "item": "minecraft:compass"
+    },
+    "L": {
+      "item": "minecraft:lectern"
+    }
+  },
+  "result": {
+    "item": "valet:valet_group_station",
+    "count": 1
+  }
+}

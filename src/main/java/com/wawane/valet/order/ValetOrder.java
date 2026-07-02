@@ -5,6 +5,7 @@ public enum ValetOrder {
     MINE_ORES("mine_ores", "order.valet.mine_ores"),
     CHOP_WOOD("chop_wood", "order.valet.chop_wood"),
     HARVEST_CROPS("harvest_crops", "order.valet.harvest_crops"),
+    BREED_ANIMALS("breed_animals", "order.valet.breed_animals"),
     BUILD_STRUCTURE("build_structure", "order.valet.build_structure"),
     CRAFT("craft", "order.valet.craft");
 

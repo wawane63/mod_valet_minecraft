@@ -10,6 +10,7 @@ public enum ValetRole {
     ARTISAN("role.valet.artisan"),
     COMBATANT("role.valet.combatant"),
     FARMER("role.valet.farmer"),
+    BREEDER("role.valet.breeder"),
     MAGICIAN("role.valet.magician");
 
     private final String translationKey;
@@ -31,6 +32,7 @@ public enum ValetRole {
                     || order == ValetOrder.CRAFT;
             case COMBATANT -> order == ValetOrder.NONE;
             case FARMER -> order == ValetOrder.NONE || order == ValetOrder.HARVEST_CROPS;
+            case BREEDER -> order == ValetOrder.NONE || order == ValetOrder.BREED_ANIMALS;
             case MAGICIAN -> order == ValetOrder.NONE;
         };
     }
@@ -49,6 +51,9 @@ public enum ValetRole {
         }
         if (state.is(ValetMod.FARMER_WORKSTATION)) {
             return FARMER;
+        }
+        if (state.is(ValetMod.ANIMAL_WORKSTATION)) {
+            return BREEDER;
         }
         if (state.is(ValetMod.MAGIC_WORKSTATION)) {
             return MAGICIAN;

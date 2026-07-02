@@ -2,6 +2,7 @@ package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.ValetRole;
+import com.wawane.valet.breeding.ValetAnimalArea;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
@@ -23,6 +24,13 @@ public record ValetOrdersViewModel(
         int currentFarmCropMask,
         boolean farmReplant,
         boolean farmTillSoil,
+        int currentAnimalAreaId,
+        boolean animalFeed,
+        boolean animalBreed,
+        boolean animalShear,
+        boolean animalCollectEggs,
+        boolean animalMilk,
+        int maxAnimals,
         boolean avoidNightReturn,
         boolean freeBehavior,
         int currentConstructionTargetId,
@@ -30,6 +38,7 @@ public record ValetOrdersViewModel(
         int[] oreCounts,
         int[] woodCounts,
         List<ValetFarmArea> farmAreas,
+        List<ValetAnimalArea> animalAreas,
         List<ValetConstructionBlueprint> constructions,
         List<ItemStack> valetInventory,
         int level,
@@ -53,6 +62,7 @@ public record ValetOrdersViewModel(
         oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
         woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
         farmAreas = List.copyOf(farmAreas);
+        animalAreas = List.copyOf(animalAreas);
         constructions = List.copyOf(constructions);
         valetInventory = copyInventory(valetInventory);
         perks = Arrays.copyOf(perks, ValetPerk.values().length);
@@ -88,6 +98,13 @@ public record ValetOrdersViewModel(
                 handler.getCurrentFarmCropMask(),
                 handler.shouldReplantFarm(),
                 handler.shouldTillFarm(),
+                handler.getCurrentAnimalAreaId(),
+                handler.shouldFeedAnimals(),
+                handler.shouldBreedAnimals(),
+                handler.shouldShearAnimals(),
+                handler.shouldCollectAnimalEggs(),
+                handler.shouldMilkAnimals(),
+                handler.getMaxAnimals(),
                 handler.shouldAvoidNightReturn(),
                 handler.isFreeBehavior(),
                 handler.getCurrentConstructionTargetId(),
@@ -95,6 +112,7 @@ public record ValetOrdersViewModel(
                 oreCounts,
                 woodCounts,
                 handler.getFarmAreas(),
+                handler.getAnimalAreas(),
                 handler.getConstructions(),
                 handler.getValetInventory(),
                 handler.getLevel(),

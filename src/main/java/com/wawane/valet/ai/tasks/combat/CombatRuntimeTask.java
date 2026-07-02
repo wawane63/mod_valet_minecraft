@@ -83,7 +83,6 @@ public final class CombatRuntimeTask {
             magicIceShots = 0;
             magicSupportCooldownTicks = 0;
             clearTarget();
-            ensureWoodenPickaxe();
             return false;
         }
 
@@ -91,13 +90,16 @@ public final class CombatRuntimeTask {
             tickMagicSupport(world);
         }
 
-        LivingEntity nextTarget = ValetCombatTargeting.chooseTarget(
-                world,
-                control.villager(),
-                target,
-                control.combatSearchRadius(),
-                control.combatChaseRadius()
-        );
+        LivingEntity nextTarget = control.chooseCommandedTarget(world, target);
+        if (nextTarget == null) {
+            nextTarget = ValetCombatTargeting.chooseTarget(
+                    world,
+                    control.villager(),
+                    target,
+                    control.combatSearchRadius(),
+                    control.combatChaseRadius()
+            );
+        }
         if (nextTarget == null) {
             if (target != null) {
                 clearTarget();
@@ -106,7 +108,7 @@ public final class CombatRuntimeTask {
             if (control.isMagicEnabled()) {
                 clearHeldItem();
             } else {
-                ensureWoodenPickaxe();
+                ensureWoodenSword();
             }
             return false;
         }
@@ -603,10 +605,6 @@ public final class CombatRuntimeTask {
         ensureHeldItem(Items.BOW);
     }
 
-    private void ensureWoodenPickaxe() {
-        ensureHeldItem(Items.WOODEN_PICKAXE);
-    }
-
     private void clearHeldItem() {
         Villager villager = control.villager();
         if (!villager.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()) {
@@ -710,6 +708,8 @@ public final class CombatRuntimeTask {
         int chestRadius();
 
         int getUsableInventorySlots(Container inventory);
+
+        LivingEntity chooseCommandedTarget(ServerLevel world, LivingEntity currentTarget);
 
         void animateChestUse(ServerLevel world, BlockPos pos);
 

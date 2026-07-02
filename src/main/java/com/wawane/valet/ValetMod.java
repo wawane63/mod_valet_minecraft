@@ -9,9 +9,16 @@ import com.wawane.valet.construction.ValetConstructionMarkers;
 import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.ai.core.ValetBlockReservations;
+import com.wawane.valet.ai.core.ValetEntityReservations;
+import com.wawane.valet.breeding.AnimalBeaconBlock;
+import com.wawane.valet.breeding.ValetAnimalMarkers;
 import com.wawane.valet.combat.InfiniteArrowChestBlock;
 import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
+import com.wawane.valet.group.ValetGroupCardItem;
+import com.wawane.valet.group.ValetGroupInteractions;
+import com.wawane.valet.group.ValetGroupStationBlock;
+import com.wawane.valet.gui.ValetGroupScreenHandler;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetBehavior;
@@ -19,6 +26,7 @@ import com.wawane.valet.state.ValetData;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -74,11 +82,15 @@ public class ValetMod implements ModInitializer {
     public static final Identifier VALET_WORKSTATION_ID = id("valet_workstation");
     public static final Identifier COMBAT_WORKSTATION_ID = id("combat_workstation");
     public static final Identifier FARMER_WORKSTATION_ID = id("farmer_workstation");
+    public static final Identifier ANIMAL_WORKSTATION_ID = id("poste_eleveur");
     public static final Identifier MAGIC_WORKSTATION_ID = id("magic_workstation");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
     public static final Identifier FARM_BEACON_ID = id("farm_beacon");
+    public static final Identifier ANIMAL_BEACON_ID = id("animal_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
     public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
+    public static final Identifier VALET_GROUP_STATION_ID = id("valet_group_station");
+    public static final Identifier VALET_GROUP_CARD_ID = id("valet_group_card");
     public static final ResourceKey<PoiType> VALET_POI_KEY = ResourceKey.create(
             Registries.POINT_OF_INTEREST_TYPE,
             VALET_WORKSTATION_ID
@@ -124,6 +136,18 @@ public class ValetMod implements ModInitializer {
             new BlockItem(FARMER_WORKSTATION, itemProperties(FARMER_WORKSTATION_ID))
     );
 
+    public static final Block ANIMAL_WORKSTATION = Registry.register(
+            BuiltInRegistries.BLOCK,
+            ANIMAL_WORKSTATION_ID,
+            new Block(blockProperties(ANIMAL_WORKSTATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.CRAFTING_TABLE).strength(2.5F)))
+    );
+
+    public static final Item ANIMAL_WORKSTATION_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            ANIMAL_WORKSTATION_ID,
+            new BlockItem(ANIMAL_WORKSTATION, itemProperties(ANIMAL_WORKSTATION_ID))
+    );
+
     public static final Block MAGIC_WORKSTATION = Registry.register(
             BuiltInRegistries.BLOCK,
             MAGIC_WORKSTATION_ID,
@@ -160,6 +184,18 @@ public class ValetMod implements ModInitializer {
             new BlockItem(FARM_BEACON, itemProperties(FARM_BEACON_ID))
     );
 
+    public static final Block ANIMAL_BEACON = Registry.register(
+            BuiltInRegistries.BLOCK,
+            ANIMAL_BEACON_ID,
+            new AnimalBeaconBlock(blockProperties(ANIMAL_BEACON_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.SCAFFOLDING).strength(0.8F)))
+    );
+
+    public static final Item ANIMAL_BEACON_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            ANIMAL_BEACON_ID,
+            new BlockItem(ANIMAL_BEACON, itemProperties(ANIMAL_BEACON_ID))
+    );
+
     public static final Block CONSTRUCTION_BLUEPRINT = Registry.register(
             BuiltInRegistries.BLOCK,
             CONSTRUCTION_BLUEPRINT_ID,
@@ -184,6 +220,24 @@ public class ValetMod implements ModInitializer {
             new BlockItem(INFINITE_ARROW_CHEST, itemProperties(INFINITE_ARROW_CHEST_ID))
     );
 
+    public static final Block VALET_GROUP_STATION = Registry.register(
+            BuiltInRegistries.BLOCK,
+            VALET_GROUP_STATION_ID,
+            new ValetGroupStationBlock(blockProperties(VALET_GROUP_STATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.LECTERN).strength(2.5F)))
+    );
+
+    public static final Item VALET_GROUP_STATION_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            VALET_GROUP_STATION_ID,
+            new BlockItem(VALET_GROUP_STATION, itemProperties(VALET_GROUP_STATION_ID))
+    );
+
+    public static final Item VALET_GROUP_CARD_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            VALET_GROUP_CARD_ID,
+            new ValetGroupCardItem(itemProperties(VALET_GROUP_CARD_ID).stacksTo(1))
+    );
+
     public static final BlockEntityType<ConstructionBlueprintBlockEntity> CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY = Registry.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
             CONSTRUCTION_BLUEPRINT_ID,
@@ -197,6 +251,7 @@ public class ValetMod implements ModInitializer {
             VALET_WORKSTATION,
             COMBAT_WORKSTATION,
             FARMER_WORKSTATION,
+            ANIMAL_WORKSTATION,
             MAGIC_WORKSTATION
     );
 
@@ -220,6 +275,12 @@ public class ValetMod implements ModInitializer {
             new ExtendedMenuType<>(ValetOrdersScreenHandler::new, ValetOrdersScreenHandler.OpeningData.CODEC)
     );
 
+    public static final MenuType<ValetGroupScreenHandler> VALET_GROUP_SCREEN_HANDLER = Registry.register(
+            BuiltInRegistries.MENU,
+            id("groups"),
+            new ExtendedMenuType<>(ValetGroupScreenHandler::new, ValetGroupScreenHandler.OpeningData.CODEC)
+    );
+
     public static Identifier id(String path) {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
@@ -237,17 +298,25 @@ public class ValetMod implements ModInitializer {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COMBAT_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARMER_WORKSTATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(MAGIC_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(INFINITE_ARROW_CHEST_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_GROUP_STATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> entries.accept(VALET_GROUP_CARD_ITEM));
+        UseEntityCallback.EVENT.register(ValetGroupInteractions::useEntity);
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
+        UseItemCallback.EVENT.register(ValetGroupInteractions::useItem);
+        UseBlockCallback.EVENT.register(ValetGroupInteractions::useBlock);
         UseBlockCallback.EVENT.register(ValetMod::recallValetAtWorkstation);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ValetConstructionMarkers.clear(handler.player.getUUID());
             ValetFarmMarkers.clear(handler.player.getUUID());
+            ValetAnimalMarkers.clear(handler.player.getUUID());
             ValetDebug.clear(handler.player.getUUID());
         });
         ServerTickEvents.END_LEVEL_TICK.register(world -> {
@@ -266,6 +335,7 @@ public class ValetMod implements ModInitializer {
             ValetWorkGoal.clearRestartRequest(villager.getUUID());
             ValetConversations.clear(villager.getUUID());
             ValetBlockReservations.releaseAll(villager.getUUID());
+            ValetEntityReservations.releaseAll(villager.getUUID());
             ValetBehavior.clearRecall(villager.getUUID());
         }
     }
@@ -275,8 +345,10 @@ public class ValetMod implements ModInitializer {
         ValetData.clearAllVillagerRuntime();
         ValetConstructionMarkers.clearAll();
         ValetFarmMarkers.clearAll();
+        ValetAnimalMarkers.clearAll();
         ValetDebug.clearAll();
         ValetBlockReservations.clearAll();
+        ValetEntityReservations.clearAll();
         GLOWING_VALETS.clear();
     }
 
@@ -416,6 +488,7 @@ public class ValetMod implements ModInitializer {
         ValetHome.clear(villager.getUUID());
         ValetOrders.clear(villager.getUUID());
         ValetBlockReservations.releaseAll(villager.getUUID());
+        ValetEntityReservations.releaseAll(villager.getUUID());
         ValetDebug.record(villager, "profession_removed reason=" + reason);
         LOGGER.info("Removed valet profession from {} reason={}", villager.getUUID(), reason);
     }
@@ -432,6 +505,7 @@ public class ValetMod implements ModInitializer {
         ValetConversations.clear(villager.getUUID());
         ValetData.clearVillagerRuntime(villager.getUUID());
         ValetBlockReservations.releaseAll(villager.getUUID());
+        ValetEntityReservations.releaseAll(villager.getUUID());
         ValetDebug.record(villager, "former_valet_runtime_cleared reason=" + reason);
     }
 
@@ -568,7 +642,7 @@ public class ValetMod implements ModInitializer {
     }
 
     public static boolean isValetWorkstation(net.minecraft.world.level.block.state.BlockState state) {
-        return state.is(VALET_WORKSTATION) || state.is(COMBAT_WORKSTATION) || state.is(FARMER_WORKSTATION) || state.is(MAGIC_WORKSTATION);
+        return state.is(VALET_WORKSTATION) || state.is(COMBAT_WORKSTATION) || state.is(FARMER_WORKSTATION) || state.is(ANIMAL_WORKSTATION) || state.is(MAGIC_WORKSTATION);
     }
 
     public static boolean isValet(net.minecraft.world.entity.npc.villager.VillagerData data) {

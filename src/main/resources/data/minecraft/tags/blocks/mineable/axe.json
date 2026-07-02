@@ -4,6 +4,9 @@
     "valet:valet_workstation",
     "valet:combat_workstation",
     "valet:farmer_workstation",
-    "valet:magic_workstation"
+    "valet:poste_eleveur",
+    "valet:magic_workstation",
+    "valet:valet_group_station",
+    "valet:animal_beacon"
   ]
 }

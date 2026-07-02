@@ -23,11 +23,68 @@ Regles obligatoires :
 | 0.3.0 | Decoupage metiers | `v0.3.0` | `build/libs/valet-0.3.0.jar` | `CDA87ACD625BF55BB0DF7F616D5295C5EDE34AFA5F57C993C8FB64AB18D489B3` |
 | 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB` |
 | 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
+| 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
+| 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `F83E6C61A400A70DFF223F16FBE5AA283CD8A11F03EA5B7EDE26DAED49B553BF` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
 Le jar `0.3.1` correspond a la release `v0.3.1`.
 Le jar `0.3.2` correspond a la release `v0.3.2`.
+La version `0.3.3` correspond a la creation de groupe, integree dans la publication `0.3.4`.
+Le jar `0.3.4` correspond a l'eleveur.
+
+## 0.3.4 - Eleveur
+
+Objectif : ajouter un poste dedie a l'elevage local.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Poste d'eleveur` (`valet:poste_eleveur`).
+- Ajout de la `Balise d'enclos`.
+- Deux balises d'enclos creent une zone poules, vaches, moutons ou cochons selon les animaux presents.
+- Interface dediee : selection d'enclos, reproduire, tondre, ramasser oeufs, traire et limite max animaux.
+- Ajout de `BreedingRuntimeTask`.
+- Ajout de reservations d'animaux pour eviter que deux valets ciblent le meme animal.
+- L'eleveur prend graines, ble, carottes, seaux et cisailles dans les coffres/barils proches.
+- Les oeufs sont ramasses dans l'enclos, les moutons peuvent etre tondus et les vaches traites.
+- Les portillons fermes peuvent etre ouverts pendant le trajet vers les enclos.
+- Correction : le `Poste d'eleveur` ne copie plus les proprietes lumineuses du smoker, ce qui evitait un crash au demarrage.
+- Correction : les portillons ouverts par le valet sont refermes automatiquement apres son passage.
+- Correction : l'elevage ne nourrit plus les animaux hors reproduction, pour ne plus vider le ble inutilement.
+- Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
+- Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
+
+Verification :
+
+- Jar actuel : `valet-0.3.4.jar`
+- SHA-256 : `F83E6C61A400A70DFF223F16FBE5AA283CD8A11F03EA5B7EDE26DAED49B553BF`
+- Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
+
+## 0.3.3 - Creation de groupe
+
+Objectif : creer et commander des groupes de valets.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Pupitre de groupe`, base sur le lutrin.
+- Ajout d'une interface de gestion : creation de groupes, valets proches, ajout/retrait par clic.
+- Ajout d'une `Carte de groupe` liee au groupe depuis l'interface.
+- Une corne de chevre tenue en main peut etre liee a un groupe.
+- Ordres de groupe : suivre, garde proche, garde large, attaque cible, attaque de zone et rappel.
+- La carte ou la corne liee controle le groupe : clic droit pour suivre, accroupi + clic droit pour cycler les ordres, clic sur monstre pour attaquer une cible, clic sur bloc pour attaquer une zone.
+- Les combattants et magiciens priorisent les cibles de groupe.
+- Les valets non combattants suivent et se rappellent sans recevoir de logique de combat forcee.
+- Le debug valet affiche le mode de groupe actif.
+- Correction apres lecture de `latest.log` : les commandes identiques ne relancent plus le groupe en boucle.
+- Correction apres lecture de `latest.log` : attaque/garde ne deplacent plus les artisans/fermiers vers les zones de combat.
+- Correction apres lecture de `latest.log` : ajout de la texture zombie-valet manquante.
+- Correction : les artisans et fermiers fuient les monstres proches.
+- Correction : stabilisation de l'item tenu en groupe pour eviter l'alternance epee/pioche.
+
+Verification :
+
+- Pas de jar separe publie pour `0.3.3`.
+- Contenu integre dans la publication `0.3.4`.
 
 ## 0.3.2 - Tri coffre + magicien
 

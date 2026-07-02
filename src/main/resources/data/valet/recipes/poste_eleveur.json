@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "WSW",
+    "BHB",
+    "PPP"
+  ],
+  "key": {
+    "W": {
+      "item": "minecraft:wheat"
+    },
+    "S": {
+      "item": "minecraft:shears"
+    },
+    "B": {
+      "item": "minecraft:bucket"
+    },
+    "H": {
+      "item": "minecraft:hay_block"
+    },
+    "P": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "item": "valet:poste_eleveur",
+    "count": 1
+  }
+}

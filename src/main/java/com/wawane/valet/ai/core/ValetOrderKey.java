@@ -18,6 +18,14 @@ public final class ValetOrderKey {
                     + ":" + ValetOrders.getFarmCropMask(villager)
                     + ":" + ValetOrders.shouldReplantFarm(villager)
                     + ":" + ValetOrders.shouldTillFarm(villager);
+            case BREED_ANIMALS -> order.getId()
+                    + ":" + ValetOrders.getAnimalAreaId(villager)
+                    + ":" + ValetOrders.shouldFeedAnimals(villager)
+                    + ":" + ValetOrders.shouldBreedAnimals(villager)
+                    + ":" + ValetOrders.shouldShearAnimals(villager)
+                    + ":" + ValetOrders.shouldCollectAnimalEggs(villager)
+                    + ":" + ValetOrders.shouldMilkAnimals(villager)
+                    + ":" + ValetOrders.getMaxAnimals(villager);
             case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
             case CRAFT -> order.getId() + ":" + ValetOrders.getCraftTarget(villager);
             case NONE -> order.getId();

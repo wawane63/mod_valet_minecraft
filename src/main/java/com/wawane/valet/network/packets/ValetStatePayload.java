@@ -34,6 +34,13 @@ public record ValetStatePayload(
         int farmCropMask,
         boolean farmReplant,
         boolean farmTillSoil,
+        int animalAreaId,
+        boolean animalFeed,
+        boolean animalBreed,
+        boolean animalShear,
+        boolean animalCollectEggs,
+        boolean animalMilk,
+        int maxAnimals,
         boolean avoidNightReturn,
         boolean freeBehavior,
         int constructionTargetId,
@@ -80,6 +87,13 @@ public record ValetStatePayload(
                 ValetOrders.getFarmCropMask(villager),
                 ValetOrders.shouldReplantFarm(villager),
                 ValetOrders.shouldTillFarm(villager),
+                ValetOrders.getAnimalAreaId(villager),
+                ValetOrders.shouldFeedAnimals(villager),
+                ValetOrders.shouldBreedAnimals(villager),
+                ValetOrders.shouldShearAnimals(villager),
+                ValetOrders.shouldCollectAnimalEggs(villager),
+                ValetOrders.shouldMilkAnimals(villager),
+                ValetOrders.getMaxAnimals(villager),
                 ValetBehavior.shouldAvoidNightReturn(villager),
                 ValetBehavior.isFreeBehavior(villager),
                 ValetOrders.getConstructionTargetId(villager),
@@ -116,6 +130,13 @@ public record ValetStatePayload(
         int farmCropMask = buf.readInt();
         boolean farmReplant = buf.readBoolean();
         boolean farmTillSoil = buf.readBoolean();
+        int animalAreaId = buf.readInt();
+        boolean animalFeed = buf.readBoolean();
+        boolean animalBreed = buf.readBoolean();
+        boolean animalShear = buf.readBoolean();
+        boolean animalCollectEggs = buf.readBoolean();
+        boolean animalMilk = buf.readBoolean();
+        int maxAnimals = buf.readInt();
         boolean avoidNightReturn = buf.readBoolean();
         boolean freeBehavior = buf.readBoolean();
         int constructionTargetId = buf.readInt();
@@ -144,7 +165,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, animalAreaId, animalFeed, animalBreed, animalShear, animalCollectEggs, animalMilk, maxAnimals, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -157,6 +178,13 @@ public record ValetStatePayload(
         buf.writeInt(farmCropMask);
         buf.writeBoolean(farmReplant);
         buf.writeBoolean(farmTillSoil);
+        buf.writeInt(animalAreaId);
+        buf.writeBoolean(animalFeed);
+        buf.writeBoolean(animalBreed);
+        buf.writeBoolean(animalShear);
+        buf.writeBoolean(animalCollectEggs);
+        buf.writeBoolean(animalMilk);
+        buf.writeInt(maxAnimals);
         buf.writeBoolean(avoidNightReturn);
         buf.writeBoolean(freeBehavior);
         buf.writeInt(constructionTargetId);

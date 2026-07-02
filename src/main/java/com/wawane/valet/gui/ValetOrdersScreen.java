@@ -2,6 +2,8 @@ package com.wawane.valet.gui;
 
 import com.wawane.valet.construction.ValetConstructionBlueprint;
 import com.wawane.valet.ValetRole;
+import com.wawane.valet.breeding.ValetAnimalArea;
+import com.wawane.valet.breeding.ValetAnimalType;
 import com.wawane.valet.farm.ValetFarmArea;
 import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetFarmCrop;
@@ -15,6 +17,7 @@ import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
+import com.wawane.valet.network.packets.SetBreedingOrderPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -86,13 +89,20 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private final List<OrderEntry> orderEntries = new ArrayList<>();
     private final ValetOrdersViewModel viewModel;
     private final List<ValetFarmArea> localFarmAreas;
+    private final List<ValetAnimalArea> localAnimalAreas;
     private final List<ValetConstructionBlueprint> localConstructions;
     private EditBox nameField;
+    private EditBox animalMaxField;
     private Button renameButton;
     private Button buildConstructionButton;
     private Button deleteConstructionButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
+    private Checkbox animalFeedCheckbox;
+    private Checkbox animalBreedCheckbox;
+    private Checkbox animalShearCheckbox;
+    private Checkbox animalEggsCheckbox;
+    private Checkbox animalMilkCheckbox;
     private Checkbox avoidNightReturnCheckbox;
     private Checkbox freeBehaviorCheckbox;
     private final List<Checkbox> farmCropCheckboxes = new ArrayList<>();
@@ -106,6 +116,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int selectedMineTargetIndex = -1;
     private int selectedWoodTargetIndex = -1;
     private int selectedFarmAreaId = -1;
+    private int selectedAnimalAreaId = -1;
     private int selectedConstructionTargetId = -1;
     private int selectedCraftTargetIndex = -1;
     private int localLevel;
@@ -124,6 +135,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int localFarmCropMask;
     private boolean localFarmReplant;
     private boolean localFarmTillSoil;
+    private boolean localAnimalFeed;
+    private boolean localAnimalBreed;
+    private boolean localAnimalShear;
+    private boolean localAnimalCollectEggs;
+    private boolean localAnimalMilk;
+    private int localMaxAnimals;
     private boolean localAvoidNightReturn;
     private boolean localFreeBehavior;
     private int[] localOreCounts;
@@ -140,18 +157,26 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         super(handler, inventory, title, SCREEN_WIDTH, SCREEN_HEIGHT);
         viewModel = ValetOrdersViewModel.fromHandler(handler);
         localFarmAreas = new ArrayList<>(viewModel.farmAreas());
+        localAnimalAreas = new ArrayList<>(viewModel.animalAreas());
         localConstructions = new ArrayList<>(viewModel.constructions());
         localRole = viewModel.role();
         selectedRightPage = defaultPageForRole();
         selectedPerk = defaultPerkForRole();
         ValetOrder currentOrder = viewModel.currentOrder();
-        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
+        selectedCategory = currentOrder == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : currentOrder == ValetOrder.MINE_ORES ? TargetCategory.ORE : currentOrder == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : currentOrder == ValetOrder.BREED_ANIMALS ? TargetCategory.ANIMAL : currentOrder == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : currentOrder == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = viewModel.currentMineTargetIndex();
         selectedWoodTargetIndex = viewModel.currentWoodTargetIndex();
         selectedFarmAreaId = viewModel.currentFarmAreaId();
         localFarmCropMask = viewModel.currentFarmCropMask();
         localFarmReplant = viewModel.farmReplant();
         localFarmTillSoil = viewModel.farmTillSoil();
+        selectedAnimalAreaId = viewModel.currentAnimalAreaId();
+        localAnimalFeed = false;
+        localAnimalBreed = viewModel.animalBreed();
+        localAnimalShear = viewModel.animalShear();
+        localAnimalCollectEggs = viewModel.animalCollectEggs();
+        localAnimalMilk = viewModel.animalMilk();
+        localMaxAnimals = viewModel.maxAnimals();
         localAvoidNightReturn = viewModel.avoidNightReturn();
         localFreeBehavior = viewModel.freeBehavior();
         selectedConstructionTargetId = viewModel.currentConstructionTargetId();
@@ -273,10 +298,68 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             farmCropCheckboxes.add(checkbox);
             cropIndex++;
         }
+        animalFeedCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_feed"), font)
+                .pos(farmOptionsLeft, farmOptionsTop)
+                .selected(localAnimalFeed)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalFeed = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalBreedCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_breed"), font)
+                .pos(farmOptionsLeft, farmOptionsTop)
+                .selected(localAnimalBreed)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalBreed = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalShearCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_shear"), font)
+                .pos(farmOptionsLeft + 128, farmOptionsTop)
+                .selected(localAnimalShear)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalShear = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalEggsCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_eggs"), font)
+                .pos(farmOptionsLeft, farmOptionsTop + 22)
+                .selected(localAnimalCollectEggs)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalCollectEggs = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalMilkCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_milk"), font)
+                .pos(farmOptionsLeft + 128, farmOptionsTop + 22)
+                .selected(localAnimalMilk)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalMilk = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalMaxField = addRenderableWidget(new EditBox(font, farmOptionsLeft + 128, farmOptionsTop + 47, 52, 16, Component.translatable("screen.valet.animal_max")));
+        animalMaxField.setMaxLength(2);
+        animalMaxField.setValue(Integer.toString(localMaxAnimals));
         generalPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_general"), button -> selectRightPage(RightPage.GENERAL))
                 .bounds(rightLeft + 10, top + 132, 58, 18)
                 .build());
-        swordPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_sword"), button -> selectRightPage(localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD))
+        swordPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_sword"), button -> selectRightPage(localRole == ValetRole.FARMER || localRole == ValetRole.BREEDER ? RightPage.FARM_OPTIONS : RightPage.SWORD))
                 .bounds(rightLeft + 72, top + 132, 48, 18)
                 .build());
         bowPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
@@ -666,7 +749,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private void drawFarmOptions(GuiGraphicsExtractor context) {
         int left = getRightPanelLeft();
         int top = getPanelTop();
-        context.text(font, Component.translatable("screen.valet.farm_crops"), left + 16, top + 204, 0xFF303030, false);
+        if (localRole == ValetRole.BREEDER) {
+            context.text(font, Component.translatable("screen.valet.animal_options"), left + 16, top + 204, 0xFF303030, false);
+            context.text(font, Component.translatable("screen.valet.animal_max"), left + 184, top + 219, 0xFF303030, false);
+        } else {
+            context.text(font, Component.translatable("screen.valet.farm_crops"), left + 16, top + 204, 0xFF303030, false);
+        }
     }
 
     private void rebuildOrderEntries() {
@@ -720,13 +808,21 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.farm_area_count", area.name(), area.blockCount()))));
             }
         }
+        if (localRole == ValetRole.BREEDER) {
+            orderEntries.add(OrderEntry.category(TargetCategory.ANIMAL, Component.translatable("screen.valet.category_animals")));
+            orderEntries.add(OrderEntry.target(ValetOrder.BREED_ANIMALS, -1, Component.literal("  ").append(Component.translatable("screen.valet.animal_all"))));
+            for (ValetAnimalArea area : localAnimalAreas) {
+                Component typeLabel = getAnimalTypeLabel(area);
+                orderEntries.add(OrderEntry.target(ValetOrder.BREED_ANIMALS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.animal_area_count", area.name(), typeLabel))));
+            }
+        }
         clampOrderScroll();
         updateConstructionButtons();
         updateFarmControls();
     }
 
     private TargetCategory defaultCategoryForRole() {
-        return localRole == ValetRole.FARMER ? TargetCategory.FARM : TargetCategory.NONE;
+        return localRole == ValetRole.FARMER ? TargetCategory.FARM : localRole == ValetRole.BREEDER ? TargetCategory.ANIMAL : TargetCategory.NONE;
     }
 
     private boolean isCategoryAllowed(TargetCategory category) {
@@ -737,6 +833,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                     || category == TargetCategory.CONSTRUCTION
                     || category == TargetCategory.CRAFT;
             case FARMER -> category == TargetCategory.NONE || category == TargetCategory.FARM;
+            case BREEDER -> category == TargetCategory.NONE || category == TargetCategory.ANIMAL;
             case COMBATANT -> category == TargetCategory.NONE;
             case MAGICIAN -> category == TargetCategory.NONE;
         };
@@ -758,6 +855,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (entry.order == ValetOrder.HARVEST_CROPS) {
             return selectedCategory == TargetCategory.FARM && selectedFarmAreaId == entry.targetIndex;
         }
+        if (entry.order == ValetOrder.BREED_ANIMALS) {
+            return selectedCategory == TargetCategory.ANIMAL && selectedAnimalAreaId == entry.targetIndex;
+        }
         if (entry.order == ValetOrder.BUILD_STRUCTURE) {
             return selectedCategory == TargetCategory.CONSTRUCTION && selectedConstructionTargetId == entry.targetIndex;
         }
@@ -772,6 +872,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case ORE -> Component.translatable("screen.valet.available_ores");
             case WOOD -> Component.translatable("screen.valet.available_wood");
             case FARM -> Component.translatable("screen.valet.available_farm");
+            case ANIMAL -> Component.translatable("screen.valet.available_animals");
             case CONSTRUCTION -> Component.translatable("screen.valet.available_constructions");
             case CRAFT -> Component.translatable("screen.valet.available_craft");
             case NONE -> Component.translatable("screen.valet.available_targets");
@@ -783,6 +884,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case ORE -> Component.translatable("screen.valet.category_ores");
             case WOOD -> Component.translatable("screen.valet.category_wood");
             case FARM -> Component.translatable("screen.valet.category_farm");
+            case ANIMAL -> Component.translatable("screen.valet.category_animals");
             case CONSTRUCTION -> Component.translatable("screen.valet.category_constructions");
             case CRAFT -> Component.translatable("screen.valet.category_craft");
             case NONE -> Component.translatable("order.valet.none");
@@ -805,6 +907,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (selectedCategory == TargetCategory.FARM) {
             ValetFarmArea area = getSelectedFarmArea();
             return area == null ? Component.translatable("screen.valet.farm_all") : Component.literal(area.name());
+        }
+        if (selectedCategory == TargetCategory.ANIMAL) {
+            ValetAnimalArea area = getSelectedAnimalArea();
+            return area == null ? Component.translatable("screen.valet.animal_all") : Component.literal(area.name());
         }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             ValetConstructionBlueprint construction = getSelectedConstruction();
@@ -830,6 +936,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (selectedCategory == TargetCategory.FARM) {
             return localFarmAreas.isEmpty() ? Component.translatable("screen.valet.farm_hint") : Component.translatable("screen.valet.farm_beacon_hint");
         }
+        if (selectedCategory == TargetCategory.ANIMAL) {
+            return localAnimalAreas.isEmpty() ? Component.translatable("screen.valet.animal_hint") : Component.translatable("screen.valet.animal_beacon_hint");
+        }
         return Component.translatable("screen.valet.mine_hint");
     }
 
@@ -840,6 +949,20 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             }
         }
         return null;
+    }
+
+    private ValetAnimalArea getSelectedAnimalArea() {
+        for (ValetAnimalArea area : localAnimalAreas) {
+            if (area.id() == selectedAnimalAreaId) {
+                return area;
+            }
+        }
+        return null;
+    }
+
+    private Component getAnimalTypeLabel(ValetAnimalArea area) {
+        ValetAnimalType type = area.animalType();
+        return type == null ? Component.translatable("screen.valet.animal_mixed") : Component.translatable(type.getTranslationKey());
     }
 
     private ValetConstructionBlueprint getSelectedConstruction() {
@@ -905,7 +1028,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (localRole) {
             case FARMER -> FARMER_TREE_PERKS;
             case MAGICIAN -> MAGIC_TREE_PERKS;
-            case ARTISAN, COMBATANT -> ARTISAN_TREE_PERKS;
+            case ARTISAN, BREEDER, COMBATANT -> ARTISAN_TREE_PERKS;
         };
     }
 
@@ -1185,20 +1308,27 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         localRole = ValetRole.fromIndex(roleIndex);
         ensurePageForRole();
         if (selectedPerk.getRole() != localRole) {
             selectedPerk = defaultPerkForRole();
         }
         ValetOrder order = ValetOrder.fromIndex(orderIndex);
-        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
+        selectedCategory = order == ValetOrder.CHOP_WOOD ? TargetCategory.WOOD : order == ValetOrder.MINE_ORES ? TargetCategory.ORE : order == ValetOrder.HARVEST_CROPS ? TargetCategory.FARM : order == ValetOrder.BREED_ANIMALS ? TargetCategory.ANIMAL : order == ValetOrder.BUILD_STRUCTURE ? TargetCategory.CONSTRUCTION : order == ValetOrder.CRAFT ? TargetCategory.CRAFT : TargetCategory.NONE;
         selectedMineTargetIndex = mineTargetIndex;
         selectedWoodTargetIndex = woodTargetIndex;
         selectedFarmAreaId = farmAreaId;
         localFarmCropMask = farmCropMask;
         localFarmReplant = farmReplant;
         localFarmTillSoil = farmTillSoil;
+        selectedAnimalAreaId = animalAreaId;
+        localAnimalFeed = false;
+        localAnimalBreed = animalBreed;
+        localAnimalShear = animalShear;
+        localAnimalCollectEggs = animalCollectEggs;
+        localAnimalMilk = animalMilk;
+        localMaxAnimals = maxAnimals;
         localAvoidNightReturn = avoidNightReturn;
         localFreeBehavior = freeBehavior;
         selectedConstructionTargetId = constructionTargetId;
@@ -1229,6 +1359,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (nameField != null) {
             nameField.setValue(localValetName);
         }
+        if (animalMaxField != null) {
+            animalMaxField.setValue(Integer.toString(localMaxAnimals));
+        }
         rebuildOrderEntries();
     }
 
@@ -1247,6 +1380,22 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             nameField.keyPressed(event);
             return true;
         }
+        if (animalMaxField != null && animalMaxField.isFocused()) {
+            if (keyCode == 257 || keyCode == 335) {
+                readAnimalMaxField();
+                if (selectedCategory == TargetCategory.ANIMAL) {
+                    sendBreedingSelection(false);
+                }
+                animalMaxField.setFocused(false);
+                return true;
+            }
+            if (keyCode == 256) {
+                animalMaxField.setFocused(false);
+                return true;
+            }
+            animalMaxField.keyPressed(event);
+            return true;
+        }
         return super.keyPressed(event);
     }
 
@@ -1254,6 +1403,13 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     public boolean charTyped(CharacterEvent event) {
         if (nameField != null && nameField.isFocused()) {
             return nameField.charTyped(event);
+        }
+        if (animalMaxField != null && animalMaxField.isFocused()) {
+            int codepoint = event.codepoint();
+            if (codepoint >= '0' && codepoint <= '9') {
+                return animalMaxField.charTyped(event);
+            }
+            return true;
         }
         return super.charTyped(event);
     }
@@ -1280,6 +1436,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             selectedMineTargetIndex = -1;
             selectedWoodTargetIndex = -1;
             selectedFarmAreaId = -1;
+            selectedAnimalAreaId = -1;
             selectedConstructionTargetId = -1;
             selectedCraftTargetIndex = -1;
         } else if (order == ValetOrder.MINE_ORES) {
@@ -1291,6 +1448,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         } else if (order == ValetOrder.HARVEST_CROPS) {
             selectedCategory = TargetCategory.FARM;
             selectedFarmAreaId = targetIndex;
+        } else if (order == ValetOrder.BREED_ANIMALS) {
+            selectedCategory = TargetCategory.ANIMAL;
+            selectedAnimalAreaId = targetIndex;
         } else if (order == ValetOrder.BUILD_STRUCTURE) {
             selectedCategory = TargetCategory.CONSTRUCTION;
             selectedConstructionTargetId = targetIndex;
@@ -1305,11 +1465,33 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             return;
         }
 
+        if (order == ValetOrder.BREED_ANIMALS) {
+            sendBreedingSelection(true);
+            return;
+        }
+
         ClientPlayNetworking.send(new SetOrderPayload(viewModel.valetEntityId(), order, targetIndex));
     }
 
     private void sendFarmSelection(boolean closeScreen) {
         ClientPlayNetworking.send(new SetFarmOrderPayload(viewModel.valetEntityId(), selectedFarmAreaId, localFarmCropMask, localFarmReplant, localFarmTillSoil, closeScreen));
+    }
+
+    private void sendBreedingSelection(boolean closeScreen) {
+        readAnimalMaxField();
+        ClientPlayNetworking.send(new SetBreedingOrderPayload(viewModel.valetEntityId(), selectedAnimalAreaId, false, localAnimalBreed, localAnimalShear, localAnimalCollectEggs, localAnimalMilk, localMaxAnimals, closeScreen));
+    }
+
+    private void readAnimalMaxField() {
+        if (animalMaxField == null) {
+            return;
+        }
+        try {
+            localMaxAnimals = Math.max(2, Math.min(64, Integer.parseInt(animalMaxField.getValue())));
+        } catch (NumberFormatException ignored) {
+            localMaxAnimals = com.wawane.valet.order.ValetOrders.DEFAULT_MAX_ANIMALS;
+        }
+        animalMaxField.setValue(Integer.toString(localMaxAnimals));
     }
 
     private void sendBehaviorSettings() {
@@ -1398,6 +1580,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private RightPage defaultPageForRole() {
         return switch (localRole) {
             case COMBATANT -> RightPage.SWORD;
+            case BREEDER -> RightPage.FARM_OPTIONS;
             case MAGICIAN -> RightPage.GENERAL;
             case ARTISAN, FARMER -> RightPage.GENERAL;
         };
@@ -1407,7 +1590,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (localRole) {
             case FARMER -> ValetPerk.FARM_HANDS;
             case MAGICIAN -> ValetPerk.MAGIC_ICE;
-            case ARTISAN, COMBATANT -> ValetPerk.SPEED;
+            case ARTISAN, BREEDER, COMBATANT -> ValetPerk.SPEED;
         };
     }
 
@@ -1415,6 +1598,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (localRole) {
             case ARTISAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
             case FARMER -> page == RightPage.GENERAL || page == RightPage.FARM_OPTIONS || page == RightPage.INVENTORY;
+            case BREEDER -> page == RightPage.FARM_OPTIONS || page == RightPage.INVENTORY;
             case COMBATANT -> page == RightPage.SWORD || page == RightPage.BOW || page == RightPage.INVENTORY;
             case MAGICIAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
         };
@@ -1423,11 +1607,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private void updatePageButtons() {
         String generalPageKey = switch (localRole) {
             case FARMER -> "screen.valet.page_farmer";
+            case BREEDER -> "screen.valet.page_breeder";
             case MAGICIAN -> "screen.valet.page_magic";
             case ARTISAN, COMBATANT -> "screen.valet.page_artisan";
         };
         updatePageButton(generalPageButton, RightPage.GENERAL, generalPageKey, localRole == ValetRole.ARTISAN || localRole == ValetRole.FARMER || localRole == ValetRole.MAGICIAN);
-        updatePageButton(swordPageButton, localRole == ValetRole.FARMER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole == ValetRole.FARMER || localRole == ValetRole.COMBATANT);
+        updatePageButton(swordPageButton, localRole == ValetRole.FARMER || localRole == ValetRole.BREEDER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.BREEDER ? "screen.valet.page_animal_options" : localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole == ValetRole.FARMER || localRole == ValetRole.BREEDER || localRole == ValetRole.COMBATANT);
         updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow", localRole == ValetRole.COMBATANT);
         updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory", true);
     }
@@ -1461,16 +1646,42 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             return;
         }
 
-        boolean visible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.FARM;
-        replantFarmCheckbox.visible = visible;
-        replantFarmCheckbox.active = visible;
+        boolean farmVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.FARM;
+        replantFarmCheckbox.visible = farmVisible;
+        replantFarmCheckbox.active = farmVisible;
         if (tillFarmCheckbox != null) {
-            tillFarmCheckbox.visible = visible;
-            tillFarmCheckbox.active = visible;
+            tillFarmCheckbox.visible = farmVisible;
+            tillFarmCheckbox.active = farmVisible;
         }
         for (Checkbox checkbox : farmCropCheckboxes) {
-            checkbox.visible = visible;
-            checkbox.active = visible;
+            checkbox.visible = farmVisible;
+            checkbox.active = farmVisible;
+        }
+
+        boolean animalVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.ANIMAL;
+        if (animalFeedCheckbox != null) {
+            animalFeedCheckbox.visible = false;
+            animalFeedCheckbox.active = false;
+        }
+        if (animalBreedCheckbox != null) {
+            animalBreedCheckbox.visible = animalVisible;
+            animalBreedCheckbox.active = animalVisible;
+        }
+        if (animalShearCheckbox != null) {
+            animalShearCheckbox.visible = animalVisible;
+            animalShearCheckbox.active = animalVisible;
+        }
+        if (animalEggsCheckbox != null) {
+            animalEggsCheckbox.visible = animalVisible;
+            animalEggsCheckbox.active = animalVisible;
+        }
+        if (animalMilkCheckbox != null) {
+            animalMilkCheckbox.visible = animalVisible;
+            animalMilkCheckbox.active = animalVisible;
+        }
+        if (animalMaxField != null) {
+            animalMaxField.visible = animalVisible;
+            animalMaxField.setEditable(animalVisible);
         }
     }
 
@@ -1535,6 +1746,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         ORE,
         WOOD,
         FARM,
+        ANIMAL,
         CONSTRUCTION,
         CRAFT
     }

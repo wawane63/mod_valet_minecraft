@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.3.4 - Eleveur
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Poste d'eleveur` (`valet:poste_eleveur`).
+- Ajout de la `Balise d'enclos` pour declarer des zones poules, vaches, moutons et cochons.
+- L'interface de l'eleveur permet de choisir un enclos ou tous les enclos.
+- Options UI : reproduire, tondre, ramasser oeufs, traire et limite max animaux.
+- Ajout de `BreedingRuntimeTask` pour gerer l'elevage.
+- Ajout de reservations d'animaux pour eviter que deux valets ciblent le meme animal.
+- L'eleveur prend graines, ble, carottes, seaux et cisailles dans les coffres/barils proches.
+- Les portillons fermes peuvent etre ouverts pendant le trajet vers les enclos.
+- Correction : le `Poste d'eleveur` ne copie plus les proprietes lumineuses du smoker, ce qui evitait un crash au demarrage.
+- Correction : les portillons ouverts par le valet sont refermes automatiquement apres son passage.
+- Correction : l'elevage ne nourrit plus les animaux hors reproduction, pour ne plus vider le ble inutilement.
+- Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
+- Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
+
+## 0.3.3 - Creation de groupe
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Pupitre de groupe`, base sur le bloc de lutrin.
+- Ajout d'une interface de creation de groupes : groupes, valets proches, ajout/retrait par clic.
+- Ajout d'une `Carte de groupe` liee au groupe depuis l'interface.
+- Une corne de chevre tenue en main peut etre liee a un groupe depuis le pupitre.
+- Commandes de groupe : suivre, garde proche, garde large, attaque de zone et rappel.
+- Clic droit avec carte/corne liee : le groupe suit le joueur.
+- Accroupi + clic droit avec carte/corne liee : cycle suivre -> garde proche -> garde large -> rappel.
+- Clic sur un monstre avec carte/corne liee : attaque cible.
+- Clic sur un bloc avec carte/corne liee : attaque de zone autour du bloc.
+- Les combattants et magiciens utilisent les ordres de groupe comme priorite de ciblage, sans casser leurs comportements de combat existants.
+- Les valets non combattants peuvent suivre et etre rappeles, mais ne recoivent pas de logique de combat forcee.
+- Correction apres test log : les commandes identiques ne relancent plus le groupe en boucle et les ordres attaque/garde ne deplacent plus les non-combattants vers le combat.
+- Correction apres test log : ajout de la texture zombie-valet manquante pour eviter le warning de ressource.
+- Correction : les artisans et fermiers fuient les monstres proches au lieu de continuer leur travail.
+- Correction : un valet en groupe ne bascule plus rapidement entre epee et pioche quand il perd/retrouve une cible.
+
 ## 0.3.2 - Tri coffre + magicien
 
 Bugs corriges / fonctionnalite :
