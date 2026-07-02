@@ -42,6 +42,7 @@ public final class BreedingRuntimeTask {
     private static final int FAILED_TARGET_MEMORY_TICKS = 240;
     private static final int MILK_COOLDOWN_TICKS = 6000;
     private static final int MAX_PATH_FAILURES_BEFORE_BACKOFF = 5;
+    private static final int AREA_VERTICAL_MARGIN = 2;
 
     private final Control control;
     private final Map<UUID, Integer> failedTargets = new HashMap<>();
@@ -98,7 +99,7 @@ public final class BreedingRuntimeTask {
         WorkTarget target = findWorkTarget(world, workOrigin, area);
         if (target == null) {
             releaseReservedEntities(world);
-            ValetDebug.record(control.villager(), "breeding no_target");
+            ValetDebug.record(control.villager(), "breeding no_target animals=" + countAnimalsInScope(world, workOrigin, area));
             control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
             control.setDelayTicks(control.noTargetDelayTicks());
             return;
@@ -275,14 +276,12 @@ public final class BreedingRuntimeTask {
     }
 
     private WorkTarget findShearTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
-        if (!ensureItemAvailable(world, workOrigin, Items.SHEARS, 1)) {
-            return null;
-        }
-
         List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> animal instanceof Sheep sheep && sheep.readyForShearing());
         animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
         for (Animal animal : animals) {
-            if (!isFailedTarget(animal.getUUID()) && !control.isEntityReservedByOther(world, animal)) {
+            if (!isFailedTarget(animal.getUUID())
+                    && !control.isEntityReservedByOther(world, animal)
+                    && ensureItemAvailable(world, workOrigin, Items.SHEARS, 1)) {
                 return new WorkTarget(Action.SHEAR, animal.getUUID(), null, animal.blockPosition());
             }
         }
@@ -290,14 +289,13 @@ public final class BreedingRuntimeTask {
     }
 
     private WorkTarget findMilkTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
-        if (!ensureItemAvailable(world, workOrigin, Items.BUCKET, 1)) {
-            return null;
-        }
-
         List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> animal instanceof Cow && !animal.isBaby());
         animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
         for (Animal animal : animals) {
-            if (!isFailedTarget(animal.getUUID()) && !isMilkCoolingDown(animal.getUUID()) && !control.isEntityReservedByOther(world, animal)) {
+            if (!isFailedTarget(animal.getUUID())
+                    && !isMilkCoolingDown(animal.getUUID())
+                    && !control.isEntityReservedByOther(world, animal)
+                    && ensureItemAvailable(world, workOrigin, Items.BUCKET, 1)) {
                 return new WorkTarget(Action.MILK, animal.getUUID(), null, animal.blockPosition());
             }
         }
@@ -342,9 +340,20 @@ public final class BreedingRuntimeTask {
         return animalsInScope(world, workOrigin, area, animal -> type.matches(animal)).size();
     }
 
+    private int countAnimalsInScope(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
+        return animalsInScope(world, workOrigin, area, animal -> true).size();
+    }
+
     private AABB scopeBounds(BlockPos workOrigin, ValetAnimalArea area) {
         if (area != null) {
-            return area.bounds();
+            return new AABB(
+                    area.minX(),
+                    area.minY() - AREA_VERTICAL_MARGIN,
+                    area.minZ(),
+                    area.maxX() + 1.0D,
+                    area.maxY() + AREA_VERTICAL_MARGIN + 1.0D,
+                    area.maxZ() + 1.0D
+            );
         }
         int radius = control.animalRadius();
         int verticalRadius = control.animalVerticalRadius();
@@ -359,7 +368,13 @@ public final class BreedingRuntimeTask {
     }
 
     private boolean isInsideArea(BlockPos pos, ValetAnimalArea area) {
-        return area == null || area.contains(pos);
+        return area == null
+                || (pos.getX() >= area.minX()
+                && pos.getX() <= area.maxX()
+                && pos.getY() >= area.minY() - AREA_VERTICAL_MARGIN
+                && pos.getY() <= area.maxY() + AREA_VERTICAL_MARGIN
+                && pos.getZ() >= area.minZ()
+                && pos.getZ() <= area.maxZ());
     }
 
     private boolean breedPair(ServerLevel world, Animal first, Animal second) {

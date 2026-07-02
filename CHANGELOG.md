@@ -17,6 +17,7 @@ Bugs corriges / fonctionnalite :
 - Correction : l'elevage ne nourrit plus les animaux hors reproduction, pour ne plus vider le ble inutilement.
 - Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
 - Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
+- Correction apres log : l'eleveur ne prend plus seau/cisailles sans cible valide et les enclos tolerent un decalage vertical de balises.
 
 ## 0.3.3 - Creation de groupe
 

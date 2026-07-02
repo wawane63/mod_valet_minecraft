@@ -18,6 +18,7 @@ public final class ValetAnimalMarkers {
     private static final int MAX_WIDTH = 64;
     private static final int MAX_DEPTH = 64;
     private static final int MAX_HEIGHT = 24;
+    private static final int DETECTION_VERTICAL_MARGIN = 2;
     private static final Map<UUID, Marker> FIRST_MARKERS = new ConcurrentHashMap<>();
 
     private ValetAnimalMarkers() {
@@ -63,7 +64,14 @@ public final class ValetAnimalMarkers {
             return;
         }
 
-        ValetAnimalType type = detectDominantType(world, new AABB(minX, minY, minZ, maxX + 1.0D, maxY + 1.0D, maxZ + 1.0D));
+        ValetAnimalType type = detectDominantType(world, new AABB(
+                minX,
+                minY - DETECTION_VERTICAL_MARGIN,
+                minZ,
+                maxX + 1.0D,
+                maxY + DETECTION_VERTICAL_MARGIN + 1.0D,
+                maxZ + 1.0D
+        ));
         ValetAnimalStorage storage = ValetAnimalStorage.get(world);
         ValetAnimalArea area = storage.addArea(
                 storage.nextDefaultName(type),

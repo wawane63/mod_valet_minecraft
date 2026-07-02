@@ -24,7 +24,7 @@ Regles obligatoires :
 | 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB` |
 | 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
-| 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `F83E6C61A400A70DFF223F16FBE5AA283CD8A11F03EA5B7EDE26DAED49B553BF` |
+| 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `03B69689EA3ACF061F0AF78E251F5938B704E70D487B0331D0DC37B59505F87B` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -53,11 +53,12 @@ Bugs corriges / fonctionnalite :
 - Correction : l'elevage ne nourrit plus les animaux hors reproduction, pour ne plus vider le ble inutilement.
 - Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
 - Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
+- Correction apres log : l'eleveur ne prend plus seau/cisailles sans cible valide et les enclos tolerent un decalage vertical de balises.
 
 Verification :
 
 - Jar actuel : `valet-0.3.4.jar`
-- SHA-256 : `F83E6C61A400A70DFF223F16FBE5AA283CD8A11F03EA5B7EDE26DAED49B553BF`
+- SHA-256 : `03B69689EA3ACF061F0AF78E251F5938B704E70D487B0331D0DC37B59505F87B`
 - Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.3.3 - Creation de groupe
