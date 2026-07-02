@@ -24,7 +24,7 @@ Regles obligatoires :
 | 0.3.1 | Crafts bois | `v0.3.1` | `build/libs/valet-0.3.1.jar` | `3003512D386DCC04BFC55DB42072BD10C9BFD8A9E498446E1A6684BC2DA772EB` |
 | 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
-| 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `03B69689EA3ACF061F0AF78E251F5938B704E70D487B0331D0DC37B59505F87B` |
+| 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `2DC045E5225419A7EAB3652A096F83B40D9FF539A9B93E5E8E60AF2A2827B2B5` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -42,7 +42,7 @@ Bugs corriges / fonctionnalite :
 - Ajout du `Poste d'eleveur` (`valet:poste_eleveur`).
 - Ajout de la `Balise d'enclos`.
 - Deux balises d'enclos creent une zone poules, vaches, moutons ou cochons selon les animaux presents.
-- Interface dediee : selection d'enclos, reproduire, tondre, ramasser oeufs, traire et limite max animaux.
+- Interface dediee : selection d'enclos, reproduire, tondre, ramasser oeufs, traire, abattre surplus et limite max animaux.
 - Ajout de `BreedingRuntimeTask`.
 - Ajout de reservations d'animaux pour eviter que deux valets ciblent le meme animal.
 - L'eleveur prend graines, ble, carottes, seaux et cisailles dans les coffres/barils proches.
@@ -54,11 +54,20 @@ Bugs corriges / fonctionnalite :
 - Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
 - Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
 - Correction apres log : l'eleveur ne prend plus seau/cisailles sans cible valide et les enclos tolerent un decalage vertical de balises.
+- Ajout : option `Abattre surplus`, uniquement dans les enclos balises, au-dessus de 4 animaux par bloc de surface.
+- Correction : les parents reproduits passent en cooldown interne pour eviter les bebes en rafale.
+- Correction apres log : `Max` devient aussi le plafond d'abattage; la densite `surface * 4` reste seulement une limite de securite.
+- Ajustement : le `Max` animaux par defaut passe de 12 a 8.
+- Migration : les limites animaux sauvegardees passent a environ deux tiers au prochain chargement.
+- Correction : le fermier cible et ramasse les drops de cultures deja au sol dans sa zone.
+- Correction apres log : un depot vide ne bloque plus les valets en boucle coffre, ils reprennent le travail si possible.
+- Correction apres log : avec `Abattre surplus`, l'eleveur abat des que l'enclos atteint `Max`, ce qui relance le cycle au lieu de rester bloque a la limite.
+- Correction : l'abattage priorise les parents en cooldown, donc ceux qui viennent de reproduire.
 
 Verification :
 
 - Jar actuel : `valet-0.3.4.jar`
-- SHA-256 : `03B69689EA3ACF061F0AF78E251F5938B704E70D487B0331D0DC37B59505F87B`
+- SHA-256 : `2DC045E5225419A7EAB3652A096F83B40D9FF539A9B93E5E8E60AF2A2827B2B5`
 - Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.3.3 - Creation de groupe

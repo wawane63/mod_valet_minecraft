@@ -41,12 +41,15 @@ public final class BreedingRuntimeTask {
     private static final int ENTITY_RESERVATION_TICKS = 600;
     private static final int FAILED_TARGET_MEMORY_TICKS = 240;
     private static final int MILK_COOLDOWN_TICKS = 6000;
+    private static final int BREED_PARENT_COOLDOWN_TICKS = 6000;
     private static final int MAX_PATH_FAILURES_BEFORE_BACKOFF = 5;
     private static final int AREA_VERTICAL_MARGIN = 2;
+    private static final int CULL_ANIMALS_PER_SURFACE_BLOCK = 4;
 
     private final Control control;
     private final Map<UUID, Integer> failedTargets = new HashMap<>();
     private final Map<UUID, Integer> milkCooldowns = new HashMap<>();
+    private final Map<UUID, Integer> breedCooldowns = new HashMap<>();
     private UUID primaryEntityUuid;
     private UUID secondaryEntityUuid;
     private BlockPos targetPos;
@@ -74,6 +77,16 @@ public final class BreedingRuntimeTask {
             int ticks = entry.getValue() - 1;
             if (ticks <= 0) {
                 milkIterator.remove();
+            } else {
+                entry.setValue(ticks);
+            }
+        }
+        Iterator<Map.Entry<UUID, Integer>> breedIterator = breedCooldowns.entrySet().iterator();
+        while (breedIterator.hasNext()) {
+            Map.Entry<UUID, Integer> entry = breedIterator.next();
+            int ticks = entry.getValue() - 1;
+            if (ticks <= 0) {
+                breedIterator.remove();
             } else {
                 entry.setValue(ticks);
             }
@@ -169,6 +182,7 @@ public final class BreedingRuntimeTask {
             case SHEAR -> shearSheep(world, primary);
             case COLLECT_EGG -> collectEgg(world, primary);
             case MILK -> milkCow(world, primary);
+            case CULL -> cullAnimal(world, primary);
             case NONE -> false;
         };
 
@@ -192,6 +206,7 @@ public final class BreedingRuntimeTask {
         clearTarget(world);
         failedTargets.clear();
         milkCooldowns.clear();
+        breedCooldowns.clear();
         pathFailures = 0;
     }
 
@@ -200,6 +215,7 @@ public final class BreedingRuntimeTask {
             case SHEAR -> Items.SHEARS;
             case MILK -> Items.BUCKET;
             case COLLECT_EGG -> Items.EGG;
+            case CULL -> Items.WOODEN_SWORD;
             case BREED -> {
                 if (control.villager().level() instanceof ServerLevel world) {
                     Animal animal = resolvePrimaryAnimal(world);
@@ -219,6 +235,12 @@ public final class BreedingRuntimeTask {
     }
 
     private WorkTarget findWorkTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
+        if (ValetOrders.shouldCullAnimals(control.villager())) {
+            WorkTarget target = findCullTarget(world, workOrigin, area);
+            if (target != null) {
+                return target;
+            }
+        }
         if (ValetOrders.shouldBreedAnimals(control.villager())) {
             WorkTarget target = findBreedTarget(world, workOrigin, area);
             if (target != null) {
@@ -246,16 +268,64 @@ public final class BreedingRuntimeTask {
         return null;
     }
 
+    private WorkTarget findCullTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea selectedArea) {
+        if (!control.hasInventorySpace()) {
+            return null;
+        }
+        if (selectedArea != null) {
+            return findCullTargetInArea(world, workOrigin, selectedArea);
+        }
+
+        List<ValetAnimalArea> areas = new ArrayList<>(control.getAnimalAreas(world));
+        areas.sort(Comparator.comparingDouble(area -> squaredDistance(control.villager().blockPosition(), areaCenter(area))));
+        for (ValetAnimalArea area : areas) {
+            WorkTarget target = findCullTargetInArea(world, workOrigin, area);
+            if (target != null) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    private WorkTarget findCullTargetInArea(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
+        List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> true);
+        int areaCapacity = areaSurface(area) * CULL_ANIMALS_PER_SURFACE_BLOCK;
+        int capacity = Math.max(1, Math.min(ValetOrders.getMaxAnimals(control.villager()), areaCapacity));
+        if (animals.size() < capacity) {
+            return null;
+        }
+
+        animals.sort(Comparator
+                .comparing((Animal animal) -> !isBreedingCoolingDown(animal.getUUID()))
+                .thenComparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
+        for (Animal animal : animals) {
+            if (!animal.isBaby()
+                    && !animal.isInLove()
+                    && !isFailedTarget(animal.getUUID())
+                    && !control.isEntityReservedByOther(world, animal)) {
+                return new WorkTarget(Action.CULL, animal.getUUID(), null, animal.blockPosition());
+            }
+        }
+        return null;
+    }
+
     private WorkTarget findBreedTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
         List<Animal> animals = animalsInScope(world, workOrigin, area, this::canParticipateInBreeding);
         animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
+        boolean capLogged = false;
         for (int firstIndex = 0; firstIndex < animals.size(); firstIndex++) {
             Animal first = animals.get(firstIndex);
             ValetAnimalType type = ValetAnimalType.fromAnimal(first);
+            int animalCount = type == null ? 0 : countAnimals(world, workOrigin, area, type);
+            int maxAnimals = ValetOrders.getMaxAnimals(control.villager());
             if (type == null
                     || isFailedTarget(first.getUUID())
                     || control.isEntityReservedByOther(world, first)
-                    || countAnimals(world, workOrigin, area, type) >= ValetOrders.getMaxAnimals(control.villager())) {
+                    || animalCount >= maxAnimals) {
+                if (!capLogged && type != null && animalCount >= maxAnimals) {
+                    capLogged = true;
+                    ValetDebug.record(control.villager(), "breeding cap_reached type=" + type.name().toLowerCase() + " animals=" + animalCount + " max=" + maxAnimals);
+                }
                 continue;
             }
 
@@ -399,13 +469,15 @@ public final class BreedingRuntimeTask {
             second.setInLove(null);
         }
         first.spawnChildFromBreeding(world, second);
+        breedCooldowns.put(first.getUUID(), BREED_PARENT_COOLDOWN_TICKS);
+        breedCooldowns.put(second.getUUID(), BREED_PARENT_COOLDOWN_TICKS);
         ValetProgress.addXp(control.villager(), 8);
         ValetDebug.record(control.villager(), "breeding bred type=" + type.name().toLowerCase() + " pos=" + ValetDebug.shortPos(first.blockPosition()));
         return true;
     }
 
     private boolean canParticipateInBreeding(Animal animal) {
-        return animal != null && !animal.isBaby() && (animal.canFallInLove() || animal.isInLove());
+        return animal != null && !animal.isBaby() && !isBreedingCoolingDown(animal.getUUID()) && (animal.canFallInLove() || animal.isInLove());
     }
 
     private int feedNeeded(Animal first, Animal second) {
@@ -485,6 +557,22 @@ public final class BreedingRuntimeTask {
         milkCooldowns.put(cow.getUUID(), MILK_COOLDOWN_TICKS);
         ValetProgress.addXp(control.villager(), 3);
         ValetDebug.record(control.villager(), "breeding milked pos=" + ValetDebug.shortPos(cow.blockPosition()));
+        return true;
+    }
+
+    private boolean cullAnimal(ServerLevel world, Entity entity) {
+        if (!(entity instanceof Animal animal) || animal.isBaby()) {
+            ValetDebug.record(control.villager(), "breeding cull_invalid");
+            return false;
+        }
+
+        lookAt(animal);
+        control.villager().swing(InteractionHand.MAIN_HAND);
+        world.playSound(null, animal.blockPosition(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 0.8F, 1.0F);
+        animal.hurt(world.damageSources().mobAttack(control.villager()), animal.getMaxHealth() + 10.0F);
+        control.collectNearbyItemEntities(world);
+        ValetProgress.addXp(control.villager(), 2);
+        ValetDebug.record(control.villager(), "breeding culled pos=" + ValetDebug.shortPos(animal.blockPosition()));
         return true;
     }
 
@@ -738,6 +826,18 @@ public final class BreedingRuntimeTask {
         return uuid != null && milkCooldowns.containsKey(uuid);
     }
 
+    private boolean isBreedingCoolingDown(UUID uuid) {
+        return uuid != null && breedCooldowns.containsKey(uuid);
+    }
+
+    private static int areaSurface(ValetAnimalArea area) {
+        return Math.max(1, area.maxX() - area.minX() + 1) * Math.max(1, area.maxZ() - area.minZ() + 1);
+    }
+
+    private static BlockPos areaCenter(ValetAnimalArea area) {
+        return new BlockPos((area.minX() + area.maxX()) / 2, (area.minY() + area.maxY()) / 2, (area.minZ() + area.maxZ()) / 2);
+    }
+
     private static double squaredDistance(BlockPos first, BlockPos second) {
         int dx = first.getX() - second.getX();
         int dy = first.getY() - second.getY();
@@ -754,7 +854,8 @@ public final class BreedingRuntimeTask {
         BREED,
         SHEAR,
         COLLECT_EGG,
-        MILK
+        MILK,
+        CULL
     }
 
     private record WorkTarget(Action action, UUID primaryUuid, UUID secondaryUuid, BlockPos pos) {
@@ -766,6 +867,8 @@ public final class BreedingRuntimeTask {
         BlockPos getWorkOrigin(ServerLevel world);
 
         ValetAnimalArea getAnimalArea(ServerLevel world, int areaId);
+
+        List<ValetAnimalArea> getAnimalAreas(ServerLevel world);
 
         boolean hasBreedingOrder();
 

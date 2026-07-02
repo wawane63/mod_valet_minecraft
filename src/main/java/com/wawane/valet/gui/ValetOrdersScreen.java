@@ -103,6 +103,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Checkbox animalShearCheckbox;
     private Checkbox animalEggsCheckbox;
     private Checkbox animalMilkCheckbox;
+    private Checkbox animalCullCheckbox;
     private Checkbox avoidNightReturnCheckbox;
     private Checkbox freeBehaviorCheckbox;
     private final List<Checkbox> farmCropCheckboxes = new ArrayList<>();
@@ -140,6 +141,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private boolean localAnimalShear;
     private boolean localAnimalCollectEggs;
     private boolean localAnimalMilk;
+    private boolean localAnimalCull;
     private int localMaxAnimals;
     private boolean localAvoidNightReturn;
     private boolean localFreeBehavior;
@@ -176,6 +178,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localAnimalShear = viewModel.animalShear();
         localAnimalCollectEggs = viewModel.animalCollectEggs();
         localAnimalMilk = viewModel.animalMilk();
+        localAnimalCull = viewModel.animalCull();
         localMaxAnimals = viewModel.maxAnimals();
         localAvoidNightReturn = viewModel.avoidNightReturn();
         localFreeBehavior = viewModel.freeBehavior();
@@ -348,6 +351,17 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .maxWidth(118)
                 .onValueChange((checkbox, selected) -> {
                     localAnimalMilk = selected;
+                    if (selectedCategory == TargetCategory.ANIMAL) {
+                        sendBreedingSelection(false);
+                    }
+                })
+                .build());
+        animalCullCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_cull"), font)
+                .pos(farmOptionsLeft, farmOptionsTop + 44)
+                .selected(localAnimalCull)
+                .maxWidth(118)
+                .onValueChange((checkbox, selected) -> {
+                    localAnimalCull = selected;
                     if (selectedCategory == TargetCategory.ANIMAL) {
                         sendBreedingSelection(false);
                     }
@@ -1308,7 +1322,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         localRole = ValetRole.fromIndex(roleIndex);
         ensurePageForRole();
         if (selectedPerk.getRole() != localRole) {
@@ -1328,6 +1342,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localAnimalShear = animalShear;
         localAnimalCollectEggs = animalCollectEggs;
         localAnimalMilk = animalMilk;
+        localAnimalCull = animalCull;
         localMaxAnimals = maxAnimals;
         localAvoidNightReturn = avoidNightReturn;
         localFreeBehavior = freeBehavior;
@@ -1479,7 +1494,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private void sendBreedingSelection(boolean closeScreen) {
         readAnimalMaxField();
-        ClientPlayNetworking.send(new SetBreedingOrderPayload(viewModel.valetEntityId(), selectedAnimalAreaId, false, localAnimalBreed, localAnimalShear, localAnimalCollectEggs, localAnimalMilk, localMaxAnimals, closeScreen));
+        ClientPlayNetworking.send(new SetBreedingOrderPayload(viewModel.valetEntityId(), selectedAnimalAreaId, false, localAnimalBreed, localAnimalShear, localAnimalCollectEggs, localAnimalMilk, localAnimalCull, localMaxAnimals, closeScreen));
     }
 
     private void readAnimalMaxField() {
@@ -1678,6 +1693,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         if (animalMilkCheckbox != null) {
             animalMilkCheckbox.visible = animalVisible;
             animalMilkCheckbox.active = animalVisible;
+        }
+        if (animalCullCheckbox != null) {
+            animalCullCheckbox.visible = animalVisible;
+            animalCullCheckbox.active = animalVisible;
         }
         if (animalMaxField != null) {
             animalMaxField.visible = animalVisible;

@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -27,6 +28,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.NetherWartBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 public final class FarmingRuntimeTask {
     private static final int FAILED_TARGET_MEMORY_TICKS = 300;
@@ -168,6 +170,10 @@ public final class FarmingRuntimeTask {
             tickTilling(world);
             return;
         }
+        if (targetType == TargetType.LOOT) {
+            tickLootCollection(world);
+            return;
+        }
         tickCropHarvesting(world);
     }
 
@@ -232,6 +238,7 @@ public final class FarmingRuntimeTask {
         world.levelEvent(2001, targetPos, Block.getId(currentState));
         control.collectDrops(drops);
         world.destroyBlock(targetPos, false, control.villager());
+        control.collectNearbyItemEntities(world);
 
         boolean replanted = tryReplant(world, targetPos, currentState);
         int xp = replanted ? 5 : 4;
@@ -241,6 +248,35 @@ public final class FarmingRuntimeTask {
         ValetProgress.addXp(control.villager(), xp);
         ValetDebug.record(control.villager(), "farm harvested target=" + ValetDebug.shortPos(targetPos) + " replanted=" + replanted);
 
+        control.setState(afterFarmActionState());
+        clearHarvestState();
+        control.setDelayTicks(control.actionDelayTicks());
+    }
+
+    private void tickLootCollection(ServerLevel world) {
+        if (targetPos == null || !hasFarmLootNear(world, targetPos, ValetOrders.getFarmCropMask(control.villager()))) {
+            ValetDebug.record(control.villager(), "farm loot_changed target=" + ValetDebug.shortPos(targetPos));
+            control.setState(control.interruptedWorkState());
+            clearHarvestState();
+            return;
+        }
+
+        if (!claimTarget(world, targetPos)) {
+            return;
+        }
+
+        control.villager().getLookControl().setLookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
+        int collected = control.collectNearbyItemEntities(world);
+        if (collected <= 0) {
+            rememberFailedTarget(targetPos);
+            ValetDebug.record(control.villager(), "farm loot_not_collected target=" + ValetDebug.shortPos(targetPos));
+            control.setState(control.interruptedWorkState());
+            clearHarvestState();
+            control.setDelayTicks(10);
+            return;
+        }
+        ValetProgress.addXp(control.villager(), 1);
+        ValetDebug.record(control.villager(), "farm collected_loot items=" + collected + " target=" + ValetDebug.shortPos(targetPos));
         control.setState(afterFarmActionState());
         clearHarvestState();
         control.setDelayTicks(control.actionDelayTicks());
@@ -286,6 +322,11 @@ public final class FarmingRuntimeTask {
     private WorkTarget findNearestTarget(ServerLevel world, BlockPos workOrigin, boolean includeCrops, boolean includeSoil, int cropMask) {
         ValetFarmArea area = control.getFarmArea(world, ValetOrders.getFarmAreaId(control.villager()));
         if (includeCrops) {
+            BlockPos loot = findNearestLoot(world, workOrigin, area, cropMask);
+            if (loot != null) {
+                return new WorkTarget(loot, TargetType.LOOT);
+            }
+
             BlockPos crop = findNearestCrop(world, workOrigin, area, cropMask);
             if (crop != null) {
                 return new WorkTarget(crop, TargetType.CROP);
@@ -317,6 +358,32 @@ public final class FarmingRuntimeTask {
             double distance = squaredDistance(control.villager().blockPosition(), cropPos);
             if (distance < nearestDistance) {
                 nearest = cropPos;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
+    private BlockPos findNearestLoot(ServerLevel world, BlockPos workOrigin, ValetFarmArea area, int cropMask) {
+        BlockPos nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (ItemEntity itemEntity : world.getEntitiesOfClass(ItemEntity.class, lootSearchBox(workOrigin, area), item -> !item.isRemoved())) {
+            ItemStack stack = itemEntity.getItem();
+            BlockPos itemPos = itemEntity.blockPosition().immutable();
+            if (stack.isEmpty()
+                    || isFailedTarget(itemPos)
+                    || control.isBlockReservedByOther(world, itemPos)
+                    || area != null && !areaContainsLooseItem(area, itemPos)
+                    || !isFarmLoot(stack, cropMask)
+                    || !control.canStoreAllDrops(List.of(stack.copy()))) {
+                continue;
+            }
+
+            double distance = squaredDistance(control.villager().blockPosition(), itemPos);
+            if (distance < nearestDistance) {
+                nearest = itemPos;
                 nearestDistance = distance;
             }
         }
@@ -382,7 +449,67 @@ public final class FarmingRuntimeTask {
         if (type == TargetType.SOIL) {
             return isTillableSoil(world, pos);
         }
+        if (type == TargetType.LOOT) {
+            return hasFarmLootNear(world, pos, ValetOrders.getFarmCropMask(control.villager()));
+        }
         return false;
+    }
+
+    private boolean hasFarmLootNear(ServerLevel world, BlockPos pos, int cropMask) {
+        if (pos == null || cropMask == 0 || !control.hasInventorySpace()) {
+            return false;
+        }
+
+        return !world.getEntitiesOfClass(ItemEntity.class, lootTargetBox(pos), item -> !item.isRemoved()
+                && isFarmLoot(item.getItem(), cropMask)
+                && control.canStoreAllDrops(List.of(item.getItem().copy()))).isEmpty();
+    }
+
+    private AABB lootSearchBox(BlockPos workOrigin, ValetFarmArea area) {
+        if (area != null) {
+            return new AABB(
+                    area.minX() - 1.0D,
+                    area.minY() - 1.0D,
+                    area.minZ() - 1.0D,
+                    area.maxX() + 2.0D,
+                    area.maxY() + 2.0D,
+                    area.maxZ() + 2.0D
+            );
+        }
+
+        int radius = control.farmRadius();
+        int verticalRadius = control.farmVerticalRadius();
+        return new AABB(
+                workOrigin.getX() - radius,
+                workOrigin.getY() - verticalRadius,
+                workOrigin.getZ() - radius,
+                workOrigin.getX() + radius + 1.0D,
+                workOrigin.getY() + verticalRadius + 1.0D,
+                workOrigin.getZ() + radius + 1.0D
+        );
+    }
+
+    private static AABB lootTargetBox(BlockPos pos) {
+        return new AABB(
+                pos.getX() - 1.25D,
+                pos.getY() - 1.0D,
+                pos.getZ() - 1.25D,
+                pos.getX() + 2.25D,
+                pos.getY() + 2.0D,
+                pos.getZ() + 2.25D
+        );
+    }
+
+    private static boolean areaContainsLooseItem(ValetFarmArea area, BlockPos itemPos) {
+        return area.contains(itemPos) || area.contains(itemPos.below());
+    }
+
+    private static boolean isFarmLoot(ItemStack stack, int cropMask) {
+        return ValetFarmCrop.WHEAT.isEnabled(cropMask) && (stack.is(Items.WHEAT) || stack.is(Items.WHEAT_SEEDS))
+                || ValetFarmCrop.CARROT.isEnabled(cropMask) && stack.is(Items.CARROT)
+                || ValetFarmCrop.POTATO.isEnabled(cropMask) && (stack.is(Items.POTATO) || stack.is(Items.POISONOUS_POTATO))
+                || ValetFarmCrop.BEETROOT.isEnabled(cropMask) && (stack.is(Items.BEETROOT) || stack.is(Items.BEETROOT_SEEDS))
+                || ValetFarmCrop.NETHER_WART.isEnabled(cropMask) && stack.is(Items.NETHER_WART);
     }
 
     private static boolean isHarvestableCrop(ServerLevel world, BlockPos pos, int cropMask) {
@@ -517,7 +644,8 @@ public final class FarmingRuntimeTask {
 
     private enum TargetType {
         CROP,
-        SOIL
+        SOIL,
+        LOOT
     }
 
     private record WorkTarget(BlockPos pos, TargetType type) {
@@ -547,6 +675,8 @@ public final class FarmingRuntimeTask {
         boolean canStoreAllDrops(List<ItemStack> drops);
 
         void collectDrops(List<ItemStack> drops);
+
+        int collectNearbyItemEntities(ServerLevel world);
 
         boolean claimBlock(ServerLevel world, BlockPos pos, int ttlTicks);
 

@@ -7,7 +7,7 @@ Bugs corriges / fonctionnalite :
 - Ajout du `Poste d'eleveur` (`valet:poste_eleveur`).
 - Ajout de la `Balise d'enclos` pour declarer des zones poules, vaches, moutons et cochons.
 - L'interface de l'eleveur permet de choisir un enclos ou tous les enclos.
-- Options UI : reproduire, tondre, ramasser oeufs, traire et limite max animaux.
+- Options UI : reproduire, tondre, ramasser oeufs, traire, abattre surplus et limite max animaux.
 - Ajout de `BreedingRuntimeTask` pour gerer l'elevage.
 - Ajout de reservations d'animaux pour eviter que deux valets ciblent le meme animal.
 - L'eleveur prend graines, ble, carottes, seaux et cisailles dans les coffres/barils proches.
@@ -18,6 +18,15 @@ Bugs corriges / fonctionnalite :
 - Correction : une vache traitee passe en cooldown avant de pouvoir etre retraitee.
 - Correction : `Reproduire` nourrit maintenant les deux adultes avant de verifier la paire, au lieu d'attendre qu'ils soient deja en amour.
 - Correction apres log : l'eleveur ne prend plus seau/cisailles sans cible valide et les enclos tolerent un decalage vertical de balises.
+- Ajout : option `Abattre surplus`, uniquement dans les enclos balises, au-dessus de 4 animaux par bloc de surface.
+- Correction : les parents reproduits passent en cooldown interne pour eviter les bebes en rafale.
+- Correction apres log : `Max` devient aussi le plafond d'abattage; la densite `surface * 4` reste seulement une limite de securite.
+- Ajustement : le `Max` animaux par defaut passe de 12 a 8.
+- Migration : les limites animaux sauvegardees passent a environ deux tiers au prochain chargement.
+- Correction : le fermier cible et ramasse les drops de cultures deja au sol dans sa zone.
+- Correction apres log : un depot vide ne bloque plus les valets en boucle coffre, ils reprennent le travail si possible.
+- Correction apres log : avec `Abattre surplus`, l'eleveur abat des que l'enclos atteint `Max`, ce qui relance le cycle au lieu de rester bloque a la limite.
+- Correction : l'abattage priorise les parents en cooldown, donc ceux qui viennent de reproduire.
 
 ## 0.3.3 - Creation de groupe
 

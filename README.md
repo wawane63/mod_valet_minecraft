@@ -35,7 +35,7 @@ Derniere version : 0.3.4 - ajout du metier Eleveur, des enclos par balises et de
 - Combattant : defense locale, arbre epee et arbre arc.
 - Fermier : recolte, replantation, houe, zones de ferme.
 - Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
-- Eleveur : reproduit, tond, ramasse les oeufs et trait les animaux dans les enclos.
+- Eleveur : reproduit, tond, ramasse les oeufs, trait et abat le surplus dans les enclos.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 - Pupitre de groupe : cree des groupes et lie une carte ou une corne de chevre pour commander suivi, garde, attaque et rappel.
 

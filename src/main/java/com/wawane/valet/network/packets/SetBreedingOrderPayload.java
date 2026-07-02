@@ -14,6 +14,7 @@ public record SetBreedingOrderPayload(
         boolean shear,
         boolean collectEggs,
         boolean milk,
+        boolean cull,
         int maxAnimals,
         boolean closeScreen
 ) implements CustomPacketPayload {
@@ -24,6 +25,7 @@ public record SetBreedingOrderPayload(
         return new SetBreedingOrderPayload(
                 buf.readInt(),
                 buf.readInt(),
+                buf.readBoolean(),
                 buf.readBoolean(),
                 buf.readBoolean(),
                 buf.readBoolean(),
@@ -42,6 +44,7 @@ public record SetBreedingOrderPayload(
         buf.writeBoolean(shear);
         buf.writeBoolean(collectEggs);
         buf.writeBoolean(milk);
+        buf.writeBoolean(cull);
         buf.writeInt(maxAnimals);
         buf.writeBoolean(closeScreen);
     }

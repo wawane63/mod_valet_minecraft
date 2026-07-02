@@ -25,6 +25,7 @@ public final class ValetOrderKey {
                     + ":" + ValetOrders.shouldShearAnimals(villager)
                     + ":" + ValetOrders.shouldCollectAnimalEggs(villager)
                     + ":" + ValetOrders.shouldMilkAnimals(villager)
+                    + ":" + ValetOrders.shouldCullAnimals(villager)
                     + ":" + ValetOrders.getMaxAnimals(villager);
             case BUILD_STRUCTURE -> order.getId() + ":" + ValetOrders.getConstructionTargetId(villager);
             case CRAFT -> order.getId() + ":" + ValetOrders.getCraftTarget(villager);

@@ -7,8 +7,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.npc.villager.Villager;
 
 public final class ValetOrders {
-    public static final int DATA_VERSION = 4;
-    public static final int DEFAULT_MAX_ANIMALS = 12;
+    public static final int DATA_VERSION = 6;
+    public static final int DEFAULT_MAX_ANIMALS = 8;
 
     private static final String DATA_VERSION_KEY = "ValetOrdersDataVersion";
     private static final String ORDER_KEY = "ValetOrder";
@@ -24,6 +24,7 @@ public final class ValetOrders {
     private static final String ANIMAL_SHEAR_KEY = "ValetAnimalShear";
     private static final String ANIMAL_COLLECT_EGGS_KEY = "ValetAnimalCollectEggs";
     private static final String ANIMAL_MILK_KEY = "ValetAnimalMilk";
+    private static final String ANIMAL_CULL_KEY = "ValetAnimalCull";
     private static final String ANIMAL_MAX_KEY = "ValetAnimalMax";
     private static final String CONSTRUCTION_TARGET_KEY = "ValetConstructionTarget";
     private static final String CRAFT_TARGET_KEY = "ValetCraftTarget";
@@ -41,6 +42,7 @@ public final class ValetOrders {
     private static final Map<UUID, Boolean> ANIMAL_SHEAR = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> ANIMAL_COLLECT_EGGS = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> ANIMAL_MILK = new ConcurrentHashMap<>();
+    private static final Map<UUID, Boolean> ANIMAL_CULL = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> ANIMAL_MAX = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> CONSTRUCTION_TARGETS = new ConcurrentHashMap<>();
     private static final Map<UUID, ValetCraftTarget> CRAFT_TARGETS = new ConcurrentHashMap<>();
@@ -78,6 +80,7 @@ public final class ValetOrders {
                 || ANIMAL_SHEAR.containsKey(uuid)
                 || ANIMAL_COLLECT_EGGS.containsKey(uuid)
                 || ANIMAL_MILK.containsKey(uuid)
+                || ANIMAL_CULL.containsKey(uuid)
                 || ANIMAL_MAX.containsKey(uuid)
                 || CONSTRUCTION_TARGETS.containsKey(uuid)
                 || CRAFT_TARGETS.containsKey(uuid);
@@ -98,6 +101,7 @@ public final class ValetOrders {
                 || nbt.contains(ANIMAL_SHEAR_KEY)
                 || nbt.contains(ANIMAL_COLLECT_EGGS_KEY)
                 || nbt.contains(ANIMAL_MILK_KEY)
+                || nbt.contains(ANIMAL_CULL_KEY)
                 || nbt.contains(ANIMAL_MAX_KEY)
                 || nbt.contains(CONSTRUCTION_TARGET_KEY)
                 || nbt.contains(CRAFT_TARGET_KEY);
@@ -117,6 +121,7 @@ public final class ValetOrders {
         ANIMAL_SHEAR.remove(uuid);
         ANIMAL_COLLECT_EGGS.remove(uuid);
         ANIMAL_MILK.remove(uuid);
+        ANIMAL_CULL.remove(uuid);
         ANIMAL_MAX.remove(uuid);
         CONSTRUCTION_TARGETS.remove(uuid);
         CRAFT_TARGETS.remove(uuid);
@@ -136,6 +141,7 @@ public final class ValetOrders {
         ANIMAL_SHEAR.clear();
         ANIMAL_COLLECT_EGGS.clear();
         ANIMAL_MILK.clear();
+        ANIMAL_CULL.clear();
         ANIMAL_MAX.clear();
         CONSTRUCTION_TARGETS.clear();
         CRAFT_TARGETS.clear();
@@ -189,6 +195,10 @@ public final class ValetOrders {
         return ANIMAL_MILK.getOrDefault(villager.getUUID(), true);
     }
 
+    public static boolean shouldCullAnimals(Villager villager) {
+        return ANIMAL_CULL.getOrDefault(villager.getUUID(), false);
+    }
+
     public static int getMaxAnimals(Villager villager) {
         return sanitizeMaxAnimals(ANIMAL_MAX.getOrDefault(villager.getUUID(), DEFAULT_MAX_ANIMALS));
     }
@@ -235,7 +245,7 @@ public final class ValetOrders {
         clearNonMatchingTargets(uuid, ValetOrder.HARVEST_CROPS);
     }
 
-    public static void setBreedingAnimals(Villager villager, int animalAreaId, boolean feed, boolean breed, boolean shear, boolean collectEggs, boolean milk, int maxAnimals) {
+    public static void setBreedingAnimals(Villager villager, int animalAreaId, boolean feed, boolean breed, boolean shear, boolean collectEggs, boolean milk, boolean cull, int maxAnimals) {
         UUID uuid = villager.getUUID();
         ORDERS.put(uuid, ValetOrder.BREED_ANIMALS);
         ANIMAL_AREAS.put(uuid, Math.max(-1, animalAreaId));
@@ -244,6 +254,7 @@ public final class ValetOrders {
         ANIMAL_SHEAR.put(uuid, shear);
         ANIMAL_COLLECT_EGGS.put(uuid, collectEggs);
         ANIMAL_MILK.put(uuid, milk);
+        ANIMAL_CULL.put(uuid, cull);
         ANIMAL_MAX.put(uuid, sanitizeMaxAnimals(maxAnimals));
         clearNonMatchingTargets(uuid, ValetOrder.BREED_ANIMALS);
     }
@@ -311,6 +322,7 @@ public final class ValetOrders {
                 nbt.putBoolean(ANIMAL_SHEAR_KEY, shouldShearAnimals(villager));
                 nbt.putBoolean(ANIMAL_COLLECT_EGGS_KEY, shouldCollectAnimalEggs(villager));
                 nbt.putBoolean(ANIMAL_MILK_KEY, shouldMilkAnimals(villager));
+                nbt.putBoolean(ANIMAL_CULL_KEY, shouldCullAnimals(villager));
                 nbt.putInt(ANIMAL_MAX_KEY, getMaxAnimals(villager));
             }
             case BUILD_STRUCTURE -> {
@@ -341,6 +353,8 @@ public final class ValetOrders {
             return;
         }
 
+        int dataVersion = nbt.getIntOr(DATA_VERSION_KEY, 0);
+
         try {
             ValetOrder order = ValetOrder.fromId(nbt.getString(ORDER_KEY).orElse(""));
             if (order == ValetOrder.MINE_ORES && nbt.contains(MINE_TARGET_KEY)) {
@@ -356,6 +370,10 @@ public final class ValetOrders {
                         nbt.getBooleanOr(FARM_TILL_SOIL_KEY, false)
                 );
             } else if (order == ValetOrder.BREED_ANIMALS) {
+                int maxAnimals = nbt.getIntOr(ANIMAL_MAX_KEY, DEFAULT_MAX_ANIMALS);
+                if (dataVersion < 6 && nbt.contains(ANIMAL_MAX_KEY)) {
+                    maxAnimals = rebalanceMaxAnimals(maxAnimals);
+                }
                 setBreedingAnimals(
                         villager,
                         nbt.getIntOr(ANIMAL_AREA_KEY, -1),
@@ -364,7 +382,8 @@ public final class ValetOrders {
                         nbt.getBooleanOr(ANIMAL_SHEAR_KEY, true),
                         nbt.getBooleanOr(ANIMAL_COLLECT_EGGS_KEY, true),
                         nbt.getBooleanOr(ANIMAL_MILK_KEY, true),
-                        nbt.getIntOr(ANIMAL_MAX_KEY, DEFAULT_MAX_ANIMALS)
+                        nbt.getBooleanOr(ANIMAL_CULL_KEY, false),
+                        maxAnimals
                 );
             } else if (order == ValetOrder.BUILD_STRUCTURE && nbt.contains(CONSTRUCTION_TARGET_KEY)) {
                 setConstructionTarget(villager, nbt.getIntOr(CONSTRUCTION_TARGET_KEY, -1));
@@ -398,6 +417,7 @@ public final class ValetOrders {
             ANIMAL_SHEAR.remove(uuid);
             ANIMAL_COLLECT_EGGS.remove(uuid);
             ANIMAL_MILK.remove(uuid);
+            ANIMAL_CULL.remove(uuid);
             ANIMAL_MAX.remove(uuid);
         }
         if (order != ValetOrder.BUILD_STRUCTURE) {
@@ -423,6 +443,7 @@ public final class ValetOrders {
         nbt.remove(ANIMAL_SHEAR_KEY);
         nbt.remove(ANIMAL_COLLECT_EGGS_KEY);
         nbt.remove(ANIMAL_MILK_KEY);
+        nbt.remove(ANIMAL_CULL_KEY);
         nbt.remove(ANIMAL_MAX_KEY);
         nbt.remove(CONSTRUCTION_TARGET_KEY);
         nbt.remove(CRAFT_TARGET_KEY);
@@ -448,6 +469,7 @@ public final class ValetOrders {
             nbt.remove(ANIMAL_SHEAR_KEY);
             nbt.remove(ANIMAL_COLLECT_EGGS_KEY);
             nbt.remove(ANIMAL_MILK_KEY);
+            nbt.remove(ANIMAL_CULL_KEY);
             nbt.remove(ANIMAL_MAX_KEY);
         }
         if (order != ValetOrder.BUILD_STRUCTURE) {
@@ -465,5 +487,9 @@ public final class ValetOrders {
 
     private static int sanitizeMaxAnimals(int maxAnimals) {
         return Math.max(2, Math.min(64, maxAnimals));
+    }
+
+    private static int rebalanceMaxAnimals(int maxAnimals) {
+        return sanitizeMaxAnimals((int) Math.round(maxAnimals * 2.0D / 3.0D));
     }
 }

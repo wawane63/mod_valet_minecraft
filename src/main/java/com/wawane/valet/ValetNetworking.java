@@ -160,6 +160,7 @@ public final class ValetNetworking {
                         buf.writeBoolean(ValetOrders.shouldShearAnimals(villager));
                         buf.writeBoolean(ValetOrders.shouldCollectAnimalEggs(villager));
                         buf.writeBoolean(ValetOrders.shouldMilkAnimals(villager));
+                        buf.writeBoolean(ValetOrders.shouldCullAnimals(villager));
                         buf.writeInt(ValetOrders.getMaxAnimals(villager));
                         buf.writeBoolean(ValetBehavior.shouldAvoidNightReturn(villager));
                         buf.writeBoolean(ValetBehavior.isFreeBehavior(villager));
@@ -206,6 +207,7 @@ public final class ValetNetworking {
                             ValetOrders.shouldShearAnimals(villager),
                             ValetOrders.shouldCollectAnimalEggs(villager),
                             ValetOrders.shouldMilkAnimals(villager),
+                            ValetOrders.shouldCullAnimals(villager),
                             ValetOrders.getMaxAnimals(villager),
                             ValetBehavior.shouldAvoidNightReturn(villager),
                             ValetBehavior.isFreeBehavior(villager),
@@ -516,10 +518,11 @@ public final class ValetNetworking {
                     payload.shear(),
                     payload.collectEggs(),
                     payload.milk(),
+                    payload.cull(),
                     payload.maxAnimals()
             );
             ValetWorkGoal.requestRestart(villager);
-            ValetMod.LOGGER.info("Valet {} order set to breeding area={} feed={} breed={} shear={} eggs={} milk={} max={}", villager.getUUID(), animalAreaId, payload.feed(), payload.breed(), payload.shear(), payload.collectEggs(), payload.milk(), payload.maxAnimals());
+            ValetMod.LOGGER.info("Valet {} order set to breeding area={} feed={} breed={} shear={} eggs={} milk={} cull={} max={}", villager.getUUID(), animalAreaId, payload.feed(), payload.breed(), payload.shear(), payload.collectEggs(), payload.milk(), payload.cull(), payload.maxAnimals());
             Component target = area == null ? Component.translatable("screen.valet.animal_all") : Component.literal(area.name());
             player.sendOverlayMessage(Component.translatable("message.valet.animal_target_set", target));
             if (payload.closeScreen()) {

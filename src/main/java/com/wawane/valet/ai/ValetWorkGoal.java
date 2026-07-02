@@ -1473,16 +1473,25 @@ public class ValetWorkGoal extends Goal {
         inventory.setChanged();
     }
 
-    private void collectNearbyItemEntities(ServerLevel world) {
-        AABB box = AABB.unitCubeFromLowerCorner(villager.position()).inflate(2.0D);
+    private int collectNearbyItemEntities(ServerLevel world) {
+        AABB box = AABB.unitCubeFromLowerCorner(villager.position()).inflate(2.75D);
+        Container inventory = villager.getInventory();
+        boolean changed = false;
+        int movedItems = 0;
         for (ItemEntity itemEntity : world.getEntitiesOfClass(ItemEntity.class, box, item -> !item.isRemoved())) {
             ItemStack stack = itemEntity.getItem();
-            Container inventory = villager.getInventory();
+            int before = stack.getCount();
             ValetInventoryTransfer.insertStack(inventory, stack, getUsableInventorySlots(inventory));
+            movedItems += before - stack.getCount();
+            changed |= stack.getCount() != before;
             if (stack.isEmpty()) {
                 itemEntity.discard();
             }
         }
+        if (changed) {
+            inventory.setChanged();
+        }
+        return movedItems;
     }
 
     private boolean hasInventoryItems() {
@@ -2125,6 +2134,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public int collectNearbyItemEntities(ServerLevel world) {
+            return ValetWorkGoal.this.collectNearbyItemEntities(world);
+        }
+
+        @Override
         public boolean claimBlock(ServerLevel world, BlockPos pos, int ttlTicks) {
             return ValetBlockReservations.claim(world, villager.getUUID(), pos, ttlTicks);
         }
@@ -2195,6 +2209,11 @@ public class ValetWorkGoal extends Goal {
         @Override
         public ValetAnimalArea getAnimalArea(ServerLevel world, int areaId) {
             return areaId < 0 ? null : ValetAnimalStorage.get(world).getArea(areaId);
+        }
+
+        @Override
+        public List<ValetAnimalArea> getAnimalAreas(ServerLevel world) {
+            return ValetAnimalStorage.get(world).getAreas();
         }
 
         @Override

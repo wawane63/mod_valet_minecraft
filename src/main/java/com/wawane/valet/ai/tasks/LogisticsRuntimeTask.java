@@ -30,9 +30,10 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (!control.hasInventoryItems() && !control.hasMiningOrder() && !control.hasFarmOrder() && !control.hasBreedingOrder() && !control.hasConstructionOrder() && !control.hasCraftOrder()) {
+        if (!control.hasInventoryItems()) {
             ValetDebug.record(control.villager(), "logistics no_items");
-            control.setState(State.RETURNING_HOME);
+            control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
+            control.setDelayTicks(4);
             return;
         }
 
@@ -150,6 +151,17 @@ public final class LogisticsRuntimeTask {
         clearChestTarget();
         control.clearPathState();
         if (control.hasInventoryItems()) {
+            if (movedItems <= 0 && canResumeWorkWithoutDepositing()) {
+                ValetDebug.record(control.villager(), "logistics resume_after_empty_deposit");
+                control.setState(State.FIND_TARGET);
+                control.setDelayTicks(4);
+                return;
+            }
+            if (movedItems <= 0) {
+                control.setState(State.RETURNING_HOME);
+                control.setDelayTicks(20);
+                return;
+            }
             control.setState(State.RETURNING);
             control.setDelayTicks(4);
             return;

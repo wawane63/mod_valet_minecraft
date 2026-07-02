@@ -40,6 +40,7 @@ public record ValetStatePayload(
         boolean animalShear,
         boolean animalCollectEggs,
         boolean animalMilk,
+        boolean animalCull,
         int maxAnimals,
         boolean avoidNightReturn,
         boolean freeBehavior,
@@ -93,6 +94,7 @@ public record ValetStatePayload(
                 ValetOrders.shouldShearAnimals(villager),
                 ValetOrders.shouldCollectAnimalEggs(villager),
                 ValetOrders.shouldMilkAnimals(villager),
+                ValetOrders.shouldCullAnimals(villager),
                 ValetOrders.getMaxAnimals(villager),
                 ValetBehavior.shouldAvoidNightReturn(villager),
                 ValetBehavior.isFreeBehavior(villager),
@@ -136,6 +138,7 @@ public record ValetStatePayload(
         boolean animalShear = buf.readBoolean();
         boolean animalCollectEggs = buf.readBoolean();
         boolean animalMilk = buf.readBoolean();
+        boolean animalCull = buf.readBoolean();
         int maxAnimals = buf.readInt();
         boolean avoidNightReturn = buf.readBoolean();
         boolean freeBehavior = buf.readBoolean();
@@ -165,7 +168,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, animalAreaId, animalFeed, animalBreed, animalShear, animalCollectEggs, animalMilk, maxAnimals, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, animalAreaId, animalFeed, animalBreed, animalShear, animalCollectEggs, animalMilk, animalCull, maxAnimals, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -184,6 +187,7 @@ public record ValetStatePayload(
         buf.writeBoolean(animalShear);
         buf.writeBoolean(animalCollectEggs);
         buf.writeBoolean(animalMilk);
+        buf.writeBoolean(animalCull);
         buf.writeInt(maxAnimals);
         buf.writeBoolean(avoidNightReturn);
         buf.writeBoolean(freeBehavior);
