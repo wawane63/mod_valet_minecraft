@@ -12,13 +12,19 @@ import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
@@ -27,6 +33,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -83,6 +90,15 @@ public final class ConstructionRuntimeTask {
         if (site == null) {
             ValetDebug.record(control.villager(), "build no_blueprint_item id=" + blueprint.id());
             reportConstructionIssue(world, "message.valet.construction_no_blueprint", blueprint.name());
+            control.setState(State.RETURNING_HOME);
+            control.setDelayTicks(40);
+            return;
+        }
+
+        List<MissingMaterial> missingMaterials = findMissingMaterials(world, workOrigin, site, blueprint);
+        if (!missingMaterials.isEmpty()) {
+            ValetDebug.record(control.villager(), "build missing_materials " + missingMaterialsDebug(missingMaterials));
+            reportConstructionIssue(world, "message.valet.construction_missing_materials", formatMissingMaterials(missingMaterials));
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
@@ -243,7 +259,7 @@ public final class ConstructionRuntimeTask {
 
             double distance = squaredDistance(control.villager().blockPosition(), immutable);
             if (distance < nearestDistance) {
-                nearest = new ConstructionSite(immutable, state.getValue(ConstructionBlueprintBlock.FACING));
+                nearest = new ConstructionSite(immutable, state.getValue(ConstructionBlueprintBlock.FACING), blueprint.isMirrored());
                 nearestDistance = distance;
             }
         }
@@ -256,17 +272,17 @@ public final class ConstructionRuntimeTask {
                 || blueprint.getBlueprint() != null && blueprint.getBlueprint().id() == constructionId;
     }
 
-    private BlockPos getBuildPos(ConstructionSite site, ValetConstructionBlueprint.Entry entry) {
-        return ConstructionTask.getBuildPos(site.blueprintPos(), site.facing(), entry);
+    private BlockPos getBuildPos(ConstructionSite site, ValetConstructionBlueprint blueprint, ValetConstructionBlueprint.Entry entry) {
+        return ConstructionTask.getBuildPos(site.blueprintPos(), site.facing(), site.mirrored(), blueprint, entry);
     }
 
-    private BlockState rotateBuildState(BlockState state, Direction facing) {
-        return ConstructionTask.rotateBuildState(state, facing);
+    private BlockState transformBuildState(BlockState state, ConstructionSite site) {
+        return ConstructionTask.transformBuildState(state, site.facing(), site.mirrored());
     }
 
     private BuildTarget createBuildTarget(ServerLevel world, ConstructionSite site, ValetConstructionBlueprint blueprint, ValetConstructionBlueprint.Entry entry) {
-        BlockPos buildPos = getBuildPos(site, entry);
-        BlockState buildState = rotateBuildState(entry.state(), site.facing());
+        BlockPos buildPos = getBuildPos(site, blueprint, entry);
+        BlockState buildState = transformBuildState(entry.state(), site);
 
         if (ConstructionTask.isSecondaryBuildPart(buildState)) {
             BuildTarget primaryTarget = findPairedPrimaryBuildTarget(site, blueprint, buildPos, buildState);
@@ -334,8 +350,8 @@ public final class ConstructionRuntimeTask {
 
     private BuildTarget findMatchingBuildTarget(ConstructionSite site, ValetConstructionBlueprint blueprint, Predicate<BuildTarget> predicate) {
         for (ValetConstructionBlueprint.Entry candidateEntry : blueprint.entries()) {
-            BlockPos candidatePos = getBuildPos(site, candidateEntry);
-            BlockState candidateState = rotateBuildState(candidateEntry.state(), site.facing());
+            BlockPos candidatePos = getBuildPos(site, blueprint, candidateEntry);
+            BlockState candidateState = transformBuildState(candidateEntry.state(), site);
             BuildTarget candidate = new BuildTarget(candidatePos, candidateState, null, null);
             if (predicate.test(candidate)) {
                 return candidate;
@@ -387,6 +403,119 @@ public final class ConstructionRuntimeTask {
 
     private void placeBuildBlock(ServerLevel world, BlockPos pos, BlockState state) {
         world.setBlock(pos, state, Block.UPDATE_ALL);
+    }
+
+    private List<MissingMaterial> findMissingMaterials(ServerLevel world, BlockPos workOrigin, ConstructionSite site, ValetConstructionBlueprint blueprint) {
+        Map<Item, Integer> required = new HashMap<>();
+        for (ValetConstructionBlueprint.Entry entry : blueprint.entries()) {
+            BuildTarget buildTarget = createBuildTarget(world, site, blueprint, entry);
+            if (buildTarget == null || !needsBuildTarget(world, buildTarget)) {
+                continue;
+            }
+
+            addRequiredMaterial(world, required, buildTarget.pos(), buildTarget.state());
+            if (buildTarget.secondaryPos() != null && buildTarget.secondaryState() != null) {
+                addRequiredMaterial(world, required, buildTarget.secondaryPos(), buildTarget.secondaryState());
+            }
+        }
+
+        if (required.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Item, Integer> available = countAvailableMaterials(world, workOrigin, site.blueprintPos(), required.keySet());
+        List<MissingMaterial> missing = new ArrayList<>();
+        for (Map.Entry<Item, Integer> entry : required.entrySet()) {
+            int availableCount = available.getOrDefault(entry.getKey(), 0);
+            if (availableCount < entry.getValue()) {
+                missing.add(new MissingMaterial(entry.getKey(), entry.getValue(), availableCount));
+            }
+        }
+        missing.sort(Comparator.comparing(material -> material.item().getDescriptionId()));
+        return missing;
+    }
+
+    private void addRequiredMaterial(ServerLevel world, Map<Item, Integer> required, BlockPos pos, BlockState state) {
+        if (!needsBuildBlock(world, pos, state) || !requiresBuildMaterial(state)) {
+            return;
+        }
+
+        Item item = getBuildItem(state);
+        if (item != Items.AIR) {
+            required.merge(item, 1, Integer::sum);
+        }
+    }
+
+    private Map<Item, Integer> countAvailableMaterials(ServerLevel world, BlockPos workOrigin, BlockPos sitePos, Set<Item> items) {
+        Map<Item, Integer> counts = new HashMap<>();
+        countContainerMaterials(control.villager().getInventory(), control.getUsableInventorySlots(control.villager().getInventory()), items, counts);
+
+        Set<BlockPos> scannedContainers = new HashSet<>();
+        countNearbyContainerMaterials(world, workOrigin, items, counts, scannedContainers);
+        countNearbyContainerMaterials(world, sitePos, items, counts, scannedContainers);
+        return counts;
+    }
+
+    private void countNearbyContainerMaterials(ServerLevel world, BlockPos origin, Set<Item> items, Map<Item, Integer> counts, Set<BlockPos> scannedContainers) {
+        for (BlockPos pos : BlockPos.withinManhattan(origin, control.materialRadius(), 8, control.materialRadius())) {
+            BlockPos immutable = pos.immutable();
+            if (!scannedContainers.add(immutable)) {
+                continue;
+            }
+
+            BlockState blockState = world.getBlockState(immutable);
+            if (!isMaterialContainer(blockState)) {
+                continue;
+            }
+
+            Container inventory = ValetInventoryTransfer.getContainerInventory(world, immutable);
+            if (inventory != null) {
+                countContainerMaterials(inventory, inventory.getContainerSize(), items, counts);
+            }
+        }
+    }
+
+    private void countContainerMaterials(Container inventory, int maxSlots, Set<Item> items, Map<Item, Integer> counts) {
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
+        for (int slot = 0; slot < slots; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && items.contains(stack.getItem())) {
+                counts.merge(stack.getItem(), stack.getCount(), Integer::sum);
+            }
+        }
+    }
+
+    private Component formatMissingMaterials(List<MissingMaterial> missingMaterials) {
+        MutableComponent text = Component.empty();
+        int shown = Math.min(5, missingMaterials.size());
+        for (int i = 0; i < shown; i++) {
+            MissingMaterial material = missingMaterials.get(i);
+            if (i > 0) {
+                text.append(Component.literal(", "));
+            }
+            text.append(Component.translatable(material.item().getDescriptionId()))
+                    .append(Component.literal(" x" + material.missingCount()));
+        }
+        if (missingMaterials.size() > shown) {
+            text.append(Component.literal(", +" + (missingMaterials.size() - shown)));
+        }
+        return text;
+    }
+
+    private String missingMaterialsDebug(List<MissingMaterial> missingMaterials) {
+        StringBuilder builder = new StringBuilder();
+        int shown = Math.min(5, missingMaterials.size());
+        for (int i = 0; i < shown; i++) {
+            MissingMaterial material = missingMaterials.get(i);
+            if (i > 0) {
+                builder.append(",");
+            }
+            builder.append(material.item().getDescriptionId()).append("x").append(material.missingCount());
+        }
+        if (missingMaterials.size() > shown) {
+            builder.append(",+").append(missingMaterials.size() - shown);
+        }
+        return builder.toString();
     }
 
     private boolean hasBuildMaterial(ServerLevel world, BlockPos origin, BuildTarget buildTarget) {
@@ -448,10 +577,14 @@ public final class ConstructionRuntimeTask {
         return findNearest(world, origin, control.materialRadius(), 8, pos -> {
             BlockState blockState = world.getBlockState(pos);
             Container inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
-            return (blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL))
+            return isMaterialContainer(blockState)
                     && inventory != null
                     && ValetInventoryTransfer.inventoryHasItem(inventory, item, inventory.getContainerSize());
         });
+    }
+
+    private boolean isMaterialContainer(BlockState blockState) {
+        return blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL);
     }
 
     private BlockPos findNearest(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
@@ -522,10 +655,16 @@ public final class ConstructionRuntimeTask {
         return pos == null ? "-" : ValetDebug.shortPos(pos);
     }
 
-    private record ConstructionSite(BlockPos blueprintPos, Direction facing) {
+    private record ConstructionSite(BlockPos blueprintPos, Direction facing, boolean mirrored) {
     }
 
     private record BuildTarget(BlockPos pos, BlockState state, BlockPos secondaryPos, BlockState secondaryState) {
+    }
+
+    private record MissingMaterial(Item item, int neededCount, int availableCount) {
+        int missingCount() {
+            return neededCount - availableCount;
+        }
     }
 
     @FunctionalInterface

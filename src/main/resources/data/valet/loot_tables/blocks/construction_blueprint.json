@@ -26,6 +26,11 @@
                   "source": "Blueprint",
                   "target": "Blueprint",
                   "op": "replace"
+                },
+                {
+                  "source": "Mirrored",
+                  "target": "Mirrored",
+                  "op": "replace"
                 }
               ]
             }

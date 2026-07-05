@@ -19,10 +19,12 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
     public static final String CONSTRUCTION_NAME_KEY = "ConstructionName";
     public static final String BLUEPRINT_KEY = "Blueprint";
     public static final String VALET_UUID_KEY = "ValetUuid";
+    public static final String MIRRORED_KEY = "Mirrored";
 
     private int constructionId = -1;
     private String constructionName = "";
     private ValetConstructionBlueprint blueprint;
+    private boolean mirrored;
 
     public ConstructionBlueprintBlockEntity(BlockPos pos, BlockState state) {
         super(ValetMod.CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY, pos, state);
@@ -40,17 +42,22 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
         return blueprint;
     }
 
-    public void setConstruction(int constructionId, String constructionName, ValetConstructionBlueprint blueprint) {
+    public boolean isMirrored() {
+        return mirrored;
+    }
+
+    public void setConstruction(int constructionId, String constructionName, ValetConstructionBlueprint blueprint, boolean mirrored) {
         this.constructionId = constructionId;
         this.constructionName = constructionName == null ? "" : constructionName;
         this.blueprint = blueprint;
+        this.mirrored = mirrored;
         setChanged();
         if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_ALL);
         }
     }
 
-    public void setFromStackNbt(CompoundTag nbt) {
+    public void setFromStackNbt(CompoundTag nbt, boolean placementMirrored) {
         if (nbt == null) {
             return;
         }
@@ -58,7 +65,8 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
         ValetConstructionBlueprint stackBlueprint = nbt.getCompound(BLUEPRINT_KEY).map(ValetConstructionBlueprint::readNbt).orElse(null);
         int id = nbt.getInt(CONSTRUCTION_ID_KEY).orElse(stackBlueprint == null ? -1 : stackBlueprint.id());
         String name = nbt.getString(CONSTRUCTION_NAME_KEY).orElse(stackBlueprint == null ? "" : stackBlueprint.name());
-        setConstruction(id, name, stackBlueprint);
+        boolean stackMirrored = nbt.getBooleanOr(MIRRORED_KEY, false);
+        setConstruction(id, name, stackBlueprint, stackMirrored || placementMirrored);
     }
 
     @Override
@@ -67,6 +75,7 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
         constructionId = input.getIntOr(CONSTRUCTION_ID_KEY, -1);
         constructionName = input.getStringOr(CONSTRUCTION_NAME_KEY, "");
         blueprint = input.read(BLUEPRINT_KEY, CompoundTag.CODEC).map(ValetConstructionBlueprint::readNbt).orElse(null);
+        mirrored = input.getBooleanOr(MIRRORED_KEY, false);
     }
 
     @Override
@@ -74,6 +83,7 @@ public class ConstructionBlueprintBlockEntity extends BlockEntity {
         super.saveAdditional(output);
         output.putInt(CONSTRUCTION_ID_KEY, constructionId);
         output.putString(CONSTRUCTION_NAME_KEY, constructionName);
+        output.putBoolean(MIRRORED_KEY, mirrored);
         if (blueprint != null) {
             output.store(BLUEPRINT_KEY, CompoundTag.CODEC, blueprint.writeNbt());
         }

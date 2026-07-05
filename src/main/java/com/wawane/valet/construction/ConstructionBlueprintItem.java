@@ -33,6 +33,10 @@ public class ConstructionBlueprintItem extends BlockItem {
         CompoundTag nbt = ConstructionBlueprintNbt.get(stack);
         if (nbt != null && nbt.contains(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY)) {
             tooltip.accept(Component.translatable("item.valet.construction_blueprint.tooltip"));
+            tooltip.accept(Component.translatable("item.valet.construction_blueprint.tooltip_transform"));
+            if (nbt.getBooleanOr(ConstructionBlueprintBlockEntity.MIRRORED_KEY, false)) {
+                tooltip.accept(Component.translatable("item.valet.construction_blueprint.tooltip_mirrored"));
+            }
         }
         super.appendHoverText(stack, context, display, tooltip, flag);
     }

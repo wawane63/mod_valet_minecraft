@@ -4,12 +4,12 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Derniere version : 0.3.4 - ajout du metier Eleveur, des enclos par balises et de l'IA `BreedingRuntimeTask`.
+Derniere version : 0.3.5 - blueprints ameliores : rotation, miroir et liste des materiaux manquants avant lancement.
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
-- [Notes 0.3.4](docs/releases/v0.3.4.md)
+- [Notes 0.3.5](docs/releases/v0.3.5.md)
 
 ## Versions disponibles
 
@@ -26,6 +26,7 @@ Derniere version : 0.3.4 - ajout du metier Eleveur, des enclos par balises et de
 | 0.3.2 | Tri coffre + magicien | [`v0.3.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.2) |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` |
 | 0.3.4 | Eleveur | [`v0.3.4`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.4) |
+| 0.3.5 | Blueprints ameliores | `local` |
 
 ## Depart
 
@@ -36,6 +37,7 @@ Derniere version : 0.3.4 - ajout du metier Eleveur, des enclos par balises et de
 - Fermier : recolte, replantation, houe, zones de ferme.
 - Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
 - Eleveur : reproduit, tond, ramasse les oeufs, trait et abat le surplus dans les enclos.
+- Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 - Pupitre de groupe : cree des groupes et lie une carte ou une corne de chevre pour commander suivi, garde, attaque et rappel.
 

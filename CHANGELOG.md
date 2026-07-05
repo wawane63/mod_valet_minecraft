@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.5 - Blueprints ameliores
+
+Bugs corriges / fonctionnalite :
+
+- Rotation du chantier selon la direction du joueur au moment de poser le blueprint.
+- Pose accroupie du blueprint pour construire une version miroir.
+- Apercu monde mis a jour avec la meme rotation et le meme miroir que le chantier reel.
+- Le valet verifie les materiaux requis avant de partir construire.
+- Le message de blocage liste les premiers materiaux manquants avec les quantites.
+- Le mode miroir reste sauvegarde dans le bloc blueprint et dans son drop.
+
 ## 0.3.4 - Eleveur
 
 Bugs corriges / fonctionnalite :

@@ -60,7 +60,7 @@ public class ConstructionBlueprintBlock extends BaseEntityBlock {
         super.setPlacedBy(world, pos, state, placer, itemStack);
         CompoundTag nbt = ConstructionBlueprintNbt.get(itemStack);
         if (world.getBlockEntity(pos) instanceof ConstructionBlueprintBlockEntity blueprint) {
-            blueprint.setFromStackNbt(nbt);
+            blueprint.setFromStackNbt(nbt, placer != null && placer.isShiftKeyDown());
         }
         activateTargetValet(world, pos, nbt);
     }

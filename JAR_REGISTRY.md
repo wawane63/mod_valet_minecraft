@@ -25,6 +25,7 @@ Regles obligatoires :
 | 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
 | 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `2DC045E5225419A7EAB3652A096F83B40D9FF539A9B93E5E8E60AF2A2827B2B5` |
+| 0.3.5 | Blueprints ameliores | local | `build/libs/valet-0.3.5.jar` | `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -32,6 +33,28 @@ Le jar `0.3.1` correspond a la release `v0.3.1`.
 Le jar `0.3.2` correspond a la release `v0.3.2`.
 La version `0.3.3` correspond a la creation de groupe, integree dans la publication `0.3.4`.
 Le jar `0.3.4` correspond a l'eleveur.
+Le jar `0.3.5` correspond aux blueprints ameliores.
+
+## 0.3.5 - Blueprints ameliores
+
+Objectif : ameliorer la pose des chantiers et prevenir les departs sans materiaux.
+
+Bugs corriges / fonctionnalite :
+
+- Rotation du chantier selon la direction du joueur au moment de poser le blueprint.
+- Pose accroupie du blueprint pour construire une version miroir.
+- Apercu monde mis a jour avec la meme rotation et le meme miroir que le chantier reel.
+- Le bloc blueprint sauvegarde le mode miroir.
+- Le drop du bloc blueprint conserve le mode miroir.
+- Le valet calcule les materiaux requis avant de partir construire.
+- Le message de blocage liste les premiers materiaux manquants avec les quantites.
+- Le calcul des materiaux prend en compte l'inventaire du valet et les coffres/barils proches du poste ou du blueprint.
+
+Verification :
+
+- Jar actuel : `valet-0.3.5.jar`
+- SHA-256 : `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C`
+- Build Gradle local OK, jar installe dans `%APPDATA%\.minecraft\mods`.
 
 ## 0.3.4 - Eleveur
 

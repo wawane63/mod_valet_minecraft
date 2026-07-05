@@ -54,8 +54,8 @@ public final class ConstructionBlueprintPlacementPreview {
                 break;
             }
 
-            BlockPos buildPos = ConstructionTask.getBuildPos(target.blueprintPos(), target.facing(), entry);
-            BlockState targetState = ConstructionTask.rotateBuildState(entry.state(), target.facing());
+            BlockPos buildPos = ConstructionTask.getBuildPos(target.blueprintPos(), target.facing(), target.mirrored(), target.blueprint(), entry);
+            BlockState targetState = ConstructionTask.transformBuildState(entry.state(), target.facing(), target.mirrored());
             if (client.level.getBlockState(buildPos).equals(targetState)) {
                 continue;
             }
@@ -92,7 +92,10 @@ public final class ConstructionBlueprintPlacementPreview {
 
             BlockPlaceContext placementContext = new BlockPlaceContext(client.player, hand, stack, hitResult);
             Direction facing = placementContext.getHorizontalDirection();
-            return new PreviewTarget(blueprint, placementContext.getClickedPos(), facing);
+            CompoundTag nbt = ConstructionBlueprintNbt.get(stack);
+            boolean mirrored = (nbt != null && nbt.getBooleanOr(ConstructionBlueprintBlockEntity.MIRRORED_KEY, false))
+                    || client.player.isShiftKeyDown();
+            return new PreviewTarget(blueprint, placementContext.getClickedPos(), facing, mirrored);
         }
         return null;
     }
@@ -111,6 +114,6 @@ public final class ConstructionBlueprintPlacementPreview {
                 .orElse(null);
     }
 
-    private record PreviewTarget(ValetConstructionBlueprint blueprint, BlockPos blueprintPos, Direction facing) {
+    private record PreviewTarget(ValetConstructionBlueprint blueprint, BlockPos blueprintPos, Direction facing, boolean mirrored) {
     }
 }
