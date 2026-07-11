@@ -118,6 +118,11 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
+        if (control.hasStewardWork()) {
+            control.setState(State.FIND_TARGET);
+            return;
+        }
+
         if (control.hasMiningOrder()) {
             control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
             return;
@@ -176,6 +181,7 @@ public final class LogisticsRuntimeTask {
         control.setState(control.hasConstructionOrder()
                 || control.hasCraftOrder()
                 || control.hasCookingWork()
+                || control.hasStewardWork()
                 || (control.hasMiningOrder() || control.hasFarmOrder() || control.hasBreedingOrder()) && control.hasInventorySpace()
                 ? State.FIND_TARGET
                 : State.RETURNING_HOME);
@@ -197,7 +203,8 @@ public final class LogisticsRuntimeTask {
                 || control.hasBreedingOrder()
                 || control.hasConstructionOrder()
                 || control.hasCraftOrder()
-                || control.hasCookingWork());
+                || control.hasCookingWork()
+                || control.hasStewardWork());
     }
 
     private BlockPos findNearestContainer(ServerLevel world, BlockPos origin) {
@@ -275,6 +282,8 @@ public final class LogisticsRuntimeTask {
         boolean hasCraftOrder();
 
         boolean hasCookingWork();
+
+        boolean hasStewardWork();
 
         boolean hasInventorySpace();
 

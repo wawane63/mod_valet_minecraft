@@ -26,7 +26,8 @@ Regles obligatoires :
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
 | 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `2DC045E5225419A7EAB3652A096F83B40D9FF539A9B93E5E8E60AF2A2827B2B5` |
 | 0.3.5 | Blueprints ameliores | `v0.3.5` | `build/libs/valet-0.3.5.jar` | `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C` |
-| 0.3.6 | Cuisinier + correctifs metiers | local | `build/libs/valet-0.3.6.jar` | `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807` |
+| 0.3.6 | Cuisinier + correctifs metiers | `v0.3.6` | `build/libs/valet-0.3.6.jar` | `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807` |
+| 0.3.7 | Intendant + transferts coffres | `v0.3.7` | `build/libs/valet-0.3.7.jar` | `F917E72A650AFC405FC79E76BA924DD373049C2FA505ED60BF57521546D1D3D2` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -36,6 +37,30 @@ La version `0.3.3` correspond a la creation de groupe, integree dans la publicat
 Le jar `0.3.4` correspond a l'eleveur.
 Le jar `0.3.5` correspond aux blueprints ameliores.
 Le jar `0.3.6` ajoute le cuisinier et les correctifs metiers issus du test en jeu.
+Le jar `0.3.7` ajoute l'intendant et les transferts filtres entre coffres.
+
+## 0.3.7 - Intendant et transferts coffres
+
+Objectif : ajouter un metier dedie au rangement automatique entre coffres, avec filtres visibles et priorites simples.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du poste `valet:steward_workstation` et du role `Intendant`.
+- L'intendant scanne les coffres, coffres pieges et barils proches du poste.
+- Les 9 premiers slots d'un conteneur filtrent les items acceptes et sont reserves au joueur.
+- Les coffres/barils sans filtre servent d'entree pour alimenter les destinations filtrees.
+- Les filtres sont prioritaires de gauche a droite, puis par proximite avec le poste.
+- Si aucun filtre ne correspond, l'intendant peut regrouper une pile dans un coffre/baril non filtre qui contient deja le meme item.
+- Les mauvais items presents dans un coffre filtre peuvent etre deplaces vers une destination compatible.
+- Le transfert passe par l'inventaire du valet et donne de l'XP selon le nombre d'items deposes.
+- Le chemin d'intendant ne mine pas de blocs, pour proteger les zones de stockage.
+
+Verification :
+
+- Jar actuel : `valet-0.3.7.jar`
+- SHA-256 : `F917E72A650AFC405FC79E76BA924DD373049C2FA505ED60BF57521546D1D3D2`
+- Build Gradle local OK, jar installe dans le dossier `mods`.
+- Verification du dossier `mods` : un seul `valet-*.jar`, `valet-0.3.7.jar`.
 
 ## 0.3.6 - Cuisinier et correctifs metiers
 

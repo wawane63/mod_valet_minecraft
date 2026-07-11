@@ -21,7 +21,7 @@ public final class ValetStateMachine {
         return switch (purpose) {
             case CHEST -> State.RETURNING;
             case HOME -> State.RETURNING_HOME;
-            case BUILD, CRAFT, COOK, CROP, ANIMAL -> State.FIND_TARGET;
+            case BUILD, CRAFT, COOK, STEWARD, CROP, ANIMAL -> State.FIND_TARGET;
             case ORE -> interruptedWorkState(hasConstructionOrder, hasMiningOrder, hasFarmOrder, hasBreedingOrder, hasCraftOrder, hasInventorySpace, hasInventoryItems);
         };
     }
@@ -43,6 +43,7 @@ public final class ValetStateMachine {
         PLACING,
         CRAFTING,
         COOKING,
+        STEWARDING,
         COLLECTING,
         RETURNING_HOME,
         RETURNING,
@@ -56,6 +57,7 @@ public final class ValetStateMachine {
         BUILD,
         CRAFT,
         COOK,
+        STEWARD,
         CHEST,
         HOME
     }

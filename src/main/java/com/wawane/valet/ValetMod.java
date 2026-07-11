@@ -87,6 +87,7 @@ public class ValetMod implements ModInitializer {
     public static final Identifier ANIMAL_WORKSTATION_ID = id("poste_eleveur");
     public static final Identifier MAGIC_WORKSTATION_ID = id("magic_workstation");
     public static final Identifier COOK_WORKSTATION_ID = id("cook_workstation");
+    public static final Identifier STEWARD_WORKSTATION_ID = id("steward_workstation");
     public static final Identifier COOK_CHEST_ID = id("cook_chest");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
     public static final Identifier FARM_BEACON_ID = id("farm_beacon");
@@ -174,6 +175,18 @@ public class ValetMod implements ModInitializer {
             BuiltInRegistries.ITEM,
             COOK_WORKSTATION_ID,
             new BlockItem(COOK_WORKSTATION, itemProperties(COOK_WORKSTATION_ID))
+    );
+
+    public static final Block STEWARD_WORKSTATION = Registry.register(
+            BuiltInRegistries.BLOCK,
+            STEWARD_WORKSTATION_ID,
+            new Block(blockProperties(STEWARD_WORKSTATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.BARREL).strength(2.5F)))
+    );
+
+    public static final Item STEWARD_WORKSTATION_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            STEWARD_WORKSTATION_ID,
+            new BlockItem(STEWARD_WORKSTATION, itemProperties(STEWARD_WORKSTATION_ID))
     );
 
     public static final Block COOK_CHEST = Registry.register(
@@ -287,7 +300,8 @@ public class ValetMod implements ModInitializer {
             FARMER_WORKSTATION,
             ANIMAL_WORKSTATION,
             MAGIC_WORKSTATION,
-            COOK_WORKSTATION
+            COOK_WORKSTATION,
+            STEWARD_WORKSTATION
     );
 
     public static final VillagerProfession VALET_PROFESSION = Registry.register(
@@ -336,6 +350,7 @@ public class ValetMod implements ModInitializer {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(MAGIC_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_WORKSTATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(STEWARD_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_CHEST_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
@@ -684,7 +699,8 @@ public class ValetMod implements ModInitializer {
                 || state.is(FARMER_WORKSTATION)
                 || state.is(ANIMAL_WORKSTATION)
                 || state.is(MAGIC_WORKSTATION)
-                || state.is(COOK_WORKSTATION);
+                || state.is(COOK_WORKSTATION)
+                || state.is(STEWARD_WORKSTATION);
     }
 
     public static boolean isValet(net.minecraft.world.entity.npc.villager.VillagerData data) {

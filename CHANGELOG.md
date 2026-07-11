@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.7 - Intendant et transferts coffres
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Poste d'intendant` (`valet:steward_workstation`) et du role `Intendant`.
+- L'intendant transfere automatiquement des piles entre coffres, coffres pieges et barils proches du poste.
+- Les 9 premiers slots d'un coffre/baril servent de filtres visibles et ne sont pas consommes par l'intendant.
+- Les destinations filtrees sont prioritaires sur les simples regroupements de piles identiques.
+- Priorite des filtres : slot le plus a gauche d'abord, puis coffre/baril le plus proche du poste.
+- Les coffres/barils sans filtre servent d'entree : l'intendant y prend les items et les range dans les destinations filtrees compatibles.
+- Les mauvais items places dans un coffre filtre peuvent etre evacues vers une destination compatible.
+- Le transfert passe par l'inventaire visible du valet et conserve les filtres en place.
+- Le chemin intendant ne mine pas de blocs autour des coffres, pour eviter de casser le stockage.
+
 ## 0.3.6 - Cuisinier et correctifs metiers
 
 Bugs corriges / fonctionnalite :

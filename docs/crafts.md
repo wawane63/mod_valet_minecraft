@@ -92,6 +92,22 @@ Sortie : `1 Poste de cuisinier`
 
 Repas prepares automatiquement : pain, pomme de terre cuite, steak, cotelette de porc cuite, poulet roti, mouton cuit, lapin cuit, morue cuite et saumon cuit.
 
+### Poste d'intendant
+
+`valet:steward_workstation`
+
+Role : transferts automatiques entre coffres, coffres pieges et barils proches.
+
+Utilisation : place les items filtres dans les 9 premiers slots du coffre/baril cible. L'intendant garde ces filtres, prend les items dans les coffres/barils sans filtre et remplit les destinations compatibles. Le filtre le plus a gauche est prioritaire, puis le coffre/baril le plus proche du poste.
+
+| | Table de craft | |
+| --- | --- | --- |
+| Coffre | Entonnoir | Coffre |
+| Redstone | Baril | Redstone |
+| Planches | Planches | Planches |
+
+Sortie : `1 Poste d'intendant`
+
 ### Coffre de cuisinier
 
 `valet:cook_chest`
