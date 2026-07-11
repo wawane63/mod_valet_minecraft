@@ -19,10 +19,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -60,8 +62,8 @@ public final class CraftingRuntimeTask {
         if (countItem(inventory, Items.STICK, slots) < 2 && !hasWoodForSticks(inventory, slots)) {
             startResourceStep(world, Action.MINE_LOG, "craft need=wood sticks="
                     + countItem(inventory, Items.STICK, slots)
-                    + "/2 planks=" + countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots)
-                    + " logs=" + countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots));
+                    + "/2 planks=" + countMatching(inventory, CraftingRuntimeTask::isPlank, slots)
+                    + " logs=" + countMatching(inventory, CraftingRuntimeTask::isLog, slots));
             return;
         }
 
@@ -322,8 +324,8 @@ public final class CraftingRuntimeTask {
     private boolean hasCraftMaterial(Container inventory, int slots) {
         return countItem(inventory, Items.COBBLESTONE, slots) > 0
                 || countItem(inventory, Items.STICK, slots) > 0
-                || countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) > 0
-                || countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots) > 0;
+                || countMatching(inventory, CraftingRuntimeTask::isPlank, slots) > 0
+                || countMatching(inventory, CraftingRuntimeTask::isLog, slots) > 0;
     }
 
     private int takeCraftMaterialsFromContainer(Container source, Container target, int targetSlots) {
@@ -332,10 +334,10 @@ public final class CraftingRuntimeTask {
         moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(Items.STICK), Math.max(0, 2 - countItem(target, Items.STICK, targetSlots)));
 
         if (countItem(target, Items.STICK, targetSlots) < 2 && !hasWoodForSticks(target, targetSlots)) {
-            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(ItemTags.PLANKS), 2);
+            moved += takeMatchingFromContainer(source, target, targetSlots, CraftingRuntimeTask::isPlank, 2);
         }
         if (countItem(target, Items.STICK, targetSlots) < 2 && !hasWoodForSticks(target, targetSlots)) {
-            moved += takeMatchingFromContainer(source, target, targetSlots, stack -> stack.is(ItemTags.LOGS), 1);
+            moved += takeMatchingFromContainer(source, target, targetSlots, CraftingRuntimeTask::isLog, 1);
         }
 
         if (moved > 0) {
@@ -389,27 +391,39 @@ public final class CraftingRuntimeTask {
 
     private boolean hasWoodForSticks(Container inventory, int slots) {
         return countItem(inventory, Items.STICK, slots) >= 2
-                || countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) >= 2
-                || countMatching(inventory, stack -> stack.is(ItemTags.LOGS), slots) > 0;
+                || countMatching(inventory, CraftingRuntimeTask::isPlank, slots) >= 2
+                || countMatching(inventory, CraftingRuntimeTask::isLog, slots) > 0;
     }
 
     private void craftPlanksFromLogs(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
-                && countMatching(inventory, stack -> stack.is(ItemTags.PLANKS), slots) < 2
-                && consumeMatching(inventory, stack -> stack.is(ItemTags.LOGS), 1, slots) == 1) {
+                && countMatching(inventory, CraftingRuntimeTask::isPlank, slots) < 2
+                && consumeMatching(inventory, CraftingRuntimeTask::isLog, 1, slots) == 1) {
             ValetInventoryTransfer.insertStack(inventory, new ItemStack(Blocks.OAK_PLANKS, 4), slots);
         }
     }
 
     private void craftSticksFromPlanks(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
-                && consumeMatching(inventory, stack -> stack.is(ItemTags.PLANKS), 2, slots) == 2) {
+                && consumeMatching(inventory, CraftingRuntimeTask::isPlank, 2, slots) == 2) {
             ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STICK, 4), slots);
         }
     }
 
     private int countItem(Container inventory, Item item, int slots) {
         return countMatching(inventory, stack -> stack.is(item), slots);
+    }
+
+    private static boolean isPlank(ItemStack stack) {
+        return stack.is(ItemTags.PLANKS)
+                || stack.getItem() instanceof BlockItem blockItem
+                && blockItem.getBlock().defaultBlockState().is(BlockTags.PLANKS);
+    }
+
+    private static boolean isLog(ItemStack stack) {
+        return stack.is(ItemTags.LOGS)
+                || stack.getItem() instanceof BlockItem blockItem
+                && blockItem.getBlock().defaultBlockState().is(BlockTags.LOGS);
     }
 
     private int countMatching(Container inventory, Predicate<ItemStack> predicate, int slots) {

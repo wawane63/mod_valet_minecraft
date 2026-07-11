@@ -306,15 +306,16 @@ public final class CombatRuntimeTask {
         boolean cast = false;
         AABB supportArea = villager.getBoundingBox().inflate(MAGIC_SUPPORT_RADIUS);
         for (Villager ally : world.getEntitiesOfClass(Villager.class, supportArea, ally -> isValetAlly(villager, ally))) {
-            if (canHeal && ally.getHealth() < ally.getMaxHealth()) {
+            boolean injured = ally.getHealth() < ally.getMaxHealth();
+            if (canHeal && injured) {
                 ally.heal(MAGIC_HEAL_AMOUNT);
                 cast = true;
             }
-            if (canRegen) {
+            if (canRegen && injured && needsEffectRefresh(ally, MobEffects.REGENERATION)) {
                 ally.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 120, 0, true, false));
                 cast = true;
             }
-            if (canWard) {
+            if (canWard && (injured || hasActiveCombatTarget()) && needsEffectRefresh(ally, MobEffects.RESISTANCE)) {
                 ally.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 120, 0, true, false));
                 cast = true;
             }
@@ -328,6 +329,18 @@ public final class CombatRuntimeTask {
         addMagicXp(villager, 1);
         magicSupportCooldownTicks = MAGIC_SUPPORT_COOLDOWN_TICKS;
         ValetDebug.record(villager, "combat magic_support heal=" + canHeal + " regen=" + canRegen + " ward=" + canWard);
+    }
+
+    private boolean hasActiveCombatTarget() {
+        return target != null && target.isAlive() && !target.isRemoved();
+    }
+
+    private static boolean needsEffectRefresh(
+            LivingEntity entity,
+            net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> effect
+    ) {
+        MobEffectInstance current = entity.getEffect(effect);
+        return current == null || current.getDuration() <= 20;
     }
 
     private void playMagicCast(ServerLevel world, Villager villager, SoundEvent sound, float pitch) {

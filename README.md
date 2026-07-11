@@ -4,12 +4,12 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Derniere version : 0.3.5 - blueprints ameliores : rotation, miroir et liste des materiaux manquants avant lancement.
+Derniere version : 0.3.6 - poste de cuisinier et stabilisation des metiers.
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
-- [Notes 0.3.5](docs/releases/v0.3.5.md)
+- [Notes 0.3.6](docs/releases/v0.3.6.md)
 
 ## Versions disponibles
 
@@ -26,17 +26,20 @@ Derniere version : 0.3.5 - blueprints ameliores : rotation, miroir et liste des 
 | 0.3.2 | Tri coffre + magicien | [`v0.3.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.2) |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` |
 | 0.3.4 | Eleveur | [`v0.3.4`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.4) |
-| 0.3.5 | Blueprints ameliores | `local` |
+| 0.3.5 | Blueprints ameliores | [`v0.3.5`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.5) |
+| 0.3.6 | Cuisinier + correctifs metiers | `local` |
 
 ## Depart
 
-- Place un `Poste d'artisan`, un `Poste de combattant`, un `Poste de fermier`, un `Poste de magicien` ou un `Poste d'eleveur`.
+- Place un `Poste d'artisan`, un `Poste de combattant`, un `Poste de fermier`, un `Poste de magicien`, un `Poste d'eleveur` ou un `Poste de cuisinier`.
 - Un villageois sans metier peut prendre un de ces postes comme travail.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
 - Fermier : recolte, replantation, houe, zones de ferme.
 - Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
 - Eleveur : reproduit, tond, ramasse les oeufs, trait et abat le surplus dans les enclos.
+- Cuisinier : recolte ble et pommes de terre, prend les ingredients crus dans son coffre dedie, prepare puis depose les repas.
+- Coffre de cuisinier : stockage dedie et obligatoire pour les ingredients et les repas du cuisinier.
 - Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 - Pupitre de groupe : cree des groupes et lie une carte ou une corne de chevre pour commander suivi, garde, attaque et rappel.

@@ -848,8 +848,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                     || category == TargetCategory.CRAFT;
             case FARMER -> category == TargetCategory.NONE || category == TargetCategory.FARM;
             case BREEDER -> category == TargetCategory.NONE || category == TargetCategory.ANIMAL;
-            case COMBATANT -> category == TargetCategory.NONE;
-            case MAGICIAN -> category == TargetCategory.NONE;
+            case COMBATANT, MAGICIAN, COOK -> category == TargetCategory.NONE;
         };
     }
 
@@ -934,12 +933,15 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             ValetCraftTarget target = ValetCraftTarget.fromIndex(selectedCraftTargetIndex);
             return target == null ? getCategoryText(TargetCategory.CRAFT) : Component.translatable(target.getTranslationKey());
         }
-        return Component.translatable("order.valet.none");
+        return Component.translatable(localRole == ValetRole.COOK ? "order.valet.cook" : "order.valet.none");
     }
 
     private Component getHintText() {
         if (selectedCategory == TargetCategory.NONE && localRole == ValetRole.MAGICIAN) {
             return Component.translatable("screen.valet.magic_hint");
+        }
+        if (selectedCategory == TargetCategory.NONE && localRole == ValetRole.COOK) {
+            return Component.translatable("screen.valet.cook_hint");
         }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             return localConstructions.isEmpty() ? Component.translatable("screen.valet.no_constructions") : Component.translatable("screen.valet.build_hint");
@@ -1042,7 +1044,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (localRole) {
             case FARMER -> FARMER_TREE_PERKS;
             case MAGICIAN -> MAGIC_TREE_PERKS;
-            case ARTISAN, BREEDER, COMBATANT -> ARTISAN_TREE_PERKS;
+            case ARTISAN, BREEDER, COMBATANT, COOK -> ARTISAN_TREE_PERKS;
         };
     }
 
@@ -1597,6 +1599,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case COMBATANT -> RightPage.SWORD;
             case BREEDER -> RightPage.FARM_OPTIONS;
             case MAGICIAN -> RightPage.GENERAL;
+            case COOK -> RightPage.INVENTORY;
             case ARTISAN, FARMER -> RightPage.GENERAL;
         };
     }
@@ -1605,7 +1608,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return switch (localRole) {
             case FARMER -> ValetPerk.FARM_HANDS;
             case MAGICIAN -> ValetPerk.MAGIC_ICE;
-            case ARTISAN, BREEDER, COMBATANT -> ValetPerk.SPEED;
+            case ARTISAN, BREEDER, COMBATANT, COOK -> ValetPerk.SPEED;
         };
     }
 
@@ -1616,6 +1619,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case BREEDER -> page == RightPage.FARM_OPTIONS || page == RightPage.INVENTORY;
             case COMBATANT -> page == RightPage.SWORD || page == RightPage.BOW || page == RightPage.INVENTORY;
             case MAGICIAN -> page == RightPage.GENERAL || page == RightPage.INVENTORY;
+            case COOK -> page == RightPage.INVENTORY;
         };
     }
 
@@ -1624,6 +1628,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             case FARMER -> "screen.valet.page_farmer";
             case BREEDER -> "screen.valet.page_breeder";
             case MAGICIAN -> "screen.valet.page_magic";
+            case COOK -> "screen.valet.page_cook";
             case ARTISAN, COMBATANT -> "screen.valet.page_artisan";
         };
         updatePageButton(generalPageButton, RightPage.GENERAL, generalPageKey, localRole == ValetRole.ARTISAN || localRole == ValetRole.FARMER || localRole == ValetRole.MAGICIAN);

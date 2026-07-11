@@ -25,7 +25,8 @@ Regles obligatoires :
 | 0.3.2 | Tri coffre + magicien | `v0.3.2` | `build/libs/valet-0.3.2.jar` | `9E01576BE53A9BB89048E559461E96BFB8DBA8D2A006BD1B4E3C7E2B0E65D5E3` |
 | 0.3.3 | Creation de groupe | integre dans `v0.3.4` | pas de jar separe | - |
 | 0.3.4 | Eleveur | `v0.3.4` | `build/libs/valet-0.3.4.jar` | `2DC045E5225419A7EAB3652A096F83B40D9FF539A9B93E5E8E60AF2A2827B2B5` |
-| 0.3.5 | Blueprints ameliores | local | `build/libs/valet-0.3.5.jar` | `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C` |
+| 0.3.5 | Blueprints ameliores | `v0.3.5` | `build/libs/valet-0.3.5.jar` | `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C` |
+| 0.3.6 | Cuisinier + correctifs metiers | local | `build/libs/valet-0.3.6.jar` | `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -34,6 +35,33 @@ Le jar `0.3.2` correspond a la release `v0.3.2`.
 La version `0.3.3` correspond a la creation de groupe, integree dans la publication `0.3.4`.
 Le jar `0.3.4` correspond a l'eleveur.
 Le jar `0.3.5` correspond aux blueprints ameliores.
+Le jar `0.3.6` ajoute le cuisinier et les correctifs metiers issus du test en jeu.
+
+## 0.3.6 - Cuisinier et correctifs metiers
+
+Objectif : ajouter un metier de cuisine autonome et corriger les boucles et blocages observes dans `latest.log`.
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du poste `valet:cook_workstation` et du role `Cuisinier`.
+- Ajout du coffre dedie `valet:cook_chest` avec 27 emplacements et inventaire sauvegarde.
+- Le cuisinier ignore les coffres ordinaires pour les ingredients et les repas.
+- Recolte automatique du ble et des pommes de terre murs proches, avec replantation si l'inventaire contient la semence.
+- Collecte des ingredients crus depuis le coffre de cuisinier proche.
+- Preparation automatique de pain, pommes de terre cuites, viandes et poissons cuits.
+- Depot des repas termines dans le coffre de cuisinier proche.
+- Le support magique ne se lance plus en boucle sur des allies en pleine sante.
+- Regeneration et resistance ne sont rafraichies qu'a expiration et dans un contexte utile.
+- Le craft de pioche reconnait les variantes de buches et de planches par tags items et blocs.
+- Le fermier retire neige en couche et bloc de neige avant labour.
+- Le fermier plante les terres labourees vides avec une culture active disponible dans son inventaire.
+- La construction et le combattant n'ont pas produit de signature d'erreur concluante dans le log fourni.
+
+Verification :
+
+- Jar actuel : `valet-0.3.6.jar`
+- SHA-256 : `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807`
+- Build Gradle local OK, jar installe dans le dossier `mods`.
 
 ## 0.3.5 - Blueprints ameliores
 

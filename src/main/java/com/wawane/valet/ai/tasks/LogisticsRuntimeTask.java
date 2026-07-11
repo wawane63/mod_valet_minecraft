@@ -1,6 +1,7 @@
 package com.wawane.valet.ai.tasks;
 
 import com.wawane.valet.ValetDebug;
+import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
@@ -112,6 +113,11 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
+        if (control.hasCookingWork()) {
+            control.setState(State.FIND_TARGET);
+            return;
+        }
+
         if (control.hasMiningOrder()) {
             control.setState(control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING);
             return;
@@ -167,7 +173,12 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        control.setState(control.hasConstructionOrder() || control.hasCraftOrder() || (control.hasMiningOrder() || control.hasFarmOrder() || control.hasBreedingOrder()) && control.hasInventorySpace() ? State.FIND_TARGET : State.RETURNING_HOME);
+        control.setState(control.hasConstructionOrder()
+                || control.hasCraftOrder()
+                || control.hasCookingWork()
+                || (control.hasMiningOrder() || control.hasFarmOrder() || control.hasBreedingOrder()) && control.hasInventorySpace()
+                ? State.FIND_TARGET
+                : State.RETURNING_HOME);
         control.setDelayTicks(4);
     }
 
@@ -181,12 +192,21 @@ public final class LogisticsRuntimeTask {
 
     private boolean canResumeWorkWithoutDepositing() {
         return control.hasInventorySpace()
-                && (control.hasMiningOrder() || control.hasFarmOrder() || control.hasBreedingOrder() || control.hasConstructionOrder() || control.hasCraftOrder());
+                && (control.hasMiningOrder()
+                || control.hasFarmOrder()
+                || control.hasBreedingOrder()
+                || control.hasConstructionOrder()
+                || control.hasCraftOrder()
+                || control.hasCookingWork());
     }
 
     private BlockPos findNearestContainer(ServerLevel world, BlockPos origin) {
         return findNearest(world, origin, control.chestRadius(), 4, pos -> {
             BlockState blockState = world.getBlockState(pos);
+            if (control.hasCookingWork()) {
+                return blockState.is(ValetMod.COOK_CHEST)
+                        && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
+            }
             return (blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL))
                     && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
         });
@@ -253,6 +273,8 @@ public final class LogisticsRuntimeTask {
         boolean hasConstructionOrder();
 
         boolean hasCraftOrder();
+
+        boolean hasCookingWork();
 
         boolean hasInventorySpace();
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.6 - Cuisinier et correctifs metiers
+
+Bugs corriges / fonctionnalite :
+
+- Ajout du `Poste de cuisinier` (`valet:cook_workstation`) et du role `Cuisinier`.
+- Ajout du `Coffre de cuisinier` (`valet:cook_chest`), ouvrable et dote de 27 emplacements.
+- Le cuisinier prend ses ingredients et depose ses repas uniquement dans ce coffre dedie.
+- Le cuisinier recolte automatiquement le ble et les pommes de terre murs proches, puis replante si possible.
+- Le cuisinier prend les ingredients crus dans son coffre dedie proche.
+- Il prepare automatiquement pain, pommes de terre cuites, viandes et poissons cuits au poste.
+- Les repas termines sont deposes dans le coffre de cuisinier proche.
+- Le magicien ne relance plus soins, regeneration et resistance sur des allies qui n'en ont pas besoin.
+- Les buffs de resistance du magicien sont reserves aux allies blesses ou au combat.
+- Le craft de pioche reconnait les buches et planches de tous les bois via les tags items et blocs.
+- Le fermier peut retirer une couche ou un bloc de neige avant de labourer.
+- Le fermier plante automatiquement une culture choisie sur une terre labouree vide, y compris dans un champ neuf.
+- Les logs de test ont ete analyses : aucun echec de construction explicite n'a ete enregistre; le deplacement reste a surveiller.
+- Le combattant retombe bien sur l'epee sans fleches; le cas intermittent reste a preciser par une nouvelle signature de log.
+
 ## 0.3.5 - Blueprints ameliores
 
 Bugs corriges / fonctionnalite :

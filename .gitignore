@@ -16,3 +16,4 @@ local.properties
 fabric-installer-*.jar
 codex_backups/
 tools/
+.DS_Store

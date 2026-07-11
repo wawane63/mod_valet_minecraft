@@ -6,6 +6,8 @@
     "valet:farmer_workstation",
     "valet:poste_eleveur",
     "valet:magic_workstation",
+    "valet:cook_workstation",
+    "valet:cook_chest",
     "valet:valet_group_station",
     "valet:animal_beacon"
   ]

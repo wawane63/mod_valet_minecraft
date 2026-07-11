@@ -13,6 +13,8 @@ import com.wawane.valet.ai.core.ValetEntityReservations;
 import com.wawane.valet.breeding.AnimalBeaconBlock;
 import com.wawane.valet.breeding.ValetAnimalMarkers;
 import com.wawane.valet.combat.InfiniteArrowChestBlock;
+import com.wawane.valet.cooking.CookChestBlock;
+import com.wawane.valet.cooking.CookChestBlockEntity;
 import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
 import com.wawane.valet.group.ValetGroupCardItem;
@@ -84,6 +86,8 @@ public class ValetMod implements ModInitializer {
     public static final Identifier FARMER_WORKSTATION_ID = id("farmer_workstation");
     public static final Identifier ANIMAL_WORKSTATION_ID = id("poste_eleveur");
     public static final Identifier MAGIC_WORKSTATION_ID = id("magic_workstation");
+    public static final Identifier COOK_WORKSTATION_ID = id("cook_workstation");
+    public static final Identifier COOK_CHEST_ID = id("cook_chest");
     public static final Identifier CONSTRUCTION_BEACON_ID = id("construction_beacon");
     public static final Identifier FARM_BEACON_ID = id("farm_beacon");
     public static final Identifier ANIMAL_BEACON_ID = id("animal_beacon");
@@ -158,6 +162,30 @@ public class ValetMod implements ModInitializer {
             BuiltInRegistries.ITEM,
             MAGIC_WORKSTATION_ID,
             new BlockItem(MAGIC_WORKSTATION, itemProperties(MAGIC_WORKSTATION_ID))
+    );
+
+    public static final Block COOK_WORKSTATION = Registry.register(
+            BuiltInRegistries.BLOCK,
+            COOK_WORKSTATION_ID,
+            new Block(blockProperties(COOK_WORKSTATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.CRAFTING_TABLE).strength(2.5F)))
+    );
+
+    public static final Item COOK_WORKSTATION_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            COOK_WORKSTATION_ID,
+            new BlockItem(COOK_WORKSTATION, itemProperties(COOK_WORKSTATION_ID))
+    );
+
+    public static final Block COOK_CHEST = Registry.register(
+            BuiltInRegistries.BLOCK,
+            COOK_CHEST_ID,
+            new CookChestBlock(blockProperties(COOK_CHEST_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.BARREL).strength(2.5F)))
+    );
+
+    public static final Item COOK_CHEST_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            COOK_CHEST_ID,
+            new BlockItem(COOK_CHEST, itemProperties(COOK_CHEST_ID))
     );
 
     public static final Block CONSTRUCTION_BEACON = Registry.register(
@@ -244,6 +272,12 @@ public class ValetMod implements ModInitializer {
             new BlockEntityType<>(ConstructionBlueprintBlockEntity::new, java.util.Set.of(CONSTRUCTION_BLUEPRINT))
     );
 
+    public static final BlockEntityType<CookChestBlockEntity> COOK_CHEST_BLOCK_ENTITY = Registry.register(
+            BuiltInRegistries.BLOCK_ENTITY_TYPE,
+            COOK_CHEST_ID,
+            new BlockEntityType<>(CookChestBlockEntity::new, java.util.Set.of(COOK_CHEST))
+    );
+
     public static final PoiType VALET_POI = PoiHelper.register(
             VALET_WORKSTATION_ID,
             1,
@@ -252,7 +286,8 @@ public class ValetMod implements ModInitializer {
             COMBAT_WORKSTATION,
             FARMER_WORKSTATION,
             ANIMAL_WORKSTATION,
-            MAGIC_WORKSTATION
+            MAGIC_WORKSTATION,
+            COOK_WORKSTATION
     );
 
     public static final VillagerProfession VALET_PROFESSION = Registry.register(
@@ -300,6 +335,8 @@ public class ValetMod implements ModInitializer {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARMER_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_WORKSTATION_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(MAGIC_WORKSTATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_WORKSTATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_CHEST_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_BEACON_ITEM));
@@ -642,7 +679,12 @@ public class ValetMod implements ModInitializer {
     }
 
     public static boolean isValetWorkstation(net.minecraft.world.level.block.state.BlockState state) {
-        return state.is(VALET_WORKSTATION) || state.is(COMBAT_WORKSTATION) || state.is(FARMER_WORKSTATION) || state.is(ANIMAL_WORKSTATION) || state.is(MAGIC_WORKSTATION);
+        return state.is(VALET_WORKSTATION)
+                || state.is(COMBAT_WORKSTATION)
+                || state.is(FARMER_WORKSTATION)
+                || state.is(ANIMAL_WORKSTATION)
+                || state.is(MAGIC_WORKSTATION)
+                || state.is(COOK_WORKSTATION);
     }
 
     public static boolean isValet(net.minecraft.world.entity.npc.villager.VillagerData data) {

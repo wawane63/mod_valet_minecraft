@@ -76,6 +76,36 @@ Role : reproduction, tonte, ramassage d'oeufs et traite dans les enclos.
 
 Sortie : `1 Poste d'eleveur`
 
+### Poste de cuisinier
+
+`valet:cook_workstation`
+
+Role : recolte du ble et des pommes de terre, collecte d'ingredients crus dans les coffres, cuisson et depot des repas.
+
+| | Table de craft | |
+| --- | --- | --- |
+| Ble | Houe en bois | Ble |
+| Bol | Fumoir | Bol |
+| Planches | Planches | Planches |
+
+Sortie : `1 Poste de cuisinier`
+
+Repas prepares automatiquement : pain, pomme de terre cuite, steak, cotelette de porc cuite, poulet roti, mouton cuit, lapin cuit, morue cuite et saumon cuit.
+
+### Coffre de cuisinier
+
+`valet:cook_chest`
+
+Utilisation : seul coffre dans lequel le cuisinier prend ses ingredients et depose les repas prepares. Il offre 27 emplacements et reste ouvrable par le joueur.
+
+| | Table de craft | |
+| --- | --- | --- |
+| Bol | Fourneau | Bol |
+| Ble | Coffre | Ble |
+| Planches | Planches | Planches |
+
+Sortie : `1 Coffre de cuisinier`
+
 ## Commandes de groupe
 
 ### Pupitre de groupe

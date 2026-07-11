@@ -42,20 +42,25 @@ java {
     withSourcesJar()
 }
 
-def appData = System.getenv('APPDATA')
-if (appData != null) {
-    tasks.register('installClientJar', Copy) {
-        dependsOn tasks.named('jar')
-        from tasks.named('jar').flatMap { it.archiveFile }
-        into file("${appData}/.minecraft/mods")
-        doFirst {
-            delete fileTree("${appData}/.minecraft/mods") {
-                include "${project.archives_base_name}-*.jar"
-            }
+def osName = System.getProperty('os.name').toLowerCase()
+def minecraftDir = System.getenv('APPDATA') != null
+    ? file("${System.getenv('APPDATA')}/.minecraft")
+    : osName.contains('mac')
+        ? file("${System.getProperty('user.home')}/Library/Application Support/minecraft")
+        : file("${System.getProperty('user.home')}/.minecraft")
+
+tasks.register('installClientJar', Copy) {
+    dependsOn tasks.named('jar')
+    from tasks.named('jar').flatMap { it.archiveFile }
+    into file("${minecraftDir}/mods")
+    doFirst {
+        file("${minecraftDir}/mods").mkdirs()
+        delete fileTree("${minecraftDir}/mods") {
+            include "${project.archives_base_name}-*.jar"
         }
     }
+}
 
-    tasks.named('build') {
-        finalizedBy tasks.named('installClientJar')
-    }
+tasks.named('build') {
+    finalizedBy tasks.named('installClientJar')
 }

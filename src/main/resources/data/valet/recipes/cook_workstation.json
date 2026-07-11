@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "WKW",
+    "BSB",
+    "PPP"
+  ],
+  "key": {
+    "W": {
+      "item": "minecraft:wheat"
+    },
+    "K": {
+      "item": "minecraft:wooden_hoe"
+    },
+    "B": {
+      "item": "minecraft:bowl"
+    },
+    "S": {
+      "item": "minecraft:smoker"
+    },
+    "P": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "item": "valet:cook_workstation",
+    "count": 1
+  }
+}
