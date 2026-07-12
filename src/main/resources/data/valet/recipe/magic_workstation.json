@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "GBG",
+    "ICI",
+    "WWW"
+  ],
+  "key": {
+    "G": "minecraft:glass_bottle",
+    "B": "minecraft:bow",
+    "I": "#minecraft:logs",
+    "C": "minecraft:chest",
+    "W": "#minecraft:planks"
+  },
+  "result": {
+    "id": "valet:magic_workstation",
+    "count": 1
+  }
+}

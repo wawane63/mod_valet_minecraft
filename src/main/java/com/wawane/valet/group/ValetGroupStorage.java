@@ -3,8 +3,9 @@ package com.wawane.valet.group;
 import com.mojang.serialization.Codec;
 import com.wawane.valet.ValetMod;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -32,7 +33,7 @@ public final class ValetGroupStorage extends SavedData {
     }
 
     public ValetGroup addGroup(String name) {
-        if (groups.size() >= MAX_GROUPS) {
+        if (groups.size() >= MAX_GROUPS || nextId <= 0 || nextId == Integer.MAX_VALUE) {
             return null;
         }
         ValetGroup group = new ValetGroup(nextId, name);
@@ -60,9 +61,7 @@ public final class ValetGroupStorage extends SavedData {
     }
 
     public List<ValetGroup> getGroups() {
-        return groups.stream()
-                .sorted(Comparator.comparingInt(ValetGroup::id))
-                .toList();
+        return List.copyOf(groups);
     }
 
     public int getGroupIdForMember(UUID valetUuid) {
@@ -126,16 +125,30 @@ public final class ValetGroupStorage extends SavedData {
 
     private static ValetGroupStorage fromNbt(CompoundTag nbt) {
         ValetGroupStorage storage = new ValetGroupStorage();
-        storage.nextId = Math.max(1, nbt.getIntOr("NextId", 1));
+        int savedNextId = nbt.getIntOr("NextId", 1);
+        storage.nextId = savedNextId > 0 && savedNextId < Integer.MAX_VALUE ? savedNextId : 1;
         ListTag list = nbt.getListOrEmpty("Groups");
-        for (int i = 0; i < list.size(); i++) {
+        Set<Integer> loadedIds = new HashSet<>();
+        for (int i = 0; i < list.size() && storage.groups.size() < MAX_GROUPS; i++) {
             CompoundTag groupNbt = list.getCompound(i).orElse(null);
             if (groupNbt == null) {
                 continue;
             }
             ValetGroup group = ValetGroup.readNbt(groupNbt);
+            if (group.id() <= 0 || group.id() == Integer.MAX_VALUE || !loadedIds.add(group.id())) {
+                continue;
+            }
             storage.groups.add(group);
             storage.nextId = Math.max(storage.nextId, group.id() + 1);
+        }
+        storage.groups.sort(java.util.Comparator.comparingInt(ValetGroup::id));
+        Set<UUID> assignedMembers = new HashSet<>();
+        for (ValetGroup group : storage.groups) {
+            for (UUID member : group.members()) {
+                if (!assignedMembers.add(member)) {
+                    group.removeMember(member);
+                }
+            }
         }
         return storage;
     }

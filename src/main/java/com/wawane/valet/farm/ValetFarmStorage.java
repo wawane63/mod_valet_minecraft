@@ -3,8 +3,9 @@ package com.wawane.valet.farm;
 import com.mojang.serialization.Codec;
 import com.wawane.valet.ValetMod;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.server.level.ServerLevel;
@@ -31,11 +32,14 @@ public final class ValetFarmStorage extends SavedData {
     }
 
     public ValetFarmArea addArea(String name, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        if (areas.size() >= MAX_AREAS) {
+        if (areas.size() >= MAX_AREAS || nextId <= 0 || nextId == Integer.MAX_VALUE) {
             return null;
         }
 
         ValetFarmArea area = new ValetFarmArea(nextId, name, minX, minY, minZ, maxX, maxY, maxZ);
+        if (!area.hasValidSize()) {
+            return null;
+        }
         nextId++;
         areas.add(area);
         setDirty();
@@ -52,9 +56,7 @@ public final class ValetFarmStorage extends SavedData {
     }
 
     public List<ValetFarmArea> getAreas() {
-        return areas.stream()
-                .sorted(Comparator.comparingInt(ValetFarmArea::id))
-                .toList();
+        return List.copyOf(areas);
     }
 
     public String nextDefaultName() {
@@ -74,17 +76,23 @@ public final class ValetFarmStorage extends SavedData {
 
     private static ValetFarmStorage fromNbt(CompoundTag nbt) {
         ValetFarmStorage storage = new ValetFarmStorage();
-        storage.nextId = Math.max(1, nbt.getIntOr("NextId", 1));
+        int savedNextId = nbt.getIntOr("NextId", 1);
+        storage.nextId = savedNextId > 0 && savedNextId < Integer.MAX_VALUE ? savedNextId : 1;
         ListTag list = nbt.getListOrEmpty("Areas");
-        for (int i = 0; i < list.size(); i++) {
+        Set<Integer> loadedIds = new HashSet<>();
+        for (int i = 0; i < list.size() && storage.areas.size() < MAX_AREAS; i++) {
             CompoundTag areaNbt = list.getCompound(i).orElse(null);
             if (areaNbt == null) {
                 continue;
             }
             ValetFarmArea area = ValetFarmArea.readNbt(areaNbt);
+            if (area.id() <= 0 || area.id() == Integer.MAX_VALUE || !area.hasValidSize() || !loadedIds.add(area.id())) {
+                continue;
+            }
             storage.areas.add(area);
             storage.nextId = Math.max(storage.nextId, area.id() + 1);
         }
+        storage.areas.sort(java.util.Comparator.comparingInt(ValetFarmArea::id));
         return storage;
     }
 }

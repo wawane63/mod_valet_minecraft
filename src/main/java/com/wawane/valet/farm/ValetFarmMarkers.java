@@ -12,8 +12,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 public final class ValetFarmMarkers {
-    private static final int MAX_WIDTH = 64;
-    private static final int MAX_DEPTH = 64;
     private static final Map<UUID, Marker> FIRST_MARKERS = new ConcurrentHashMap<>();
 
     private ValetFarmMarkers() {
@@ -52,7 +50,7 @@ public final class ValetFarmMarkers {
         int layerY = Math.min(world.getMaxY() - 1, Math.max(first.getY(), second.getY()));
         int width = maxX - minX + 1;
         int depth = maxZ - minZ + 1;
-        if (width > MAX_WIDTH || depth > MAX_DEPTH) {
+        if (width > ValetFarmArea.MAX_WIDTH || depth > ValetFarmArea.MAX_DEPTH) {
             player.sendOverlayMessage(Component.translatable("message.valet.farm_too_large"));
             return;
         }

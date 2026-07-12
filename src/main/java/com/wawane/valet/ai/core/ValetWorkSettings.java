@@ -1,9 +1,9 @@
 package com.wawane.valet.ai.core;
 
 import com.wawane.valet.ValetRole;
-import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
+import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
@@ -37,7 +37,7 @@ public final class ValetWorkSettings {
     private static final double COMBAT_SEARCH_RADIUS = 8.0D;
     private static final double COMBAT_SEARCH_RADIUS_BONUS = 4.0D;
     private static final double COMBAT_CHASE_RADIUS_BONUS = 6.0D;
-    private static final double COMBAT_ATTACK_RANGE_SQUARED = 2.25D;
+    private static final double COMBAT_ATTACK_RANGE = 1.5D;
     private static final double COMBAT_ATTACK_RANGE_BONUS = 0.75D;
     private static final double COMBAT_BOW_RANGE_BONUS = 4.0D;
     private static final double COMBAT_MOVE_SPEED = 1.0D;
@@ -80,6 +80,10 @@ public final class ValetWorkSettings {
 
     public int materialRadius() {
         return chestRadius() + BUILD_MATERIAL_RADIUS_BONUS;
+    }
+
+    public static int maximumMaterialRadius() {
+        return CHEST_RADIUS + CHEST_RADIUS_BONUS + BUILD_MATERIAL_RADIUS_BONUS;
     }
 
     public int maxPathNodes() {
@@ -128,8 +132,8 @@ public final class ValetWorkSettings {
 
     public double combatAttackRangeSquared() {
         double range = ValetCombatProgress.hasPerk(villager, ValetCombatPerk.SWORD_REACH)
-                ? Math.sqrt(COMBAT_ATTACK_RANGE_SQUARED) + COMBAT_ATTACK_RANGE_BONUS
-                : Math.sqrt(COMBAT_ATTACK_RANGE_SQUARED);
+                ? COMBAT_ATTACK_RANGE + COMBAT_ATTACK_RANGE_BONUS
+                : COMBAT_ATTACK_RANGE;
         return range * range;
     }
 

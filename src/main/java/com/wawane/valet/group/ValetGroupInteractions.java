@@ -6,9 +6,11 @@ import com.wawane.valet.ValetRole;
 import com.wawane.valet.ai.ValetWorkGoal;
 import com.wawane.valet.gui.ValetGroupScreenHandler;
 import com.wawane.valet.network.packets.ManageGroupPayload;
+import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import com.wawane.valet.network.packets.ValetGroupStatePayload;
 import com.wawane.valet.state.ValetBehavior;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
@@ -36,6 +38,7 @@ import net.minecraft.world.phys.EntityHitResult;
 
 public final class ValetGroupInteractions {
     private static final int VALET_SCAN_RADIUS = 36;
+    private static final double MAP_VALET_ASSIGN_RADIUS = 512.0D;
 
     private ValetGroupInteractions() {
     }
@@ -119,7 +122,7 @@ public final class ValetGroupInteractions {
         ServerPlayer player = context.player();
         context.server().execute(() -> {
             BlockPos stationPos = payload.stationPos();
-            if (!isValidStation(player, stationPos)) {
+            if (!isValidManagementContext(player, stationPos)) {
                 return;
             }
             ServerLevel world = player.level();
@@ -135,15 +138,22 @@ public final class ValetGroupInteractions {
                     }
                 }
                 case DELETE -> {
-                    storage.removeGroup(payload.groupId());
+                    ValetGroup removedGroup = storage.getGroup(payload.groupId());
+                    if (removedGroup != null && storage.removeGroup(payload.groupId())) {
+                        restartMembers(world, removedGroup.members());
+                        player.sendOverlayMessage(Component.translatable("message.valet_group.deleted"));
+                    }
                     selectedGroupId = firstGroupId(storage);
-                    player.sendOverlayMessage(Component.translatable("message.valet_group.deleted"));
                 }
                 case TOGGLE_MEMBER -> {
                     if (!ManageGroupPayload.NO_VALET.equals(payload.valetUuid()) && isValetNearStation(world, payload.valetUuid(), stationPos)) {
+                        ValetGroup targetGroup = storage.getGroup(payload.groupId());
+                        boolean removing = targetGroup != null && targetGroup.hasMember(payload.valetUuid());
                         storage.toggleMember(payload.groupId(), payload.valetUuid());
                         ValetGroup group = storage.getGroup(payload.groupId());
-                        if (group != null) {
+                        if (removing) {
+                            restartMember(world, payload.valetUuid());
+                        } else if (group != null && group.hasMember(payload.valetUuid())) {
                             restartGroup(world, group);
                         }
                     }
@@ -153,6 +163,60 @@ public final class ValetGroupInteractions {
                 case COMMAND -> applyGroupCommand(world, player, payload.groupId(), commandFromMode(payload.mode(), player, stationPos));
             }
             sendGroupState(player, stationPos, selectedGroupId);
+        });
+    }
+
+    public static void handleMapManagement(ManageMapGroupPayload payload, ServerPlayNetworking.Context context) {
+        ServerPlayer player = context.player();
+        context.server().execute(() -> {
+            ServerLevel world = player.level();
+            ValetGroupStorage storage = ValetGroupStorage.get(world);
+            int selectedGroupId = payload.groupId();
+            switch (payload.action()) {
+                case REQUEST -> {
+                }
+                case CREATE -> {
+                    ValetGroup group = storage.addGroup(storage.nextDefaultName());
+                    if (group != null) {
+                        selectedGroupId = group.id();
+                        player.sendOverlayMessage(Component.translatable("message.valet_group.created", group.name()));
+                    }
+                }
+                case DELETE -> {
+                    ValetGroup removed = storage.getGroup(payload.groupId());
+                    if (removed != null && storage.removeGroup(payload.groupId())) {
+                        restartMembers(world, removed.members());
+                        player.sendOverlayMessage(Component.translatable("message.valet_group.deleted"));
+                    }
+                    selectedGroupId = firstGroupId(storage);
+                }
+                case TOGGLE_MEMBER -> {
+                    if (isAssignableMapValet(world, player, payload.valetUuid())) {
+                        ValetGroup target = storage.getGroup(payload.groupId());
+                        boolean removing = target != null && target.hasMember(payload.valetUuid());
+                        storage.toggleMember(payload.groupId(), payload.valetUuid());
+                        if (removing) {
+                            restartMember(world, payload.valetUuid());
+                        } else if (target != null && target.hasMember(payload.valetUuid())) {
+                            restartGroup(world, target);
+                        }
+                    }
+                }
+                case MOVE_TO -> {
+                    ValetGroup group = storage.getGroup(payload.groupId());
+                    BlockPos destination = payload.destination();
+                    if (group != null && group.memberCount() > 0 && destination != null
+                            && world.getWorldBorder().isWithinBounds(destination.getX(), destination.getZ())) {
+                        applyGroupCommand(world, player, group.id(), ValetGroupCommand.moveTo(new BlockPos(destination.getX(), 0, destination.getZ())));
+                    }
+                }
+                case RECALL -> {
+                    if (storage.getGroup(payload.groupId()) != null) {
+                        applyGroupCommand(world, player, payload.groupId(), ValetGroupCommand.recall());
+                    }
+                }
+            }
+            sendMapGroupState(player, selectedGroupId);
         });
     }
 
@@ -193,6 +257,18 @@ public final class ValetGroupInteractions {
         ));
     }
 
+    private static void sendMapGroupState(ServerPlayer player, int selectedGroupId) {
+        if (!ServerPlayNetworking.canSend(player, ValetGroupStatePayload.TYPE)) {
+            return;
+        }
+        ServerPlayNetworking.send(player, new ValetGroupStatePayload(
+                BlockPos.ZERO,
+                selectedGroupId > 0 ? selectedGroupId : firstGroupId(ValetGroupStorage.get(player.level())),
+                buildGroupEntries(player.level()),
+                buildMapValetEntries(player.level(), player)
+        ));
+    }
+
     private static void writeOpeningData(RegistryFriendlyByteBuf buf, BlockPos stationPos, int selectedGroupId, List<ValetGroupScreenHandler.GroupEntry> groups, List<ValetGroupScreenHandler.ValetEntry> valets) {
         ValetGroupScreenHandler.writeBlockPos(buf, stationPos);
         buf.writeInt(selectedGroupId);
@@ -211,6 +287,28 @@ public final class ValetGroupInteractions {
         ValetGroupStorage storage = ValetGroupStorage.get(world);
         return world.getEntitiesOfClass(Villager.class, box, villager -> villager.isAlive() && !villager.isRemoved() && ValetMod.isValet(villager)).stream()
                 .sorted(Comparator.comparingDouble(villager -> villager.distanceToSqr(stationPos.getX() + 0.5D, stationPos.getY() + 0.5D, stationPos.getZ() + 0.5D)))
+                .limit(ValetGroupScreenHandler.MAX_VALETS)
+                .map(villager -> new ValetGroupScreenHandler.ValetEntry(
+                        villager.getId(),
+                        villager.getUUID(),
+                        displayName(villager),
+                        ValetRole.get(world, villager).ordinal(),
+                        storage.getGroupIdForMember(villager.getUUID())
+                ))
+                .toList();
+    }
+
+    private static List<ValetGroupScreenHandler.ValetEntry> buildMapValetEntries(ServerLevel world, ServerPlayer player) {
+        List<Villager> candidates = new ArrayList<>();
+        for (Entity entity : world.getAllEntities()) {
+            if (entity instanceof Villager villager && villager.isAlive() && !villager.isRemoved() && ValetMod.isValet(villager)) {
+                candidates.add(villager);
+            }
+        }
+        candidates.sort(Comparator.comparingDouble(player::distanceToSqr));
+        ValetGroupStorage storage = ValetGroupStorage.get(world);
+        return candidates.stream()
+                .limit(ValetGroupScreenHandler.MAX_VALETS)
                 .map(villager -> new ValetGroupScreenHandler.ValetEntry(
                         villager.getId(),
                         villager.getUUID(),
@@ -231,13 +329,40 @@ public final class ValetGroupInteractions {
     }
 
     private static boolean isValidStation(ServerPlayer player, BlockPos stationPos) {
-        return player.level().getBlockState(stationPos).is(ValetMod.VALET_GROUP_STATION)
-                && player.distanceToSqr(stationPos.getX() + 0.5D, stationPos.getY() + 0.5D, stationPos.getZ() + 0.5D) <= 64.0D;
+        return stationPos != null
+                && player.distanceToSqr(stationPos.getX() + 0.5D, stationPos.getY() + 0.5D, stationPos.getZ() + 0.5D) <= 64.0D
+                && player.level().hasChunk(stationPos.getX() >> 4, stationPos.getZ() >> 4)
+                && player.level().getBlockState(stationPos).is(ValetMod.VALET_GROUP_STATION);
+    }
+
+    private static boolean isValidManagementContext(ServerPlayer player, BlockPos stationPos) {
+        return player.containerMenu instanceof ValetGroupScreenHandler menu
+                && menu.getStationPos().equals(stationPos)
+                && isValidStation(player, stationPos);
     }
 
     private static boolean isValetNearStation(ServerLevel world, UUID valetUuid, BlockPos stationPos) {
+        Entity entity = world.getEntity(valetUuid);
+        if (!(entity instanceof Villager villager)
+                || !villager.isAlive()
+                || villager.isRemoved()
+                || !ValetMod.isValet(villager)) {
+            return false;
+        }
         AABB box = new AABB(stationPos).inflate(VALET_SCAN_RADIUS, 8.0D, VALET_SCAN_RADIUS);
-        return !world.getEntitiesOfClass(Villager.class, box, villager -> villager.getUUID().equals(valetUuid) && ValetMod.isValet(villager)).isEmpty();
+        return box.contains(villager.position());
+    }
+
+    private static boolean isAssignableMapValet(ServerLevel world, ServerPlayer player, UUID valetUuid) {
+        if (valetUuid == null || ManageMapGroupPayload.NO_VALET.equals(valetUuid)) {
+            return false;
+        }
+        Entity entity = world.getEntity(valetUuid);
+        return entity instanceof Villager villager
+                && villager.isAlive()
+                && !villager.isRemoved()
+                && ValetMod.isValet(villager)
+                && villager.distanceToSqr(player) <= MAP_VALET_ASSIGN_RADIUS * MAP_VALET_ASSIGN_RADIUS;
     }
 
     private static void giveGroupCard(ServerPlayer player, ValetGroup group) {
@@ -272,6 +397,7 @@ public final class ValetGroupInteractions {
             case GUARD_CLOSE -> ValetGroupCommand.guardClose(player.getUUID());
             case GUARD_WIDE -> ValetGroupCommand.guardWide(player.getUUID());
             case ATTACK_AREA -> ValetGroupCommand.attackArea(stationPos);
+            case MOVE_TO -> ValetGroupCommand.moveTo(stationPos);
             case RECALL -> ValetGroupCommand.recall();
             case IDLE, ATTACK_TARGET -> ValetGroupCommand.idle();
         };
@@ -282,7 +408,7 @@ public final class ValetGroupInteractions {
             case FOLLOW -> ValetGroupCommand.guardClose(playerUuid);
             case GUARD_CLOSE -> ValetGroupCommand.guardWide(playerUuid);
             case GUARD_WIDE -> ValetGroupCommand.recall();
-            case IDLE, ATTACK_TARGET, ATTACK_AREA, RECALL -> ValetGroupCommand.follow(playerUuid);
+            case IDLE, ATTACK_TARGET, ATTACK_AREA, MOVE_TO, RECALL -> ValetGroupCommand.follow(playerUuid);
         };
     }
 
@@ -305,18 +431,33 @@ public final class ValetGroupInteractions {
     private static void restartGroup(ServerLevel world, ValetGroup group) {
         for (UUID member : group.members()) {
             Entity entity = world.getEntity(member);
-            if (!(entity instanceof Villager villager) || !ValetMod.isValet(villager)) {
-                continue;
+            if (entity instanceof Villager villager && ValetMod.isValet(villager)) {
+                ValetBehavior.clearRecall(villager.getUUID());
+                if (group.command().mode() == ValetGroupMode.RECALL) {
+                    ValetBehavior.recallToWorkstation(world, villager);
+                }
+                ValetWorkGoal.requestRestart(villager);
+                ValetDebug.record(villager, "group command=" + group.command().mode().name().toLowerCase() + " group=" + group.id());
             }
-            if (group.command().mode() == ValetGroupMode.RECALL) {
-                ValetBehavior.recallToWorkstation(world, villager);
-            }
+        }
+    }
+
+    private static void restartMembers(ServerLevel world, java.util.Set<UUID> members) {
+        for (UUID member : members) {
+            restartMember(world, member);
+        }
+    }
+
+    private static void restartMember(ServerLevel world, UUID member) {
+        Entity entity = world.getEntity(member);
+        if (entity instanceof Villager villager && ValetMod.isValet(villager)) {
+            ValetBehavior.clearRecall(villager.getUUID());
             ValetWorkGoal.requestRestart(villager);
-            ValetDebug.record(villager, "group command=" + group.command().mode().name().toLowerCase() + " group=" + group.id());
         }
     }
 
     private static int firstGroupId(ValetGroupStorage storage) {
-        return storage.getGroups().isEmpty() ? -1 : storage.getGroups().get(0).id();
+        List<ValetGroup> groups = storage.getGroups();
+        return groups.isEmpty() ? -1 : groups.get(0).id();
     }
 }

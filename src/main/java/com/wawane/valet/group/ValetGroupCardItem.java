@@ -31,6 +31,7 @@ public class ValetGroupCardItem extends Item {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Legacy CUSTOM_DATA items still need the item tooltip hook.
     public void appendHoverText(ItemStack stack, TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
         int groupId = ValetGroupBindings.getGroupId(stack);
         if (groupId > 0) {

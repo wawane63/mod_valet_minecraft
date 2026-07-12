@@ -1,11 +1,13 @@
 package com.wawane.valet.state;
 
+import com.mojang.serialization.Codec;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 public final class ValetBehavior {
     private static final boolean DEFAULT_FREE_BEHAVIOR = false;
@@ -14,6 +16,7 @@ public final class ValetBehavior {
     private static final int RECALL_MAX_TRAVEL_TICKS = 20 * 60;
     private static final String FREE_BEHAVIOR_KEY = "ValetFreeBehavior";
     private static final String AVOID_NIGHT_RETURN_KEY = "ValetAvoidNightReturn";
+    private static final Data DEFAULT_DATA = new Data(DEFAULT_FREE_BEHAVIOR, DEFAULT_AVOID_NIGHT_RETURN);
     private static final Map<UUID, Data> DATA = new ConcurrentHashMap<>();
     private static final Map<UUID, Recall> RECALLS = new ConcurrentHashMap<>();
 
@@ -93,35 +96,36 @@ public final class ValetBehavior {
         return DATA.containsKey(villager.getUUID());
     }
 
-    public static boolean hasNbt(CompoundTag nbt) {
-        return nbt.contains(FREE_BEHAVIOR_KEY) || nbt.contains(AVOID_NIGHT_RETURN_KEY);
+    public static boolean hasNbt(ValueInput input) {
+        return input.read(FREE_BEHAVIOR_KEY, Codec.BOOL).isPresent()
+                || input.read(AVOID_NIGHT_RETURN_KEY, Codec.BOOL).isPresent();
     }
 
-    public static void writeToNbt(Villager villager, CompoundTag nbt) {
+    public static void writeToNbt(Villager villager, ValueOutput output) {
         Data data = DATA.get(villager.getUUID());
         if (data == null) {
-            nbt.remove(FREE_BEHAVIOR_KEY);
-            nbt.remove(AVOID_NIGHT_RETURN_KEY);
+            output.discard(FREE_BEHAVIOR_KEY);
+            output.discard(AVOID_NIGHT_RETURN_KEY);
             return;
         }
-        nbt.putBoolean(FREE_BEHAVIOR_KEY, data.freeBehavior);
-        nbt.putBoolean(AVOID_NIGHT_RETURN_KEY, data.avoidNightReturn);
+        output.putBoolean(FREE_BEHAVIOR_KEY, data.freeBehavior);
+        output.putBoolean(AVOID_NIGHT_RETURN_KEY, data.avoidNightReturn);
     }
 
-    public static void readFromNbt(Villager villager, CompoundTag nbt) {
-        if (!hasNbt(nbt)) {
+    public static void readFromNbt(Villager villager, ValueInput input) {
+        if (!hasNbt(input)) {
             DATA.remove(villager.getUUID());
             return;
         }
         setSettings(
                 villager,
-                nbt.getBooleanOr(FREE_BEHAVIOR_KEY, DEFAULT_FREE_BEHAVIOR),
-                nbt.getBooleanOr(AVOID_NIGHT_RETURN_KEY, DEFAULT_AVOID_NIGHT_RETURN)
+                input.getBooleanOr(FREE_BEHAVIOR_KEY, DEFAULT_FREE_BEHAVIOR),
+                input.getBooleanOr(AVOID_NIGHT_RETURN_KEY, DEFAULT_AVOID_NIGHT_RETURN)
         );
     }
 
     private static Data dataOrDefault(Villager villager) {
-        return DATA.getOrDefault(villager.getUUID(), new Data(DEFAULT_FREE_BEHAVIOR, DEFAULT_AVOID_NIGHT_RETURN));
+        return DATA.getOrDefault(villager.getUUID(), DEFAULT_DATA);
     }
 
     private record Data(boolean freeBehavior, boolean avoidNightReturn) {

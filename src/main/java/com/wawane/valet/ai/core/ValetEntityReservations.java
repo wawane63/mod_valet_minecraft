@@ -29,13 +29,22 @@ public final class ValetEntityReservations {
 
     public static boolean isClaimedByOther(ServerLevel world, UUID owner, Entity entity) {
         long now = world.getGameTime();
-        Reservation reservation = RESERVATIONS.get(new Key(world.dimension(), entity.getUUID()));
+        Key key = new Key(world.dimension(), entity.getUUID());
+        Reservation reservation = RESERVATIONS.get(key);
+        if (reservation != null && reservation.expiresAt <= now) {
+            RESERVATIONS.remove(key, reservation);
+            return false;
+        }
         return reservation != null && reservation.expiresAt > now && !reservation.owner.equals(owner);
     }
 
-    public static void release(UUID owner, Entity entity) {
+    public static void release(UUID owner, UUID entityUuid) {
         RESERVATIONS.entrySet().removeIf(entry ->
-                entry.getValue().owner.equals(owner) && entry.getKey().entityUuid.equals(entity.getUUID()));
+                entry.getValue().owner.equals(owner) && entry.getKey().entityUuid.equals(entityUuid));
+    }
+
+    public static void release(UUID owner, Entity entity) {
+        release(owner, entity.getUUID());
     }
 
     public static void releaseAll(UUID owner) {

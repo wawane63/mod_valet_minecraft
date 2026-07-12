@@ -35,7 +35,6 @@ public record ValetStatePayload(
         boolean farmReplant,
         boolean farmTillSoil,
         int animalAreaId,
-        boolean animalFeed,
         boolean animalBreed,
         boolean animalShear,
         boolean animalCollectEggs,
@@ -66,6 +65,7 @@ public record ValetStatePayload(
         boolean allyAwareness,
         String valetName
 ) implements CustomPacketPayload {
+    private static final int MAX_INVENTORY_SLOTS = 64;
     public static final Type<ValetStatePayload> TYPE = new Type<>(ValetMod.id("valet_state"));
     public static final StreamCodec<RegistryFriendlyByteBuf, ValetStatePayload> CODEC = StreamCodec.ofMember(ValetStatePayload::write, ValetStatePayload::read);
 
@@ -78,9 +78,16 @@ public record ValetStatePayload(
     }
 
     public static ValetStatePayload from(ServerLevel world, Villager villager) {
+        ValetRole role = ValetRole.get(world, villager);
+        int[] oreCounts = role == ValetRole.ARTISAN
+                ? ValetMiningScanner.countNearbyOres(world, villager)
+                : new int[ValetMineTarget.values().length];
+        int[] woodCounts = role == ValetRole.ARTISAN
+                ? ValetMiningScanner.countNearbyWood(world, villager)
+                : new int[ValetWoodTarget.values().length];
         return new ValetStatePayload(
                 villager.getId(),
-                ValetRole.get(world, villager).ordinal(),
+                role.ordinal(),
                 ValetOrders.get(villager).ordinal(),
                 getCurrentMineTargetIndex(villager),
                 getCurrentWoodTargetIndex(villager),
@@ -89,7 +96,6 @@ public record ValetStatePayload(
                 ValetOrders.shouldReplantFarm(villager),
                 ValetOrders.shouldTillFarm(villager),
                 ValetOrders.getAnimalAreaId(villager),
-                ValetOrders.shouldFeedAnimals(villager),
                 ValetOrders.shouldBreedAnimals(villager),
                 ValetOrders.shouldShearAnimals(villager),
                 ValetOrders.shouldCollectAnimalEggs(villager),
@@ -100,8 +106,8 @@ public record ValetStatePayload(
                 ValetBehavior.isFreeBehavior(villager),
                 ValetOrders.getConstructionTargetId(villager),
                 getCurrentCraftTargetIndex(villager),
-                ValetMiningScanner.countNearbyOres(world, villager),
-                ValetMiningScanner.countNearbyWood(world, villager),
+                oreCounts,
+                woodCounts,
                 copyInventory(villager.getInventory()),
                 ValetProgress.getLevel(villager),
                 ValetProgress.getXp(villager),
@@ -133,7 +139,6 @@ public record ValetStatePayload(
         boolean farmReplant = buf.readBoolean();
         boolean farmTillSoil = buf.readBoolean();
         int animalAreaId = buf.readInt();
-        boolean animalFeed = buf.readBoolean();
         boolean animalBreed = buf.readBoolean();
         boolean animalShear = buf.readBoolean();
         boolean animalCollectEggs = buf.readBoolean();
@@ -168,7 +173,7 @@ public record ValetStatePayload(
         int bowNextLevelXp = buf.readInt();
         int bowPendingPerks = buf.readInt();
         boolean allyAwareness = buf.readBoolean();
-        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, animalAreaId, animalFeed, animalBreed, animalShear, animalCollectEggs, animalMilk, animalCull, maxAnimals, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
+        return new ValetStatePayload(valetEntityId, roleIndex, orderIndex, mineTargetIndex, woodTargetIndex, farmAreaId, farmCropMask, farmReplant, farmTillSoil, animalAreaId, animalBreed, animalShear, animalCollectEggs, animalMilk, animalCull, maxAnimals, avoidNightReturn, freeBehavior, constructionTargetId, craftTargetIndex, oreCounts, woodCounts, valetInventory, level, xp, nextLevelXp, pendingPerks, perks, combatPerks, swordLevel, swordXp, swordNextLevelXp, swordPendingPerks, bowLevel, bowXp, bowNextLevelXp, bowPendingPerks, allyAwareness, buf.readUtf(32));
     }
 
     public void write(RegistryFriendlyByteBuf buf) {
@@ -182,7 +187,6 @@ public record ValetStatePayload(
         buf.writeBoolean(farmReplant);
         buf.writeBoolean(farmTillSoil);
         buf.writeInt(animalAreaId);
-        buf.writeBoolean(animalFeed);
         buf.writeBoolean(animalBreed);
         buf.writeBoolean(animalShear);
         buf.writeBoolean(animalCollectEggs);
@@ -287,7 +291,10 @@ public record ValetStatePayload(
     }
 
     private static List<ItemStack> readInventory(RegistryFriendlyByteBuf buf) {
-        int count = Math.max(0, buf.readInt());
+        int count = buf.readInt();
+        if (count < 0 || count > MAX_INVENTORY_SLOTS) {
+            throw new IllegalArgumentException("Invalid inventory slot count: " + count);
+        }
         List<ItemStack> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             result.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));

@@ -3,9 +3,12 @@ package com.wawane.valet;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.ai.ValetWorkDriver;
 import com.wawane.valet.ai.ValetWorkGoal;
+import com.wawane.valet.ai.core.ValetWorkSettings;
+import com.wawane.valet.ai.tasks.StewardRuntimeTask;
 import com.wawane.valet.construction.ConstructionBlueprintBlockEntity;
 import com.wawane.valet.construction.ConstructionBlueprintNbt;
 import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.construction.ValetConstructionSummary;
 import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.breeding.ValetAnimalArea;
 import com.wawane.valet.breeding.ValetAnimalStorage;
@@ -27,6 +30,7 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.ManageGroupPayload;
+import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
@@ -41,6 +45,7 @@ import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -48,6 +53,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
+import net.minecraft.world.CompoundContainer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -61,6 +67,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.EntityHitResult;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -94,6 +101,7 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(SortContainerPayload.TYPE, ValetNetworking::sortOpenContainer);
         ServerPlayNetworking.registerGlobalReceiver(SetBehaviorPayload.TYPE, ValetNetworking::setBehavior);
         ServerPlayNetworking.registerGlobalReceiver(ManageGroupPayload.TYPE, ValetGroupInteractions::handleManagement);
+        ServerPlayNetworking.registerGlobalReceiver(ManageMapGroupPayload.TYPE, ValetGroupInteractions::handleMapManagement);
     }
 
     public static void registerPayloadTypes() {
@@ -111,6 +119,7 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(SortContainerPayload.TYPE, SortContainerPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetBehaviorPayload.TYPE, SetBehaviorPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ManageGroupPayload.TYPE, ManageGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ManageMapGroupPayload.TYPE, ManageMapGroupPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetMagicCastPayload.TYPE, ValetMagicCastPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetStatePayload.TYPE, ValetStatePayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetGroupStatePayload.TYPE, ValetGroupStatePayload.CODEC);
@@ -134,11 +143,24 @@ public final class ValetNetworking {
             updateCustomNameVisibility(villager);
             ValetMod.claimOrRecoverValetHome(serverPlayer.level(), villager, serverPlayer.blockPosition());
             ValetConversations.begin(villager);
-            int[] oreCounts = ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager);
-            int[] woodCounts = ValetMiningScanner.countNearbyWood(serverPlayer.level(), villager);
-            List<ValetFarmArea> farmAreas = ValetFarmStorage.get(serverPlayer.level()).getAreas();
-            List<ValetAnimalArea> animalAreas = ValetAnimalStorage.get(serverPlayer.level()).getAreas();
-            List<ValetConstructionBlueprint> constructions = ValetConstructionStorage.get(serverPlayer.level()).getBlueprints();
+            ValetRole role = ValetRole.get(serverPlayer.level(), villager);
+            int[] oreCounts = role == ValetRole.ARTISAN
+                    ? ValetMiningScanner.countNearbyOres(serverPlayer.level(), villager)
+                    : new int[ValetMineTarget.values().length];
+            int[] woodCounts = role == ValetRole.ARTISAN
+                    ? ValetMiningScanner.countNearbyWood(serverPlayer.level(), villager)
+                    : new int[ValetWoodTarget.values().length];
+            List<ValetFarmArea> farmAreas = role == ValetRole.FARMER
+                    ? ValetFarmStorage.get(serverPlayer.level()).getAreas()
+                    : List.of();
+            List<ValetAnimalArea> animalAreas = role == ValetRole.BREEDER
+                    ? ValetAnimalStorage.get(serverPlayer.level()).getAreas()
+                    : List.of();
+            List<ValetConstructionSummary> constructions = role == ValetRole.ARTISAN
+                    ? ValetConstructionStorage.get(serverPlayer.level()).getBlueprints().stream()
+                    .map(ValetConstructionSummary::fromBlueprint)
+                    .toList()
+                    : List.of();
             OptionalInt openedScreen = serverPlayer.openMenu(new ExtendedMenuProvider<ValetOrdersScreenHandler.OpeningData>() {
                 @Override
                 public ValetOrdersScreenHandler.OpeningData getScreenOpeningData(ServerPlayer player) {
@@ -146,7 +168,7 @@ public final class ValetNetworking {
                         buf.writeInt(villager.getId());
                         buf.writeUUID(villager.getUUID());
                         buf.writeIdentifier(serverPlayer.level().dimension().identifier());
-                        buf.writeInt(ValetRole.get(serverPlayer.level(), villager).ordinal());
+                        buf.writeInt(role.ordinal());
                         buf.writeInt(ValetOrders.get(villager).ordinal());
                         buf.writeInt(getCurrentMineTargetIndex(villager));
                         buf.writeInt(getCurrentWoodTargetIndex(villager));
@@ -155,7 +177,6 @@ public final class ValetNetworking {
                         buf.writeBoolean(ValetOrders.shouldReplantFarm(villager));
                         buf.writeBoolean(ValetOrders.shouldTillFarm(villager));
                         buf.writeInt(ValetOrders.getAnimalAreaId(villager));
-                        buf.writeBoolean(ValetOrders.shouldFeedAnimals(villager));
                         buf.writeBoolean(ValetOrders.shouldBreedAnimals(villager));
                         buf.writeBoolean(ValetOrders.shouldShearAnimals(villager));
                         buf.writeBoolean(ValetOrders.shouldCollectAnimalEggs(villager));
@@ -193,7 +214,7 @@ public final class ValetNetworking {
                             villager.getId(),
                             villager.getUUID(),
                             serverPlayer.level().dimension().identifier(),
-                            ValetRole.get(serverPlayer.level(), villager).ordinal(),
+                            role.ordinal(),
                             ValetOrders.get(villager).ordinal(),
                             getCurrentMineTargetIndex(villager),
                             getCurrentWoodTargetIndex(villager),
@@ -202,7 +223,6 @@ public final class ValetNetworking {
                             ValetOrders.shouldReplantFarm(villager),
                             ValetOrders.shouldTillFarm(villager),
                             ValetOrders.getAnimalAreaId(villager),
-                            ValetOrders.shouldFeedAnimals(villager),
                             ValetOrders.shouldBreedAnimals(villager),
                             ValetOrders.shouldShearAnimals(villager),
                             ValetOrders.shouldCollectAnimalEggs(villager),
@@ -286,13 +306,15 @@ public final class ValetNetworking {
     }
 
     private static void sendValetState(ServerPlayer player, Villager villager) {
-        ServerPlayNetworking.send(player, ValetStatePayload.from(player.level(), villager));
+        if (ServerPlayNetworking.canSend(player, ValetStatePayload.TYPE)) {
+            ServerPlayNetworking.send(player, ValetStatePayload.from(player.level(), villager));
+        }
     }
 
-    private static void writeConstructions(List<ValetConstructionBlueprint> blueprints, RegistryFriendlyByteBuf buf) {
+    private static void writeConstructions(List<ValetConstructionSummary> blueprints, RegistryFriendlyByteBuf buf) {
         buf.writeInt(blueprints.size());
-        for (ValetConstructionBlueprint blueprint : blueprints) {
-            buf.writeNbt(blueprint.writeNbt());
+        for (ValetConstructionSummary blueprint : blueprints) {
+            blueprint.write(buf);
         }
     }
 
@@ -353,7 +375,6 @@ public final class ValetNetworking {
                 ValetMod.LOGGER.info("Valet {} order set to none", villager.getUUID());
                 player.sendOverlayMessage(Component.translatable("message.valet.order_set", Component.translatable("order.valet.none")));
                 finishOrderInteraction(player, villager);
-                sendValetState(player, villager);
                 return;
             }
 
@@ -376,7 +397,6 @@ public final class ValetNetworking {
                 ValetMod.LOGGER.info("Valet {} order set to mine {}", villager.getUUID(), target.name());
                 player.sendOverlayMessage(Component.translatable("message.valet.mine_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
-                sendValetState(player, villager);
                 return;
             }
 
@@ -399,7 +419,6 @@ public final class ValetNetworking {
                 ValetMod.LOGGER.info("Valet {} order set to chop {}", villager.getUUID(), target.name());
                 player.sendOverlayMessage(Component.translatable("message.valet.wood_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
-                sendValetState(player, villager);
                 return;
             }
 
@@ -417,7 +436,6 @@ public final class ValetNetworking {
                 giveBlueprintItem(player, villager, blueprint);
                 player.sendOverlayMessage(Component.translatable("message.valet.construction_target_set", blueprint.name()));
                 finishOrderInteraction(player, villager);
-                sendValetState(player, villager);
                 return;
             }
 
@@ -433,7 +451,6 @@ public final class ValetNetworking {
                 ValetMod.LOGGER.info("Valet {} order set to craft {}", villager.getUUID(), target.name());
                 player.sendOverlayMessage(Component.translatable("message.valet.craft_target_set", Component.translatable(target.getTranslationKey())));
                 finishOrderInteraction(player, villager);
-                sendValetState(player, villager);
                 return;
             }
             sendValetState(player, villager);
@@ -476,8 +493,9 @@ public final class ValetNetworking {
             player.sendOverlayMessage(Component.translatable("message.valet.farm_target_set", target));
             if (payload.closeScreen()) {
                 finishOrderInteraction(player, villager);
+            } else {
+                sendValetState(player, villager);
             }
-            sendValetState(player, villager);
         });
     }
 
@@ -513,7 +531,6 @@ public final class ValetNetworking {
             ValetOrders.setBreedingAnimals(
                     villager,
                     animalAreaId,
-                    payload.feed(),
                     payload.breed(),
                     payload.shear(),
                     payload.collectEggs(),
@@ -522,13 +539,14 @@ public final class ValetNetworking {
                     payload.maxAnimals()
             );
             ValetWorkGoal.requestRestart(villager);
-            ValetMod.LOGGER.info("Valet {} order set to breeding area={} feed={} breed={} shear={} eggs={} milk={} cull={} max={}", villager.getUUID(), animalAreaId, payload.feed(), payload.breed(), payload.shear(), payload.collectEggs(), payload.milk(), payload.cull(), payload.maxAnimals());
+            ValetMod.LOGGER.info("Valet {} order set to breeding area={} breed={} shear={} eggs={} milk={} cull={} max={}", villager.getUUID(), animalAreaId, payload.breed(), payload.shear(), payload.collectEggs(), payload.milk(), payload.cull(), payload.maxAnimals());
             Component target = area == null ? Component.translatable("screen.valet.animal_all") : Component.literal(area.name());
             player.sendOverlayMessage(Component.translatable("message.valet.animal_target_set", target));
             if (payload.closeScreen()) {
                 finishOrderInteraction(player, villager);
+            } else {
+                sendValetState(player, villager);
             }
-            sendValetState(player, villager);
         });
     }
 
@@ -619,9 +637,13 @@ public final class ValetNetworking {
             }
 
             Container container = menu.getContainer();
-            List<ItemStack> sortedStacks = mergeAndSort(container);
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                container.setItem(slot, slot < sortedStacks.size() ? sortedStacks.get(slot) : ItemStack.EMPTY);
+            int startSlot = isStewardManagedContainer(player, container)
+                    ? Math.min(StewardRuntimeTask.FILTER_SLOT_COUNT, container.getContainerSize())
+                    : 0;
+            List<ItemStack> sortedStacks = mergeAndSort(container, startSlot);
+            for (int slot = startSlot; slot < container.getContainerSize(); slot++) {
+                int sortedIndex = slot - startSlot;
+                container.setItem(slot, sortedIndex < sortedStacks.size() ? sortedStacks.get(sortedIndex) : ItemStack.EMPTY);
             }
             container.setChanged();
             menu.slotsChanged(container);
@@ -630,9 +652,9 @@ public final class ValetNetworking {
         });
     }
 
-    private static List<ItemStack> mergeAndSort(Container container) {
+    private static List<ItemStack> mergeAndSort(Container container, int startSlot) {
         List<ItemStack> stacks = new ArrayList<>();
-        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+        for (int slot = Math.max(0, startSlot); slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot);
             if (stack.isEmpty()) {
                 continue;
@@ -644,6 +666,63 @@ public final class ValetNetworking {
                 .thenComparing(stack -> stack.getHoverName().getString())
                 .thenComparing(Comparator.comparingInt(ItemStack::getCount).reversed()));
         return stacks;
+    }
+
+    private static boolean isStewardManagedContainer(ServerPlayer player, Container container) {
+        ServerLevel world = player.level();
+        for (BlockPos containerPos : findOpenContainerPositions(player, container)) {
+            if (hasNearbyStewardWorkstation(world, containerPos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<BlockPos> findOpenContainerPositions(ServerPlayer player, Container container) {
+        if (container instanceof BlockEntity blockEntity) {
+            return List.of(blockEntity.getBlockPos());
+        }
+        if (!(container instanceof CompoundContainer compoundContainer)) {
+            return List.of();
+        }
+
+        ServerLevel world = player.level();
+        List<BlockPos> positions = new ArrayList<>(2);
+        BlockPos origin = player.blockPosition();
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int x = origin.getX() - 6; x <= origin.getX() + 6 && positions.size() < 2; x++) {
+            for (int y = origin.getY() - 6; y <= origin.getY() + 6 && positions.size() < 2; y++) {
+                for (int z = origin.getZ() - 6; z <= origin.getZ() + 6 && positions.size() < 2; z++) {
+                    cursor.set(x, y, z);
+                    if (!world.isInWorldBounds(cursor) || !world.hasChunk(x >> 4, z >> 4)) {
+                        continue;
+                    }
+                    if (world.getBlockEntity(cursor) instanceof Container candidate && compoundContainer.contains(candidate)) {
+                        positions.add(cursor.immutable());
+                    }
+                }
+            }
+        }
+        return positions;
+    }
+
+    private static boolean hasNearbyStewardWorkstation(ServerLevel world, BlockPos containerPos) {
+        int radius = ValetWorkSettings.maximumMaterialRadius();
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int x = containerPos.getX() - radius; x <= containerPos.getX() + radius; x++) {
+            for (int z = containerPos.getZ() - radius; z <= containerPos.getZ() + radius; z++) {
+                if (!world.hasChunk(x >> 4, z >> 4)) {
+                    continue;
+                }
+                for (int y = containerPos.getY() - 4; y <= containerPos.getY() + 4; y++) {
+                    cursor.set(x, y, z);
+                    if (world.isInWorldBounds(cursor) && world.getBlockState(cursor).is(ValetMod.STEWARD_WORKSTATION)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static void mergeStack(List<ItemStack> stacks, ItemStack stack, Container container) {
@@ -785,7 +864,12 @@ public final class ValetNetworking {
     }
 
     private static boolean isValidValetInteraction(ServerPlayer player, Villager villager) {
-        return ValetMod.isValet(villager) && player.distanceToSqr(villager) <= 64.0D;
+        return player.containerMenu instanceof ValetOrdersScreenHandler menu
+                && menu.getValetEntityId() == villager.getId()
+                && menu.getValetUuid().equals(villager.getUUID())
+                && menu.stillValid(player)
+                && ValetMod.isValet(villager)
+                && player.distanceToSqr(villager) <= 64.0D;
     }
 
     private static String cleanName(String name) {

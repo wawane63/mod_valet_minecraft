@@ -28,10 +28,17 @@ public final class ValetGroupBindings {
 
     public static String getGroupName(ItemStack stack) {
         CompoundTag tag = getTag(stack);
-        return tag == null ? "" : tag.getStringOr(GROUP_NAME_KEY, "");
+        if (tag == null) {
+            return "";
+        }
+        String name = tag.getStringOr(GROUP_NAME_KEY, "");
+        return name.length() <= ValetGroup.MAX_NAME_LENGTH ? name : name.substring(0, ValetGroup.MAX_NAME_LENGTH);
     }
 
     public static void setGroup(ItemStack stack, ValetGroup group) {
+        if (!canCarryGroup(stack) || group == null) {
+            return;
+        }
         CompoundTag tag = getTag(stack);
         if (tag == null) {
             tag = new CompoundTag();

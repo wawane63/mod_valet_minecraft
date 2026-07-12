@@ -11,18 +11,33 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 
 public final class ValetInventoryTransfer {
     private ValetInventoryTransfer() {
     }
 
     public static Container getContainerInventory(ServerLevel world, BlockPos pos) {
-        BlockState blockState = world.getBlockState(pos);
+        BlockPos containerPos = canonicalContainerPos(world, pos);
+        BlockState blockState = world.getBlockState(containerPos);
         if (blockState.getBlock() instanceof ChestBlock chestBlock) {
-            return ChestBlock.getContainer(chestBlock, blockState, world, pos, true);
+            return ChestBlock.getContainer(chestBlock, blockState, world, containerPos, true);
         }
-        BlockEntity blockEntity = world.getBlockEntity(pos);
+        BlockEntity blockEntity = world.getBlockEntity(containerPos);
         return blockEntity instanceof Container inventory ? inventory : null;
+    }
+
+    public static BlockPos canonicalContainerPos(ServerLevel world, BlockPos pos) {
+        BlockPos immutable = pos.immutable();
+        BlockState state = world.getBlockState(immutable);
+        if (!(state.getBlock() instanceof ChestBlock)
+                || !state.hasProperty(ChestBlock.TYPE)
+                || state.getValue(ChestBlock.TYPE) == ChestType.SINGLE) {
+            return immutable;
+        }
+
+        BlockPos connected = ChestBlock.getConnectedBlockPos(immutable, state).immutable();
+        return comparePositions(immutable, connected) <= 0 ? immutable : connected;
     }
 
     public static int depositInventory(ServerLevel world, BlockPos pos, Container sourceInventory) {
@@ -53,20 +68,26 @@ public final class ValetInventoryTransfer {
             }
         }
 
-        sourceInventory.setChanged();
-        targetInventory.setChanged();
+        if (movedTotal > 0) {
+            sourceInventory.setChanged();
+            targetInventory.setChanged();
+        }
         return movedTotal;
     }
 
     public static boolean canStoreAllDrops(Container inventory, int usableSlots, List<ItemStack> drops) {
-        List<ItemStack> simulated = new ArrayList<>(usableSlots);
-        for (int slot = 0; slot < usableSlots; slot++) {
+        int slots = Math.min(inventory.getContainerSize(), Math.max(0, usableSlots));
+        List<ItemStack> simulated = new ArrayList<>(slots);
+        for (int slot = 0; slot < slots; slot++) {
             simulated.add(inventory.getItem(slot).copy());
         }
 
         for (ItemStack drop : drops) {
+            if (drop.isEmpty()) {
+                continue;
+            }
             ItemStack remaining = drop.copy();
-            simulateInsert(simulated, inventory.getMaxStackSize(), remaining);
+            simulateInsert(inventory, simulated, remaining);
             if (!remaining.isEmpty()) {
                 return false;
             }
@@ -109,10 +130,11 @@ public final class ValetInventoryTransfer {
 
     public static boolean insertStack(Container inventory, ItemStack stack, int maxSlots) {
         int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
+        int initialCount = stack.getCount();
         for (int slot = 0; slot < slots && !stack.isEmpty(); slot++) {
             ItemStack current = inventory.getItem(slot);
-            if (canMerge(current, stack)) {
-                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize());
+            if (inventory.canPlaceItem(slot, stack) && canMerge(current, stack)) {
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
                     current.grow(amount);
@@ -122,21 +144,46 @@ public final class ValetInventoryTransfer {
         }
 
         for (int slot = 0; slot < slots && !stack.isEmpty(); slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize()));
+            if (inventory.getItem(slot).isEmpty() && inventory.canPlaceItem(slot, stack)) {
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize(stack)));
                 inventory.setItem(slot, stack.split(amount));
             }
         }
 
-        inventory.setChanged();
+        if (stack.getCount() != initialCount) {
+            inventory.setChanged();
+        }
         return stack.isEmpty();
     }
 
-    private static void simulateInsert(List<ItemStack> stacks, int inventoryMaxCount, ItemStack stack) {
+    public static boolean canAcceptAnyDepositableStack(Container target, Container source) {
+        for (int sourceSlot = 0; sourceSlot < source.getContainerSize(); sourceSlot++) {
+            ItemStack incoming = source.getItem(sourceSlot);
+            if (incoming.isEmpty() || incoming.is(Items.ARROW)) {
+                continue;
+            }
+            for (int targetSlot = 0; targetSlot < target.getContainerSize(); targetSlot++) {
+                if (!target.canPlaceItem(targetSlot, incoming)) {
+                    continue;
+                }
+                ItemStack current = target.getItem(targetSlot);
+                if (current.isEmpty()) {
+                    return true;
+                }
+                int limit = Math.min(current.getMaxStackSize(), target.getMaxStackSize(current));
+                if (canMerge(current, incoming) && current.getCount() < limit) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void simulateInsert(Container inventory, List<ItemStack> stacks, ItemStack stack) {
         for (int slot = 0; slot < stacks.size() && !stack.isEmpty(); slot++) {
             ItemStack current = stacks.get(slot);
-            if (canMerge(current, stack)) {
-                int limit = Math.min(current.getMaxStackSize(), inventoryMaxCount);
+            if (inventory.canPlaceItem(slot, stack) && canMerge(current, stack)) {
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
                     current.grow(amount);
@@ -146,8 +193,8 @@ public final class ValetInventoryTransfer {
         }
 
         for (int slot = 0; slot < stacks.size() && !stack.isEmpty(); slot++) {
-            if (stacks.get(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventoryMaxCount));
+            if (stacks.get(slot).isEmpty() && inventory.canPlaceItem(slot, stack)) {
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize(stack)));
                 stacks.set(slot, stack.split(amount));
             }
         }
@@ -157,5 +204,15 @@ public final class ValetInventoryTransfer {
         return !current.isEmpty()
                 && ItemStack.isSameItemSameComponents(current, incoming)
                 && current.getCount() < current.getMaxStackSize();
+    }
+
+    private static int comparePositions(BlockPos first, BlockPos second) {
+        if (first.getX() != second.getX()) {
+            return Integer.compare(first.getX(), second.getX());
+        }
+        if (first.getY() != second.getY()) {
+            return Integer.compare(first.getY(), second.getY());
+        }
+        return Integer.compare(first.getZ(), second.getZ());
     }
 }

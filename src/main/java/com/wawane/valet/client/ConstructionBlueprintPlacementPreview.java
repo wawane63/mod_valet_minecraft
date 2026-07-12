@@ -27,6 +27,8 @@ public final class ConstructionBlueprintPlacementPreview {
     private static final int MAX_RENDERED_BLOCKS = 6000;
     private static final int BLUEPRINT_COLOR = ARGB.color(210, 242, 192, 64);
     private static final int BUILD_COLOR = ARGB.color(170, 95, 225, 255);
+    private static ItemStack cachedStack = ItemStack.EMPTY;
+    private static BlueprintItemData cachedData;
 
     private ConstructionBlueprintPlacementPreview() {
     }
@@ -80,40 +82,60 @@ public final class ConstructionBlueprintPlacementPreview {
                 || client.level == null
                 || !(client.hitResult instanceof BlockHitResult hitResult)
                 || hitResult.getType() != HitResult.Type.BLOCK) {
+            clearCache();
             return null;
         }
 
         for (InteractionHand hand : InteractionHand.values()) {
             ItemStack stack = client.player.getItemInHand(hand);
-            ValetConstructionBlueprint blueprint = readBlueprint(stack);
-            if (blueprint == null) {
+            BlueprintItemData data = readBlueprintData(stack);
+            if (data == null) {
                 continue;
             }
 
             BlockPlaceContext placementContext = new BlockPlaceContext(client.player, hand, stack, hitResult);
             Direction facing = placementContext.getHorizontalDirection();
-            CompoundTag nbt = ConstructionBlueprintNbt.get(stack);
-            boolean mirrored = (nbt != null && nbt.getBooleanOr(ConstructionBlueprintBlockEntity.MIRRORED_KEY, false))
-                    || client.player.isShiftKeyDown();
-            return new PreviewTarget(blueprint, placementContext.getClickedPos(), facing, mirrored);
+            return new PreviewTarget(data.blueprint(), placementContext.getClickedPos(), facing, data.mirrored() || client.player.isShiftKeyDown());
         }
+        clearCache();
         return null;
     }
 
-    private static ValetConstructionBlueprint readBlueprint(ItemStack stack) {
+    private static BlueprintItemData readBlueprintData(ItemStack stack) {
         if (!stack.is(ValetMod.CONSTRUCTION_BLUEPRINT_ITEM)) {
             return null;
         }
+        if (ItemStack.isSameItemSameComponents(cachedStack, stack)) {
+            return cachedData;
+        }
 
         CompoundTag nbt = ConstructionBlueprintNbt.get(stack);
+        cachedStack = stack.copy();
         if (nbt == null || !nbt.contains(ConstructionBlueprintBlockEntity.BLUEPRINT_KEY)) {
+            cachedData = null;
             return null;
         }
-        return nbt.getCompound(ConstructionBlueprintBlockEntity.BLUEPRINT_KEY)
-                .map(ValetConstructionBlueprint::readNbt)
-                .orElse(null);
+        try {
+            cachedData = nbt.getCompound(ConstructionBlueprintBlockEntity.BLUEPRINT_KEY)
+                    .map(blueprintNbt -> new BlueprintItemData(
+                            ValetConstructionBlueprint.readNbt(blueprintNbt),
+                            nbt.getBooleanOr(ConstructionBlueprintBlockEntity.MIRRORED_KEY, false)
+                    ))
+                    .orElse(null);
+        } catch (RuntimeException ignored) {
+            cachedData = null;
+        }
+        return cachedData;
+    }
+
+    private static void clearCache() {
+        cachedStack = ItemStack.EMPTY;
+        cachedData = null;
     }
 
     private record PreviewTarget(ValetConstructionBlueprint blueprint, BlockPos blueprintPos, Direction facing, boolean mirrored) {
+    }
+
+    private record BlueprintItemData(ValetConstructionBlueprint blueprint, boolean mirrored) {
     }
 }

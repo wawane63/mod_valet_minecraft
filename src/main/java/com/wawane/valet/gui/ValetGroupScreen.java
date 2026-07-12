@@ -25,7 +25,7 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
     private static final int PANEL_HEIGHT = SCREEN_HEIGHT - PANEL_TOP - MARGIN;
     private static final int ROW_HEIGHT = 19;
     private static final int ROW_GAP = 3;
-    private static ValetGroupScreen currentScreen;
+    private static final int VISIBLE_ROWS = 9;
 
     private final List<ValetGroupScreenHandler.GroupEntry> groups = new ArrayList<>();
     private final List<ValetGroupScreenHandler.ValetEntry> valets = new ArrayList<>();
@@ -34,6 +34,8 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
     private Button cardButton;
     private Button hornButton;
     private final List<Button> commandButtons = new ArrayList<>();
+    private int groupScroll;
+    private int valetScroll;
 
     public ValetGroupScreen(ValetGroupScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -44,14 +46,9 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
         inventoryLabelY = 10000;
     }
 
-    public static ValetGroupScreen current() {
-        return currentScreen;
-    }
-
     @Override
     protected void init() {
         super.init();
-        currentScreen = this;
         int commandLeft = getCommandLeft();
         int top = topPos + PANEL_TOP + 20;
         addRenderableWidget(Button.builder(Component.translatable("screen.valet_group.create"), button -> send(ManageGroupPayload.Action.CREATE, selectedGroupId, ValetGroupMode.IDLE))
@@ -104,15 +101,16 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
             context.text(font, Component.translatable("screen.valet_group.no_group"), left + 4, top + 6, 0xFF5A5142, false);
             return;
         }
-        for (int i = 0; i < groups.size() && i < 9; i++) {
-            ValetGroupScreenHandler.GroupEntry group = groups.get(i);
-            int rowTop = top + i * (ROW_HEIGHT + ROW_GAP);
+        for (int row = 0; row < VISIBLE_ROWS && groupScroll + row < groups.size(); row++) {
+            ValetGroupScreenHandler.GroupEntry group = groups.get(groupScroll + row);
+            int rowTop = top + row * (ROW_HEIGHT + ROW_GAP);
             boolean selected = group.id() == selectedGroupId;
             boolean hovered = isInside(mouseX, mouseY, left, rowTop, GROUP_WIDTH - 14, ROW_HEIGHT);
             drawInset(context, left, rowTop, GROUP_WIDTH - 14, ROW_HEIGHT, selected ? 0xFFB99A45 : hovered ? 0xFFD8D1BD : 0xFFC5C0B2);
             Component label = Component.literal(group.name() + " (" + group.memberCount() + ")");
             context.text(font, label, left + 5, rowTop + 6, selected ? 0xFF2B1A05 : 0xFF303030, false);
         }
+        drawScrollbar(context, getGroupLeft() + GROUP_WIDTH - 8, top, groups.size(), groupScroll);
     }
 
     private void drawValets(GuiGraphicsExtractor context, int mouseX, int mouseY) {
@@ -122,9 +120,9 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
             context.text(font, Component.translatable("screen.valet_group.no_valet"), left + 4, top + 6, 0xFF5A5142, false);
             return;
         }
-        for (int i = 0; i < valets.size() && i < 9; i++) {
-            ValetGroupScreenHandler.ValetEntry valet = valets.get(i);
-            int rowTop = top + i * (ROW_HEIGHT + ROW_GAP);
+        for (int row = 0; row < VISIBLE_ROWS && valetScroll + row < valets.size(); row++) {
+            ValetGroupScreenHandler.ValetEntry valet = valets.get(valetScroll + row);
+            int rowTop = top + row * (ROW_HEIGHT + ROW_GAP);
             boolean selected = selectedGroupId > 0 && valet.groupId() == selectedGroupId;
             boolean inOtherGroup = valet.groupId() > 0 && valet.groupId() != selectedGroupId;
             boolean hovered = isInside(mouseX, mouseY, left, rowTop, VALET_WIDTH - 14, ROW_HEIGHT);
@@ -134,6 +132,7 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
             Component label = Component.literal(marker + valet.name() + " - ").append(role);
             context.text(font, label, left + 4, rowTop + 6, inOtherGroup ? 0xFF6A5A25 : 0xFF303030, false);
         }
+        drawScrollbar(context, getValetLeft() + VALET_WIDTH - 8, top, valets.size(), valetScroll);
     }
 
     @Override
@@ -142,9 +141,9 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
         double mouseY = event.y();
         int groupLeft = getGroupLeft() + 7;
         int groupTop = getPanelTop() + 26;
-        for (int i = 0; i < groups.size() && i < 9; i++) {
-            if (isInside(mouseX, mouseY, groupLeft, groupTop + i * (ROW_HEIGHT + ROW_GAP), GROUP_WIDTH - 14, ROW_HEIGHT)) {
-                selectedGroupId = groups.get(i).id();
+        for (int row = 0; row < VISIBLE_ROWS && groupScroll + row < groups.size(); row++) {
+            if (isInside(mouseX, mouseY, groupLeft, groupTop + row * (ROW_HEIGHT + ROW_GAP), GROUP_WIDTH - 14, ROW_HEIGHT)) {
+                selectedGroupId = groups.get(groupScroll + row).id();
                 updateButtons();
                 return true;
             }
@@ -152,15 +151,34 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
 
         int valetLeft = getValetLeft() + 7;
         int valetTop = getPanelTop() + 26;
-        for (int i = 0; i < valets.size() && i < 9; i++) {
-            if (isInside(mouseX, mouseY, valetLeft, valetTop + i * (ROW_HEIGHT + ROW_GAP), VALET_WIDTH - 14, ROW_HEIGHT)) {
+        for (int row = 0; row < VISIBLE_ROWS && valetScroll + row < valets.size(); row++) {
+            if (isInside(mouseX, mouseY, valetLeft, valetTop + row * (ROW_HEIGHT + ROW_GAP), VALET_WIDTH - 14, ROW_HEIGHT)) {
                 if (selectedGroupId > 0) {
-                    ClientPlayNetworking.send(new ManageGroupPayload(menu.getStationPos(), ManageGroupPayload.Action.TOGGLE_MEMBER, selectedGroupId, valets.get(i).uuid(), ValetGroupMode.IDLE));
+                    ClientPlayNetworking.send(new ManageGroupPayload(menu.getStationPos(), ManageGroupPayload.Action.TOGGLE_MEMBER, selectedGroupId, valets.get(valetScroll + row).uuid(), ValetGroupMode.IDLE));
                 }
                 return true;
             }
         }
         return super.mouseClicked(event, doubleClick);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        int delta = verticalAmount > 0.0D ? -1 : verticalAmount < 0.0D ? 1 : 0;
+        if (delta == 0) {
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
+        int listTop = getPanelTop() + 26;
+        int listHeight = VISIBLE_ROWS * (ROW_HEIGHT + ROW_GAP) - ROW_GAP;
+        if (isInside(mouseX, mouseY, getGroupLeft() + 7, listTop, GROUP_WIDTH - 14, listHeight)) {
+            groupScroll = clampScroll(groupScroll + delta, groups.size());
+            return true;
+        }
+        if (isInside(mouseX, mouseY, getValetLeft() + 7, listTop, VALET_WIDTH - 14, listHeight)) {
+            valetScroll = clampScroll(valetScroll + delta, valets.size());
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     public void applyServerState(int nextSelectedGroupId, List<ValetGroupScreenHandler.GroupEntry> nextGroups, List<ValetGroupScreenHandler.ValetEntry> nextValets) {
@@ -172,23 +190,9 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
         if (selectedGroupId <= 0 && !groups.isEmpty()) {
             selectedGroupId = groups.get(0).id();
         }
+        groupScroll = clampScroll(groupScroll, groups.size());
+        valetScroll = clampScroll(valetScroll, valets.size());
         updateButtons();
-    }
-
-    @Override
-    public void onClose() {
-        if (currentScreen == this) {
-            currentScreen = null;
-        }
-        super.onClose();
-    }
-
-    @Override
-    public void removed() {
-        if (currentScreen == this) {
-            currentScreen = null;
-        }
-        super.removed();
     }
 
     private void send(ManageGroupPayload.Action action, int groupId, ValetGroupMode mode) {
@@ -248,6 +252,22 @@ public class ValetGroupScreen extends AbstractContainerScreen<ValetGroupScreenHa
         context.fill(left, top, left + 1, top + height, 0xFF7C735F);
         context.fill(left, top + height - 1, left + width, top + height, 0xFFF3EBD7);
         context.fill(left + width - 1, top, left + width, top + height, 0xFFF3EBD7);
+    }
+
+    private void drawScrollbar(GuiGraphicsExtractor context, int left, int top, int itemCount, int scroll) {
+        int maxScroll = Math.max(0, itemCount - VISIBLE_ROWS);
+        if (maxScroll == 0) {
+            return;
+        }
+        int height = VISIBLE_ROWS * (ROW_HEIGHT + ROW_GAP) - ROW_GAP;
+        int thumbHeight = Math.max(18, height * VISIBLE_ROWS / itemCount);
+        int thumbTop = top + scroll * (height - thumbHeight) / maxScroll;
+        context.fill(left, top, left + 3, top + height, 0x667C735F);
+        context.fill(left, thumbTop, left + 3, thumbTop + thumbHeight, 0xFF7C735F);
+    }
+
+    private static int clampScroll(int scroll, int itemCount) {
+        return Math.max(0, Math.min(scroll, Math.max(0, itemCount - VISIBLE_ROWS)));
     }
 
     private boolean isInside(double mouseX, double mouseY, int left, int top, int width, int height) {

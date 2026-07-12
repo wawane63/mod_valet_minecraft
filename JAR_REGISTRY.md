@@ -28,6 +28,7 @@ Regles obligatoires :
 | 0.3.5 | Blueprints ameliores | `v0.3.5` | `build/libs/valet-0.3.5.jar` | `3D5E4513A4AC0FCB6FF9DCF8248E0BDBD2AE372A0A59FC87149706652C2DCE1C` |
 | 0.3.6 | Cuisinier + correctifs metiers | `v0.3.6` | `build/libs/valet-0.3.6.jar` | `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807` |
 | 0.3.7 | Intendant + transferts coffres | `v0.3.7` | `build/libs/valet-0.3.7.jar` | `F917E72A650AFC405FC79E76BA924DD373049C2FA505ED60BF57521546D1D3D2` |
+| 0.3.8 | Audit, carte tactique et missions de groupe | `v0.3.8` | `build/libs/valet-0.3.8.jar` | `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -38,6 +39,67 @@ Le jar `0.3.4` correspond a l'eleveur.
 Le jar `0.3.5` correspond aux blueprints ameliores.
 Le jar `0.3.6` ajoute le cuisinier et les correctifs metiers issus du test en jeu.
 Le jar `0.3.7` ajoute l'intendant et les transferts filtres entre coffres.
+Le jar `0.3.8` regroupe l'audit exhaustif et la carte tactique avec missions de groupe.
+
+## 0.3.8 - Audit et carte tactique
+
+Objectif : fournir une carte plein ecran depuis le menu Echap avant d'ajouter les missions de groupe.
+
+Fonctionnalite :
+
+- Bouton `Carte des valets` ajoute au menu Echap.
+- Terrain des chunks deja charges affiche avec couleurs topographiques.
+- Zoom, deplacement, recentrage et coordonnees du curseur.
+- Marqueurs joueur, valets visibles et repere personnel.
+- Legende et commandes integrees a l'ecran.
+- Aucun chargement de chunk provoque par l'interface.
+- Gestion des groupes depuis la carte avec affectation des valets visibles.
+- Ordre `Aller au repere` pour tous les metiers, execute par pathfinding local continu.
+- Etapes de navigation de 24 blocs, rafraichies au maximum toutes les 20 ticks avec angles de contournement sur echec.
+- Tickets de mission temporaires et non persistants, limites a 32 centres de rayon deux chunks.
+
+Verification :
+
+- Compilation Java : OK.
+- Jar actuel : `valet-0.3.8.jar`.
+- SHA-256 : `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB`.
+- Build Gradle complet et installation locale : OK.
+- Dossier mods : un seul `valet-*.jar`, hash identique au build.
+- Bootstrap serveur : ticket `group_mission`, paquets reseau et mod charges; arret attendu sur EULA de test.
+- Publication GitHub : `v0.3.8`.
+
+Audit et maintenance :
+
+Objectif : fiabiliser et optimiser l'ensemble du mod sans modifier volontairement ses fonctionnalites visibles.
+
+Fixed :
+
+- Persistence NBT restauree par le mixin villageois 26.2 et cache de role persistant.
+- Mixin projectile migre vers `AbstractArrow`; les anciens mixins vides ont ete retires.
+- Validation reseau renforcee : menu, valet, UUID, dimension, distance, indices et tailles.
+- Rollback des ingredients/materiaux sur echec et respect des regles de slots/doubles coffres.
+- Donnees NBT invalides ou surdimensionnees bornees; chargements arbitraires de chunks evites.
+- Homes hors limites, migration des roles 0.3.7 et conflits de poste dupliques corriges.
+- Resumes de blueprint compacts, listes de groupe bornees et validation menu/pupitre ajoutees.
+- Tri de coffre rendu compatible avec les 9 filtres de l'intendant.
+- Comptage des materiaux porte/lit corrige.
+- Double drop du coffre cuisinier corrige et loot table du coffre de fleches ajoutee.
+- Recettes, loot tables et tags de blocs migres vers les chemins et schemas JSON requis par Minecraft 26.2; le drop blueprint utilise `copy_custom_data`.
+
+Optimized :
+
+- Allocations et scans par tick reduits ou temporises.
+- Reservations expirees purgees automatiquement.
+- Scans de construction bornes et snapshots GUI adaptes au role.
+- Apercus de blueprint 16x16 compacts pour borner les paquets d'ouverture.
+
+Cleaned :
+
+- Sept classes Java mortes, une archive asset orpheline et huit entrees de traduction supprimees.
+- Option `Nourrir` inactive et surcharges sans appel supprimees.
+- Dependances/manifeste Gradle centralises; checksum wrapper et installation multiplateforme ajoutes.
+- Fabric API mis a jour vers `0.154.2+26.2` et Loom vers `1.17.14`.
+- Licence MIT, regles d'edition et normalisation Git ajoutees.
 
 ## 0.3.7 - Intendant et transferts coffres
 

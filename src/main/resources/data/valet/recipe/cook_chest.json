@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "BFB",
+    "WCW",
+    "PPP"
+  ],
+  "key": {
+    "B": "minecraft:bowl",
+    "F": "minecraft:furnace",
+    "W": "minecraft:wheat",
+    "C": "minecraft:chest",
+    "P": "#minecraft:planks"
+  },
+  "result": {
+    "id": "valet:cook_chest",
+    "count": 1
+  }
+}

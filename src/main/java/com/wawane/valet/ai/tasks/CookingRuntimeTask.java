@@ -16,6 +16,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -198,6 +199,12 @@ public final class CookingRuntimeTask {
             control.setState(State.FIND_TARGET);
             return;
         }
+        if (!control.claimBlock(world, targetPos, 200)) {
+            clearTarget();
+            control.setState(State.FIND_TARGET);
+            control.setDelayTicks(10);
+            return;
+        }
 
         List<ItemStack> drops = Block.getDrops(state, world, targetPos, world.getBlockEntity(targetPos), control.villager(), ItemStack.EMPTY);
         if (!control.canStoreAllDrops(drops)) {
@@ -208,8 +215,14 @@ public final class CookingRuntimeTask {
 
         control.villager().getLookControl().setLookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
         control.villager().swing(InteractionHand.MAIN_HAND);
+        if (!world.destroyBlock(targetPos, false, control.villager())) {
+            ValetDebug.record(control.villager(), "cooking break_failed pos=" + ValetDebug.shortPos(targetPos));
+            clearTarget();
+            control.setState(State.FIND_TARGET);
+            control.setDelayTicks(20);
+            return;
+        }
         world.levelEvent(2001, targetPos, Block.getId(state));
-        world.destroyBlock(targetPos, false, control.villager());
         control.collectDrops(drops);
         replantCrop(world, targetPos, state);
         ValetProgress.addXp(control.villager(), 3);
@@ -229,8 +242,20 @@ public final class CookingRuntimeTask {
 
         Container inventory = control.villager().getInventory();
         int slots = control.getUsableInventorySlots(inventory);
-        consumeItem(inventory, recipe.ingredient(), recipe.ingredientCount(), slots);
-        ValetInventoryTransfer.insertStack(inventory, new ItemStack(recipe.result()), slots);
+        if (consumeItem(inventory, recipe.ingredient(), recipe.ingredientCount(), slots) != recipe.ingredientCount()) {
+            clearTarget();
+            control.setState(State.FIND_TARGET);
+            return;
+        }
+        ItemStack result = new ItemStack(recipe.result());
+        if (!ValetInventoryTransfer.insertStack(inventory, result, slots)) {
+            returnToInventory(world, new ItemStack(recipe.ingredient(), recipe.ingredientCount()), inventory, slots);
+            ValetDebug.record(control.villager(), "cooking output_insert_failed item=" + recipe.result().getDescriptionId());
+            clearTarget();
+            control.setState(State.RETURNING);
+            control.setDelayTicks(20);
+            return;
+        }
         inventory.setChanged();
         control.villager().swing(InteractionHand.MAIN_HAND);
         control.villager().getLookControl().setLookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
@@ -319,7 +344,9 @@ public final class CookingRuntimeTask {
             return;
         }
         if (harvestedState.getBlock() instanceof CropBlock crop) {
-            world.setBlock(pos, crop.getStateForAge(0), Block.UPDATE_ALL);
+            if (!world.setBlock(pos, crop.getStateForAge(0), Block.UPDATE_ALL)) {
+                returnToInventory(world, new ItemStack(seed), inventory, slots);
+            }
         }
     }
 
@@ -336,7 +363,7 @@ public final class CookingRuntimeTask {
             ValetInventoryTransfer.insertStack(target, extracted, targetSlots);
             int accepted = before - extracted.getCount();
             if (accepted <= 0) {
-                break;
+                continue;
             }
             stack.shrink(accepted);
             if (stack.isEmpty()) {
@@ -361,7 +388,7 @@ public final class CookingRuntimeTask {
         return count;
     }
 
-    private static void consumeItem(Container inventory, Item item, int count, int maxSlots) {
+    private static int consumeItem(Container inventory, Item item, int count, int maxSlots) {
         int remaining = count;
         int slots = Math.min(inventory.getContainerSize(), Math.max(0, maxSlots));
         for (int slot = 0; slot < slots && remaining > 0; slot++) {
@@ -375,6 +402,18 @@ public final class CookingRuntimeTask {
             if (stack.isEmpty()) {
                 inventory.setItem(slot, ItemStack.EMPTY);
             }
+        }
+        int consumed = count - remaining;
+        if (consumed > 0) {
+            inventory.setChanged();
+        }
+        return consumed;
+    }
+
+    private void returnToInventory(ServerLevel world, ItemStack stack, Container inventory, int slots) {
+        ValetInventoryTransfer.insertStack(inventory, stack, slots);
+        if (!stack.isEmpty()) {
+            control.villager().spawnAtLocation(world, stack);
         }
     }
 
@@ -396,7 +435,7 @@ public final class CookingRuntimeTask {
     }
 
     public interface Control {
-        net.minecraft.world.entity.npc.villager.Villager villager();
+        Villager villager();
 
         BlockPos getWorkOrigin(ServerLevel world);
 

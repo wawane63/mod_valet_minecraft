@@ -25,12 +25,12 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class ValetConditionalVillagerRenderer extends EntityRenderer<Villager, ValetConditionalVillagerRenderer.State> {
-    private static final Map<Integer, Long> MAGIC_CASTS = new ConcurrentHashMap<>();
-    private static final long MAGIC_CAST_ANIMATION_MS = 650L;
+    private static final Map<Integer, Long> MAGIC_CASTS = new HashMap<>();
+    private static final long MAGIC_CAST_ANIMATION_NANOS = 650_000_000L;
     private final VillagerRenderer vanillaRenderer;
     private final ValetAvatarRenderer valetRenderer;
 
@@ -84,7 +84,13 @@ public final class ValetConditionalVillagerRenderer extends EntityRenderer<Villa
     }
 
     public static void markMagicCast(int entityId) {
-        MAGIC_CASTS.put(entityId, System.currentTimeMillis() + MAGIC_CAST_ANIMATION_MS);
+        long now = System.nanoTime();
+        MAGIC_CASTS.entrySet().removeIf(entry -> entry.getValue() < now);
+        MAGIC_CASTS.put(entityId, now + MAGIC_CAST_ANIMATION_NANOS);
+    }
+
+    public static void clearMagicCasts() {
+        MAGIC_CASTS.clear();
     }
 
     private static boolean isMagicCasting(int entityId) {
@@ -92,7 +98,7 @@ public final class ValetConditionalVillagerRenderer extends EntityRenderer<Villa
         if (until == null) {
             return false;
         }
-        if (System.currentTimeMillis() > until) {
+        if (System.nanoTime() > until) {
             MAGIC_CASTS.remove(entityId);
             return false;
         }

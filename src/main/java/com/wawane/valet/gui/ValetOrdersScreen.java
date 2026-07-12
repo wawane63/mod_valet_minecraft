@@ -1,6 +1,6 @@
 package com.wawane.valet.gui;
 
-import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.construction.ValetConstructionSummary;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.breeding.ValetAnimalArea;
 import com.wawane.valet.breeding.ValetAnimalType;
@@ -38,8 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreenHandler> {
-    private static ValetOrdersScreen currentScreen;
-
     private static final int SCREEN_WIDTH = 430;
     private static final int SCREEN_HEIGHT = 420;
     private static final int PANEL_MARGIN = 9;
@@ -90,7 +88,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private final ValetOrdersViewModel viewModel;
     private final List<ValetFarmArea> localFarmAreas;
     private final List<ValetAnimalArea> localAnimalAreas;
-    private final List<ValetConstructionBlueprint> localConstructions;
+    private final List<ValetConstructionSummary> localConstructions;
     private EditBox nameField;
     private EditBox animalMaxField;
     private Button renameButton;
@@ -98,7 +96,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Button deleteConstructionButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
-    private Checkbox animalFeedCheckbox;
     private Checkbox animalBreedCheckbox;
     private Checkbox animalShearCheckbox;
     private Checkbox animalEggsCheckbox;
@@ -132,11 +129,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int localBowXp;
     private int localBowNextLevelXp;
     private int localBowPendingPerks;
-    private boolean localAllyAwareness;
     private int localFarmCropMask;
     private boolean localFarmReplant;
     private boolean localFarmTillSoil;
-    private boolean localAnimalFeed;
     private boolean localAnimalBreed;
     private boolean localAnimalShear;
     private boolean localAnimalCollectEggs;
@@ -173,7 +168,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localFarmReplant = viewModel.farmReplant();
         localFarmTillSoil = viewModel.farmTillSoil();
         selectedAnimalAreaId = viewModel.currentAnimalAreaId();
-        localAnimalFeed = false;
         localAnimalBreed = viewModel.animalBreed();
         localAnimalShear = viewModel.animalShear();
         localAnimalCollectEggs = viewModel.animalCollectEggs();
@@ -196,7 +190,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localBowXp = viewModel.bowXp();
         localBowNextLevelXp = viewModel.bowNextLevelXp();
         localBowPendingPerks = viewModel.bowPendingPerks();
-        localAllyAwareness = viewModel.allyAwareness();
         localOreCounts = viewModel.oreCounts();
         localWoodCounts = viewModel.woodCounts();
         localInventoryStacks = copyInventory(viewModel.valetInventory());
@@ -211,14 +204,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         inventoryLabelY = 10000;
     }
 
-    public static ValetOrdersScreen current() {
-        return currentScreen;
-    }
-
     @Override
     protected void init() {
         super.init();
-        currentScreen = this;
         rebuildOrderEntries();
         int rightLeft = getRightPanelLeft();
         int top = getPanelTop();
@@ -301,17 +289,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             farmCropCheckboxes.add(checkbox);
             cropIndex++;
         }
-        animalFeedCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_feed"), font)
-                .pos(farmOptionsLeft, farmOptionsTop)
-                .selected(localAnimalFeed)
-                .maxWidth(118)
-                .onValueChange((checkbox, selected) -> {
-                    localAnimalFeed = selected;
-                    if (selectedCategory == TargetCategory.ANIMAL) {
-                        sendBreedingSelection(false);
-                    }
-                })
-                .build());
         animalBreedCheckbox = addRenderableWidget(Checkbox.builder(Component.translatable("screen.valet.animal_breed"), font)
                 .pos(farmOptionsLeft, farmOptionsTop)
                 .selected(localAnimalBreed)
@@ -582,7 +559,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         context.text(font, label, left, top, 0xFF303030, false);
         int barTop = top + 13;
         int maxXp = Math.max(1, nextLevelXp);
-        int fillWidth = Math.min(XP_BAR_WIDTH, Math.max(0, xp) * XP_BAR_WIDTH / maxXp);
+        int fillWidth = (int) Math.min(XP_BAR_WIDTH, (long) Math.max(0, xp) * XP_BAR_WIDTH / maxXp);
         context.fill(left, barTop, left + XP_BAR_WIDTH, barTop + XP_BAR_HEIGHT, 0xFF4C4C4C);
         context.fill(left + 1, barTop + 1, left + XP_BAR_WIDTH - 1, barTop + XP_BAR_HEIGHT - 1, 0xFF222222);
         context.fill(left + 1, barTop + 1, left + 1 + fillWidth, barTop + XP_BAR_HEIGHT - 1, color);
@@ -732,7 +709,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private void drawXpBar(GuiGraphicsExtractor context, int left, int top) {
         int maxXp = Math.max(1, localNextLevelXp);
-        int fillWidth = Math.min(XP_BAR_WIDTH, localXp * XP_BAR_WIDTH / maxXp);
+        int fillWidth = (int) Math.min(XP_BAR_WIDTH, (long) Math.max(0, localXp) * XP_BAR_WIDTH / maxXp);
 
         context.fill(left, top, left + XP_BAR_WIDTH, top + XP_BAR_HEIGHT, 0xFF4C4C4C);
         context.fill(left + 1, top + 1, left + XP_BAR_WIDTH - 1, top + XP_BAR_HEIGHT - 1, 0xFF222222);
@@ -802,7 +779,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
             orderEntries.add(OrderEntry.category(TargetCategory.CONSTRUCTION, Component.translatable("screen.valet.category_constructions")));
             if (selectedCategory == TargetCategory.CONSTRUCTION) {
-                for (ValetConstructionBlueprint construction : localConstructions) {
+                for (ValetConstructionSummary construction : localConstructions) {
                     orderEntries.add(OrderEntry.target(ValetOrder.BUILD_STRUCTURE, construction.id(), Component.literal("  ").append(Component.translatable("screen.valet.construction_count", construction.name(), construction.blockCount()))));
                 }
             }
@@ -926,7 +903,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             return area == null ? Component.translatable("screen.valet.animal_all") : Component.literal(area.name());
         }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
-            ValetConstructionBlueprint construction = getSelectedConstruction();
+            ValetConstructionSummary construction = getSelectedConstruction();
             return construction == null ? getCategoryText(TargetCategory.CONSTRUCTION) : Component.literal(construction.name());
         }
         if (selectedCategory == TargetCategory.CRAFT) {
@@ -984,8 +961,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return type == null ? Component.translatable("screen.valet.animal_mixed") : Component.translatable(type.getTranslationKey());
     }
 
-    private ValetConstructionBlueprint getSelectedConstruction() {
-        for (ValetConstructionBlueprint construction : localConstructions) {
+    private ValetConstructionSummary getSelectedConstruction() {
+        for (ValetConstructionSummary construction : localConstructions) {
             if (construction.id() == selectedConstructionTargetId) {
                 return construction;
             }
@@ -1274,20 +1251,26 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         double mouseX = event.x();
         double mouseY = event.y();
         int left = getLeftPanelLeft();
-        for (int i = 0; i < orderEntries.size(); i++) {
-            OrderEntry entry = orderEntries.get(i);
-            if (isInside(mouseX, mouseY, left + 7, getOrderTop(i), LEFT_WIDTH - 14, ORDER_ROW_HEIGHT)) {
-                if (entry.categoryOnly) {
-                    selectedCategory = entry.category;
-                    rebuildOrderEntries();
-                } else if (entry.order == ValetOrder.BUILD_STRUCTURE) {
-                    selectedCategory = TargetCategory.CONSTRUCTION;
-                    selectedConstructionTargetId = entry.targetIndex;
-                    rebuildOrderEntries();
-                } else {
-                    sendSelection(entry.order, entry.targetIndex);
+        if (isInside(mouseX, mouseY, left + 7, getOrderListTop(), LEFT_WIDTH - 14, getOrderListHeight())) {
+            for (int i = 0; i < orderEntries.size(); i++) {
+                int rowTop = getOrderTop(i);
+                if (rowTop + ORDER_ROW_HEIGHT < getOrderListTop() || rowTop >= getOrderListTop() + getOrderListHeight()) {
+                    continue;
                 }
-                return true;
+                OrderEntry entry = orderEntries.get(i);
+                if (isInside(mouseX, mouseY, left + 7, rowTop, LEFT_WIDTH - 14, ORDER_ROW_HEIGHT)) {
+                    if (entry.categoryOnly) {
+                        selectedCategory = entry.category;
+                        rebuildOrderEntries();
+                    } else if (entry.order == ValetOrder.BUILD_STRUCTURE) {
+                        selectedCategory = TargetCategory.CONSTRUCTION;
+                        selectedConstructionTargetId = entry.targetIndex;
+                        rebuildOrderEntries();
+                    } else {
+                        sendSelection(entry.order, entry.targetIndex);
+                    }
+                    return true;
+                }
             }
         }
 
@@ -1327,7 +1310,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return viewModel.valetEntityId();
     }
 
-    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         localRole = ValetRole.fromIndex(roleIndex);
         ensurePageForRole();
         if (selectedPerk.getRole() != localRole) {
@@ -1342,7 +1325,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localFarmReplant = farmReplant;
         localFarmTillSoil = farmTillSoil;
         selectedAnimalAreaId = animalAreaId;
-        localAnimalFeed = false;
         localAnimalBreed = animalBreed;
         localAnimalShear = animalShear;
         localAnimalCollectEggs = animalCollectEggs;
@@ -1365,7 +1347,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localBowXp = bowXp;
         localBowNextLevelXp = bowNextLevelXp;
         localBowPendingPerks = bowPendingPerks;
-        localAllyAwareness = allyAwareness;
         localOreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
         localWoodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
         localInventoryStacks = copyInventory(inventoryStacks);
@@ -1434,22 +1415,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         return super.charTyped(event);
     }
 
-    @Override
-    public void onClose() {
-        if (currentScreen == this) {
-            currentScreen = null;
-        }
-        super.onClose();
-    }
-
-    @Override
-    public void removed() {
-        if (currentScreen == this) {
-            currentScreen = null;
-        }
-        super.removed();
-    }
-
     private void sendSelection(ValetOrder order, int targetIndex) {
         if (order == ValetOrder.NONE) {
             selectedCategory = TargetCategory.NONE;
@@ -1499,7 +1464,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     private void sendBreedingSelection(boolean closeScreen) {
         readAnimalMaxField();
-        ClientPlayNetworking.send(new SetBreedingOrderPayload(viewModel.valetEntityId(), selectedAnimalAreaId, false, localAnimalBreed, localAnimalShear, localAnimalCollectEggs, localAnimalMilk, localAnimalCull, localMaxAnimals, closeScreen));
+        ClientPlayNetworking.send(new SetBreedingOrderPayload(viewModel.valetEntityId(), selectedAnimalAreaId, localAnimalBreed, localAnimalShear, localAnimalCollectEggs, localAnimalMilk, localAnimalCull, localMaxAnimals, closeScreen));
     }
 
     private void readAnimalMaxField() {
@@ -1556,7 +1521,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private void sendSelectedConstructionOrder() {
-        ValetConstructionBlueprint construction = getSelectedConstruction();
+        ValetConstructionSummary construction = getSelectedConstruction();
         if (construction == null) {
             return;
         }
@@ -1565,7 +1530,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     }
 
     private void sendDeleteConstruction() {
-        ValetConstructionBlueprint construction = getSelectedConstruction();
+        ValetConstructionSummary construction = getSelectedConstruction();
         if (construction == null) {
             return;
         }
@@ -1683,10 +1648,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
 
         boolean animalVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.ANIMAL;
-        if (animalFeedCheckbox != null) {
-            animalFeedCheckbox.visible = false;
-            animalFeedCheckbox.active = false;
-        }
         if (animalBreedCheckbox != null) {
             animalBreedCheckbox.visible = animalVisible;
             animalBreedCheckbox.active = animalVisible;
@@ -1713,38 +1674,29 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
     }
 
-    private void drawConstructionPreview(GuiGraphicsExtractor context, ValetConstructionBlueprint blueprint, int left, int top) {
-        if (blueprint == null || blueprint.entries().isEmpty()) {
+    private void drawConstructionPreview(GuiGraphicsExtractor context, ValetConstructionSummary blueprint, int left, int top) {
+        if (blueprint == null || blueprint.blockCount() <= 0 || blueprint.previewWidth() <= 0 || blueprint.previewDepth() <= 0) {
             return;
         }
 
         drawInset(context, left, top, CONSTRUCTION_PREVIEW_SIZE, CONSTRUCTION_PREVIEW_SIZE, 0xFF9FA394);
-        int maxSide = Math.max(1, Math.max(blueprint.width(), blueprint.depth()));
-        int cell = Math.max(2, (CONSTRUCTION_PREVIEW_SIZE - 8) / maxSide);
-        int gridWidth = cell * Math.max(1, blueprint.width());
-        int gridDepth = cell * Math.max(1, blueprint.depth());
-        int startX = left + (CONSTRUCTION_PREVIEW_SIZE - gridWidth) / 2;
-        int startY = top + (CONSTRUCTION_PREVIEW_SIZE - gridDepth) / 2;
-
-        boolean[][] occupied = new boolean[Math.max(1, blueprint.width())][Math.max(1, blueprint.depth())];
-        int[][] highestY = new int[Math.max(1, blueprint.width())][Math.max(1, blueprint.depth())];
-        for (ValetConstructionBlueprint.Entry entry : blueprint.entries()) {
-            if (entry.x() < 0 || entry.z() < 0 || entry.x() >= occupied.length || entry.z() >= occupied[0].length) {
-                continue;
-            }
-            occupied[entry.x()][entry.z()] = true;
-            highestY[entry.x()][entry.z()] = Math.max(highestY[entry.x()][entry.z()], entry.y());
-        }
-
-        for (int xCell = 0; xCell < occupied.length; xCell++) {
-            for (int zCell = 0; zCell < occupied[xCell].length; zCell++) {
-                if (!occupied[xCell][zCell]) {
+        int available = CONSTRUCTION_PREVIEW_SIZE - 8;
+        int startX = left + 4;
+        int startY = top + 4;
+        for (int z = 0; z < blueprint.previewDepth(); z++) {
+            for (int x = 0; x < blueprint.previewWidth(); x++) {
+                int highestY = blueprint.previewHeight(x, z);
+                if (highestY < 0) {
                     continue;
                 }
-                int color = highestY[xCell][zCell] > blueprint.height() / 2 ? 0xD8B98F3A : 0xD84A7C8C;
-                int x1 = startX + xCell * cell;
-                int y1 = startY + zCell * cell;
-                context.fill(x1, y1, x1 + cell - 1, y1 + cell - 1, color);
+                int x1 = startX + (int) ((long) x * available / blueprint.previewWidth());
+                int x2 = startX + (int) ((long) (x + 1) * available / blueprint.previewWidth());
+                int y1 = startY + (int) ((long) z * available / blueprint.previewDepth());
+                int y2 = startY + (int) ((long) (z + 1) * available / blueprint.previewDepth());
+                x2 = Math.min(startX + available, Math.max(x1 + 1, x2));
+                y2 = Math.min(startY + available, Math.max(y1 + 1, y2));
+                int color = highestY > blueprint.height() / 2 ? 0xD8B98F3A : 0xD84A7C8C;
+                context.fill(x1, y1, x2, y2, color);
             }
         }
     }
@@ -1842,4 +1794,5 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             return top + NODE_SIZE / 2;
         }
     }
+
 }

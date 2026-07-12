@@ -1,13 +1,15 @@
 package com.wawane.valet.progress;
 
+import com.mojang.serialization.Codec;
 import com.wawane.valet.ValetRole;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 public final class ValetProgress {
     public static final int DATA_VERSION = 1;
@@ -62,12 +64,15 @@ public final class ValetProgress {
         return DATA.containsKey(villager.getUUID());
     }
 
-    public static boolean hasNbt(CompoundTag nbt) {
-        if (nbt.contains(DATA_VERSION_KEY) || nbt.contains(LEVEL_KEY) || nbt.contains(XP_KEY) || nbt.contains(PENDING_PERKS_KEY)) {
+    public static boolean hasNbt(ValueInput input) {
+        if (input.getInt(DATA_VERSION_KEY).isPresent()
+                || input.getInt(LEVEL_KEY).isPresent()
+                || input.getInt(XP_KEY).isPresent()
+                || input.getInt(PENDING_PERKS_KEY).isPresent()) {
             return true;
         }
         for (ValetPerk perk : ValetPerk.values()) {
-            if (nbt.contains(perk.getNbtKey())) {
+            if (input.read(perk.getNbtKey(), Codec.BOOL).isPresent()) {
                 return true;
             }
         }
@@ -89,18 +94,25 @@ public final class ValetProgress {
 
         Data data = data(villager);
         normalize(data);
-        data.xp += amount;
+        data.xp = saturatingAdd(data.xp, amount);
         while (data.xp >= xpForNextLevel(data.level)) {
             data.xp -= xpForNextLevel(data.level);
+            if (data.level == Integer.MAX_VALUE) {
+                data.xp = 0;
+                break;
+            }
             data.level++;
-            data.pendingPerks++;
+            data.pendingPerks = saturatingAdd(data.pendingPerks, 1);
         }
     }
 
     public static boolean choosePerk(Villager villager, ValetPerk perk) {
+        if (perk == null || !isRolePerk(villager, perk)) {
+            return false;
+        }
         Data data = data(villager);
         normalize(data);
-        if (data.pendingPerks <= 0 || perk == null || hasPerk(villager, perk) || !isRolePerk(villager, perk) || !canChoosePerk(data, perk)) {
+        if (data.pendingPerks <= 0 || hasPerk(villager, perk) || !canChoosePerk(data, perk)) {
             return false;
         }
 
@@ -109,44 +121,49 @@ public final class ValetProgress {
         return true;
     }
 
-    public static void writeToNbt(Villager villager, CompoundTag nbt) {
+    public static void writeToNbt(Villager villager, ValueOutput output) {
         Data data = data(villager);
         normalize(data);
-        nbt.putInt(DATA_VERSION_KEY, DATA_VERSION);
-        nbt.putInt(LEVEL_KEY, data.level);
-        nbt.putInt(XP_KEY, data.xp);
-        nbt.putInt(PENDING_PERKS_KEY, data.pendingPerks);
+        output.putInt(DATA_VERSION_KEY, DATA_VERSION);
+        output.putInt(LEVEL_KEY, data.level);
+        output.putInt(XP_KEY, data.xp);
+        output.putInt(PENDING_PERKS_KEY, data.pendingPerks);
         for (ValetPerk perk : ValetPerk.values()) {
-            nbt.putBoolean(perk.getNbtKey(), data.perks[perk.ordinal()]);
+            output.putBoolean(perk.getNbtKey(), data.perks[perk.ordinal()]);
         }
     }
 
-    public static void readFromNbt(Villager villager, CompoundTag nbt) {
-        Data data = data(villager);
-        if (!hasNbt(nbt)) {
-            normalize(data);
+    public static void readFromNbt(Villager villager, ValueInput input) {
+        Data data = new Data();
+        DATA.put(villager.getUUID(), data);
+        if (!hasNbt(input)) {
             return;
         }
 
-        if (nbt.contains(LEVEL_KEY)) {
-            data.level = Math.max(1, nbt.getIntOr(LEVEL_KEY, 1));
+        if (input.getInt(LEVEL_KEY).isPresent()) {
+            data.level = Math.max(1, input.getIntOr(LEVEL_KEY, 1));
         }
-        if (nbt.contains(XP_KEY)) {
-            data.xp = Math.max(0, nbt.getIntOr(XP_KEY, 0));
+        if (input.getInt(XP_KEY).isPresent()) {
+            data.xp = Math.max(0, input.getIntOr(XP_KEY, 0));
         }
-        if (nbt.contains(PENDING_PERKS_KEY)) {
-            data.pendingPerks = Math.max(0, nbt.getIntOr(PENDING_PERKS_KEY, 0));
+        if (input.getInt(PENDING_PERKS_KEY).isPresent()) {
+            data.pendingPerks = Math.max(0, input.getIntOr(PENDING_PERKS_KEY, 0));
         }
         for (ValetPerk perk : ValetPerk.values()) {
-            if (nbt.contains(perk.getNbtKey())) {
-                data.perks[perk.ordinal()] = nbt.getBooleanOr(perk.getNbtKey(), false);
+            if (input.read(perk.getNbtKey(), Codec.BOOL).isPresent()) {
+                data.perks[perk.ordinal()] = input.getBooleanOr(perk.getNbtKey(), false);
             }
         }
         normalize(data);
     }
 
     private static int xpForNextLevel(int level) {
-        return 40 + Math.max(0, level - 1) * 25;
+        long threshold = 40L + Math.max(0L, (long) level - 1L) * 25L;
+        return (int) Math.min(Integer.MAX_VALUE, threshold);
+    }
+
+    private static int saturatingAdd(int value, int amount) {
+        return (int) Math.min(Integer.MAX_VALUE, (long) value + amount);
     }
 
     private static Data data(Villager villager) {

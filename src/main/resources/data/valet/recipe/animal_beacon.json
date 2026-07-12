@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " W ",
+    "SPS",
+    " F "
+  ],
+  "key": {
+    "W": "minecraft:wheat",
+    "S": "minecraft:wheat_seeds",
+    "P": "minecraft:paper",
+    "F": "#minecraft:fences"
+  },
+  "result": {
+    "id": "valet:animal_beacon",
+    "count": 2
+  }
+}

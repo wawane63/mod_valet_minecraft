@@ -7,7 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Derniere release connue au moment de cette note : `v0.3.7`
+- Version locale en cours : `0.3.8` (audit et carte tactique)
+- Derniere release publiee : `v0.3.8`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur
@@ -25,10 +26,11 @@ git pull --tags
 git status
 ```
 
-Routine apres un changement valide :
+Routine apres un changement valide, uniquement si un commit/push est demande :
 
 ```powershell
-git add .
+git status
+git add <fichiers-valides>
 git commit -m "Message court"
 git push
 ```
@@ -47,10 +49,16 @@ git pull --tags
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
-.\gradlew.bat --no-daemon --rerun-tasks --no-build-cache build
+.\gradlew.bat --no-daemon clean build
 ```
 
-- La tache Gradle `installClientJar` installe le jar dans `%APPDATA%/.minecraft/mods`.
+- Commande macOS/Linux :
+
+```bash
+./gradlew --no-daemon clean build
+```
+
+- La tache Gradle `installClientJar` installe le jar dans `%APPDATA%/.minecraft/mods` (Windows), `~/Library/Application Support/minecraft/mods` (macOS) ou `~/.minecraft/mods` (Linux).
 - Verifier qu'un seul `valet-*.jar` est present dans le dossier mods.
 
 ## Fichiers de trace
@@ -71,7 +79,7 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 ## Debug en jeu
 
 - Lire le jar installe et `latest.log` avant de modifier le code.
-- Les logs sont dans `%APPDATA%/.minecraft/logs/latest.log`.
+- Les logs sont dans le dossier Minecraft de l'OS, sous `logs/latest.log`.
 - Les signatures connues utiles :
   - `goal restarts order`
   - `craft no_path`

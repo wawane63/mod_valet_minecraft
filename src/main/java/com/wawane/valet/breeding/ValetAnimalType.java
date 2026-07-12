@@ -1,5 +1,6 @@
 package com.wawane.valet.breeding;
 
+import java.util.List;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.world.entity.animal.cow.Cow;
@@ -9,17 +10,26 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
 public enum ValetAnimalType {
-    CHICKEN("animal.valet.chicken", "Poules", Chicken.class, new Item[]{Items.WHEAT_SEEDS}),
-    COW("animal.valet.cow", "Vaches", Cow.class, new Item[]{Items.WHEAT}),
-    SHEEP("animal.valet.sheep", "Moutons", Sheep.class, new Item[]{Items.WHEAT}),
-    PIG("animal.valet.pig", "Cochons", Pig.class, new Item[]{Items.CARROT});
+    CHICKEN("animal.valet.chicken", "Poules", Chicken.class, List.of(
+            Items.WHEAT_SEEDS,
+            Items.MELON_SEEDS,
+            Items.PUMPKIN_SEEDS,
+            Items.BEETROOT_SEEDS,
+            Items.TORCHFLOWER_SEEDS,
+            Items.PITCHER_POD
+    )),
+    COW("animal.valet.cow", "Vaches", Cow.class, List.of(Items.WHEAT)),
+    SHEEP("animal.valet.sheep", "Moutons", Sheep.class, List.of(Items.WHEAT)),
+    PIG("animal.valet.pig", "Cochons", Pig.class, List.of(Items.CARROT, Items.POTATO, Items.BEETROOT));
+
+    private static final ValetAnimalType[] VALUES = values();
 
     private final String translationKey;
     private final String defaultName;
     private final Class<? extends Animal> animalClass;
-    private final Item[] feedItems;
+    private final List<Item> feedItems;
 
-    ValetAnimalType(String translationKey, String defaultName, Class<? extends Animal> animalClass, Item[] feedItems) {
+    ValetAnimalType(String translationKey, String defaultName, Class<? extends Animal> animalClass, List<Item> feedItems) {
         this.translationKey = translationKey;
         this.defaultName = defaultName;
         this.animalClass = animalClass;
@@ -38,21 +48,20 @@ public enum ValetAnimalType {
         return animalClass.isInstance(animal);
     }
 
-    public Item[] feedItems() {
-        return feedItems.clone();
+    public List<Item> feedItems() {
+        return feedItems;
     }
 
     public Item primaryFeedItem() {
-        return feedItems[0];
+        return feedItems.get(0);
     }
 
     public static ValetAnimalType fromIndex(int index) {
-        ValetAnimalType[] values = values();
-        return index < 0 || index >= values.length ? null : values[index];
+        return index < 0 || index >= VALUES.length ? null : VALUES[index];
     }
 
     public static ValetAnimalType fromAnimal(Animal animal) {
-        for (ValetAnimalType type : values()) {
+        for (ValetAnimalType type : VALUES) {
             if (type.matches(animal)) {
                 return type;
             }

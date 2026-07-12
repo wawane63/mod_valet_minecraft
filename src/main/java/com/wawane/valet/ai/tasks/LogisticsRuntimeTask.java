@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -211,11 +212,16 @@ public final class LogisticsRuntimeTask {
         return findNearest(world, origin, control.chestRadius(), 4, pos -> {
             BlockState blockState = world.getBlockState(pos);
             if (control.hasCookingWork()) {
-                return blockState.is(ValetMod.COOK_CHEST)
-                        && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
+                if (!blockState.is(ValetMod.COOK_CHEST)) {
+                    return false;
+                }
+            } else if (!blockState.is(Blocks.CHEST) && !blockState.is(Blocks.TRAPPED_CHEST) && !blockState.is(Blocks.BARREL)) {
+                return false;
             }
-            return (blockState.is(Blocks.CHEST) || blockState.is(Blocks.TRAPPED_CHEST) || blockState.is(Blocks.BARREL))
-                    && ValetInventoryTransfer.getContainerInventory(world, pos) != null;
+
+            Container target = ValetInventoryTransfer.getContainerInventory(world, pos);
+            return target != null
+                    && ValetInventoryTransfer.canAcceptAnyDepositableStack(target, control.villager().getInventory());
         });
     }
 

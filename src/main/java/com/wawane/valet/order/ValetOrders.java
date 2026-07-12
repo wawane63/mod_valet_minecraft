@@ -3,11 +3,12 @@ package com.wawane.valet.order;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 public final class ValetOrders {
-    public static final int DATA_VERSION = 6;
+    public static final int DATA_VERSION = 7;
     public static final int DEFAULT_MAX_ANIMALS = 8;
 
     private static final String DATA_VERSION_KEY = "ValetOrdersDataVersion";
@@ -19,7 +20,7 @@ public final class ValetOrders {
     private static final String FARM_REPLANT_KEY = "ValetFarmReplant";
     private static final String FARM_TILL_SOIL_KEY = "ValetFarmTillSoil";
     private static final String ANIMAL_AREA_KEY = "ValetAnimalArea";
-    private static final String ANIMAL_FEED_KEY = "ValetAnimalFeed";
+    private static final String LEGACY_ANIMAL_FEED_KEY = "ValetAnimalFeed";
     private static final String ANIMAL_BREED_KEY = "ValetAnimalBreed";
     private static final String ANIMAL_SHEAR_KEY = "ValetAnimalShear";
     private static final String ANIMAL_COLLECT_EGGS_KEY = "ValetAnimalCollectEggs";
@@ -37,7 +38,6 @@ public final class ValetOrders {
     private static final Map<UUID, Boolean> FARM_REPLANT = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> FARM_TILL_SOIL = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> ANIMAL_AREAS = new ConcurrentHashMap<>();
-    private static final Map<UUID, Boolean> ANIMAL_FEED = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> ANIMAL_BREED = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> ANIMAL_SHEAR = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> ANIMAL_COLLECT_EGGS = new ConcurrentHashMap<>();
@@ -75,7 +75,6 @@ public final class ValetOrders {
                 || FARM_REPLANT.containsKey(uuid)
                 || FARM_TILL_SOIL.containsKey(uuid)
                 || ANIMAL_AREAS.containsKey(uuid)
-                || ANIMAL_FEED.containsKey(uuid)
                 || ANIMAL_BREED.containsKey(uuid)
                 || ANIMAL_SHEAR.containsKey(uuid)
                 || ANIMAL_COLLECT_EGGS.containsKey(uuid)
@@ -86,25 +85,15 @@ public final class ValetOrders {
                 || CRAFT_TARGETS.containsKey(uuid);
     }
 
-    public static boolean hasNbt(CompoundTag nbt) {
-        return nbt.contains(ORDER_KEY)
-                || nbt.contains(DATA_VERSION_KEY)
-                || nbt.contains(MINE_TARGET_KEY)
-                || nbt.contains(WOOD_TARGET_KEY)
-                || nbt.contains(FARM_AREA_KEY)
-                || nbt.contains(FARM_CROP_MASK_KEY)
-                || nbt.contains(FARM_REPLANT_KEY)
-                || nbt.contains(FARM_TILL_SOIL_KEY)
-                || nbt.contains(ANIMAL_AREA_KEY)
-                || nbt.contains(ANIMAL_FEED_KEY)
-                || nbt.contains(ANIMAL_BREED_KEY)
-                || nbt.contains(ANIMAL_SHEAR_KEY)
-                || nbt.contains(ANIMAL_COLLECT_EGGS_KEY)
-                || nbt.contains(ANIMAL_MILK_KEY)
-                || nbt.contains(ANIMAL_CULL_KEY)
-                || nbt.contains(ANIMAL_MAX_KEY)
-                || nbt.contains(CONSTRUCTION_TARGET_KEY)
-                || nbt.contains(CRAFT_TARGET_KEY);
+    public static boolean hasNbt(ValueInput input) {
+        return input.getString(ORDER_KEY).isPresent()
+                || input.getInt(DATA_VERSION_KEY).isPresent()
+                || input.getString(MINE_TARGET_KEY).isPresent()
+                || input.getString(WOOD_TARGET_KEY).isPresent()
+                || input.getInt(FARM_AREA_KEY).isPresent()
+                || input.getInt(ANIMAL_AREA_KEY).isPresent()
+                || input.getInt(CONSTRUCTION_TARGET_KEY).isPresent()
+                || input.getString(CRAFT_TARGET_KEY).isPresent();
     }
 
     public static void clear(UUID uuid) {
@@ -116,7 +105,6 @@ public final class ValetOrders {
         FARM_REPLANT.remove(uuid);
         FARM_TILL_SOIL.remove(uuid);
         ANIMAL_AREAS.remove(uuid);
-        ANIMAL_FEED.remove(uuid);
         ANIMAL_BREED.remove(uuid);
         ANIMAL_SHEAR.remove(uuid);
         ANIMAL_COLLECT_EGGS.remove(uuid);
@@ -136,7 +124,6 @@ public final class ValetOrders {
         FARM_REPLANT.clear();
         FARM_TILL_SOIL.clear();
         ANIMAL_AREAS.clear();
-        ANIMAL_FEED.clear();
         ANIMAL_BREED.clear();
         ANIMAL_SHEAR.clear();
         ANIMAL_COLLECT_EGGS.clear();
@@ -173,10 +160,6 @@ public final class ValetOrders {
 
     public static int getAnimalAreaId(Villager villager) {
         return ANIMAL_AREAS.getOrDefault(villager.getUUID(), -1);
-    }
-
-    public static boolean shouldFeedAnimals(Villager villager) {
-        return ANIMAL_FEED.getOrDefault(villager.getUUID(), true);
     }
 
     public static boolean shouldBreedAnimals(Villager villager) {
@@ -245,11 +228,10 @@ public final class ValetOrders {
         clearNonMatchingTargets(uuid, ValetOrder.HARVEST_CROPS);
     }
 
-    public static void setBreedingAnimals(Villager villager, int animalAreaId, boolean feed, boolean breed, boolean shear, boolean collectEggs, boolean milk, boolean cull, int maxAnimals) {
+    public static void setBreedingAnimals(Villager villager, int animalAreaId, boolean breed, boolean shear, boolean collectEggs, boolean milk, boolean cull, int maxAnimals) {
         UUID uuid = villager.getUUID();
         ORDERS.put(uuid, ValetOrder.BREED_ANIMALS);
         ANIMAL_AREAS.put(uuid, Math.max(-1, animalAreaId));
-        ANIMAL_FEED.put(uuid, feed);
         ANIMAL_BREED.put(uuid, breed);
         ANIMAL_SHEAR.put(uuid, shear);
         ANIMAL_COLLECT_EGGS.put(uuid, collectEggs);
@@ -283,114 +265,114 @@ public final class ValetOrders {
         clearNonMatchingTargets(uuid, ValetOrder.CRAFT);
     }
 
-    public static void writeToNbt(Villager villager, CompoundTag nbt) {
+    public static void writeToNbt(Villager villager, ValueOutput output) {
         ValetOrder order = get(villager);
         if (order == ValetOrder.NONE) {
-            removeOrderNbt(nbt);
+            removeOrderNbt(output);
             return;
         }
 
-        nbt.putInt(DATA_VERSION_KEY, DATA_VERSION);
-        nbt.putString(ORDER_KEY, order.getId());
+        output.putInt(DATA_VERSION_KEY, DATA_VERSION);
+        output.putString(ORDER_KEY, order.getId());
         switch (order) {
             case MINE_ORES -> {
                 ValetMineTarget target = getMineTarget(villager);
                 if (target == null) {
-                    nbt.remove(MINE_TARGET_KEY);
+                    output.discard(MINE_TARGET_KEY);
                 } else {
-                    nbt.putString(MINE_TARGET_KEY, target.name());
+                    output.putString(MINE_TARGET_KEY, target.name());
                 }
             }
             case CHOP_WOOD -> {
                 ValetWoodTarget target = getWoodTarget(villager);
                 if (target == null) {
-                    nbt.remove(WOOD_TARGET_KEY);
+                    output.discard(WOOD_TARGET_KEY);
                 } else {
-                    nbt.putString(WOOD_TARGET_KEY, target.name());
+                    output.putString(WOOD_TARGET_KEY, target.name());
                 }
             }
             case HARVEST_CROPS -> {
-                nbt.putInt(FARM_AREA_KEY, getFarmAreaId(villager));
-                nbt.putInt(FARM_CROP_MASK_KEY, getFarmCropMask(villager));
-                nbt.putBoolean(FARM_REPLANT_KEY, shouldReplantFarm(villager));
-                nbt.putBoolean(FARM_TILL_SOIL_KEY, shouldTillFarm(villager));
+                output.putInt(FARM_AREA_KEY, getFarmAreaId(villager));
+                output.putInt(FARM_CROP_MASK_KEY, getFarmCropMask(villager));
+                output.putBoolean(FARM_REPLANT_KEY, shouldReplantFarm(villager));
+                output.putBoolean(FARM_TILL_SOIL_KEY, shouldTillFarm(villager));
             }
             case BREED_ANIMALS -> {
-                nbt.putInt(ANIMAL_AREA_KEY, getAnimalAreaId(villager));
-                nbt.putBoolean(ANIMAL_FEED_KEY, shouldFeedAnimals(villager));
-                nbt.putBoolean(ANIMAL_BREED_KEY, shouldBreedAnimals(villager));
-                nbt.putBoolean(ANIMAL_SHEAR_KEY, shouldShearAnimals(villager));
-                nbt.putBoolean(ANIMAL_COLLECT_EGGS_KEY, shouldCollectAnimalEggs(villager));
-                nbt.putBoolean(ANIMAL_MILK_KEY, shouldMilkAnimals(villager));
-                nbt.putBoolean(ANIMAL_CULL_KEY, shouldCullAnimals(villager));
-                nbt.putInt(ANIMAL_MAX_KEY, getMaxAnimals(villager));
+                output.putInt(ANIMAL_AREA_KEY, getAnimalAreaId(villager));
+                output.putBoolean(ANIMAL_BREED_KEY, shouldBreedAnimals(villager));
+                output.putBoolean(ANIMAL_SHEAR_KEY, shouldShearAnimals(villager));
+                output.putBoolean(ANIMAL_COLLECT_EGGS_KEY, shouldCollectAnimalEggs(villager));
+                output.putBoolean(ANIMAL_MILK_KEY, shouldMilkAnimals(villager));
+                output.putBoolean(ANIMAL_CULL_KEY, shouldCullAnimals(villager));
+                output.putInt(ANIMAL_MAX_KEY, getMaxAnimals(villager));
             }
             case BUILD_STRUCTURE -> {
                 int constructionId = getConstructionTargetId(villager);
                 if (constructionId < 0) {
-                    nbt.remove(CONSTRUCTION_TARGET_KEY);
+                    output.discard(CONSTRUCTION_TARGET_KEY);
                 } else {
-                    nbt.putInt(CONSTRUCTION_TARGET_KEY, constructionId);
+                    output.putInt(CONSTRUCTION_TARGET_KEY, constructionId);
                 }
             }
             case CRAFT -> {
                 ValetCraftTarget target = getCraftTarget(villager);
                 if (target == null) {
-                    nbt.remove(CRAFT_TARGET_KEY);
+                    output.discard(CRAFT_TARGET_KEY);
                 } else {
-                    nbt.putString(CRAFT_TARGET_KEY, target.name());
+                    output.putString(CRAFT_TARGET_KEY, target.name());
                 }
             }
             case NONE -> {
             }
         }
-        removeNonMatchingNbt(nbt, order);
+        removeNonMatchingNbt(output, order);
     }
 
-    public static void readFromNbt(Villager villager, CompoundTag nbt) {
-        if (!nbt.contains(ORDER_KEY)) {
+    public static void readFromNbt(Villager villager, ValueInput input) {
+        if (input.getString(ORDER_KEY).isEmpty()) {
             set(villager, ValetOrder.NONE);
             return;
         }
 
-        int dataVersion = nbt.getIntOr(DATA_VERSION_KEY, 0);
+        int dataVersion = input.getIntOr(DATA_VERSION_KEY, 0);
 
         try {
-            ValetOrder order = ValetOrder.fromId(nbt.getString(ORDER_KEY).orElse(""));
-            if (order == ValetOrder.MINE_ORES && nbt.contains(MINE_TARGET_KEY)) {
-                setMineTarget(villager, ValetMineTarget.valueOf(nbt.getString(MINE_TARGET_KEY).orElse("")));
-            } else if (order == ValetOrder.CHOP_WOOD && nbt.contains(WOOD_TARGET_KEY)) {
-                setWoodTarget(villager, ValetWoodTarget.valueOf(nbt.getString(WOOD_TARGET_KEY).orElse("")));
+            ValetOrder order = ValetOrder.fromId(input.getString(ORDER_KEY).orElse(""));
+            if (order == ValetOrder.MINE_ORES && input.getString(MINE_TARGET_KEY).isPresent()) {
+                setMineTarget(villager, ValetMineTarget.valueOf(input.getString(MINE_TARGET_KEY).orElse("")));
+            } else if (order == ValetOrder.CHOP_WOOD && input.getString(WOOD_TARGET_KEY).isPresent()) {
+                setWoodTarget(villager, ValetWoodTarget.valueOf(input.getString(WOOD_TARGET_KEY).orElse("")));
             } else if (order == ValetOrder.HARVEST_CROPS) {
                 setHarvestCrops(
                         villager,
-                        nbt.getIntOr(FARM_AREA_KEY, -1),
-                        nbt.getIntOr(FARM_CROP_MASK_KEY, ValetFarmCrop.defaultMask()),
-                        nbt.getBooleanOr(FARM_REPLANT_KEY, false),
-                        nbt.getBooleanOr(FARM_TILL_SOIL_KEY, false)
+                        input.getIntOr(FARM_AREA_KEY, -1),
+                        input.getIntOr(FARM_CROP_MASK_KEY, ValetFarmCrop.defaultMask()),
+                        input.getBooleanOr(FARM_REPLANT_KEY, false),
+                        input.getBooleanOr(FARM_TILL_SOIL_KEY, false)
                 );
             } else if (order == ValetOrder.BREED_ANIMALS) {
-                int maxAnimals = nbt.getIntOr(ANIMAL_MAX_KEY, DEFAULT_MAX_ANIMALS);
-                if (dataVersion < 6 && nbt.contains(ANIMAL_MAX_KEY)) {
+                int maxAnimals = input.getIntOr(ANIMAL_MAX_KEY, DEFAULT_MAX_ANIMALS);
+                if (dataVersion < 6 && input.getInt(ANIMAL_MAX_KEY).isPresent()) {
                     maxAnimals = rebalanceMaxAnimals(maxAnimals);
                 }
                 setBreedingAnimals(
                         villager,
-                        nbt.getIntOr(ANIMAL_AREA_KEY, -1),
-                        nbt.getBooleanOr(ANIMAL_FEED_KEY, true),
-                        nbt.getBooleanOr(ANIMAL_BREED_KEY, true),
-                        nbt.getBooleanOr(ANIMAL_SHEAR_KEY, true),
-                        nbt.getBooleanOr(ANIMAL_COLLECT_EGGS_KEY, true),
-                        nbt.getBooleanOr(ANIMAL_MILK_KEY, true),
-                        nbt.getBooleanOr(ANIMAL_CULL_KEY, false),
+                        input.getIntOr(ANIMAL_AREA_KEY, -1),
+                        input.getBooleanOr(ANIMAL_BREED_KEY, true),
+                        input.getBooleanOr(ANIMAL_SHEAR_KEY, true),
+                        input.getBooleanOr(ANIMAL_COLLECT_EGGS_KEY, true),
+                        input.getBooleanOr(ANIMAL_MILK_KEY, true),
+                        input.getBooleanOr(ANIMAL_CULL_KEY, false),
                         maxAnimals
                 );
-            } else if (order == ValetOrder.BUILD_STRUCTURE && nbt.contains(CONSTRUCTION_TARGET_KEY)) {
-                setConstructionTarget(villager, nbt.getIntOr(CONSTRUCTION_TARGET_KEY, -1));
-            } else if (order == ValetOrder.CRAFT && nbt.contains(CRAFT_TARGET_KEY)) {
-                setCraftTarget(villager, ValetCraftTarget.valueOf(nbt.getString(CRAFT_TARGET_KEY).orElse("")));
+            } else if (order == ValetOrder.BUILD_STRUCTURE && input.getInt(CONSTRUCTION_TARGET_KEY).isPresent()) {
+                setConstructionTarget(villager, input.getIntOr(CONSTRUCTION_TARGET_KEY, -1));
+            } else if (order == ValetOrder.CRAFT && input.getString(CRAFT_TARGET_KEY).isPresent()) {
+                setCraftTarget(villager, ValetCraftTarget.valueOf(input.getString(CRAFT_TARGET_KEY).orElse("")));
+            } else if (order == ValetOrder.NONE) {
+                set(villager, ValetOrder.NONE);
             } else {
-                set(villager, order);
+                set(villager, ValetOrder.NONE);
             }
         } catch (IllegalArgumentException ignored) {
             set(villager, ValetOrder.NONE);
@@ -412,7 +394,6 @@ public final class ValetOrders {
         }
         if (order != ValetOrder.BREED_ANIMALS) {
             ANIMAL_AREAS.remove(uuid);
-            ANIMAL_FEED.remove(uuid);
             ANIMAL_BREED.remove(uuid);
             ANIMAL_SHEAR.remove(uuid);
             ANIMAL_COLLECT_EGGS.remove(uuid);
@@ -428,55 +409,55 @@ public final class ValetOrders {
         }
     }
 
-    private static void removeOrderNbt(CompoundTag nbt) {
-        nbt.remove(DATA_VERSION_KEY);
-        nbt.remove(ORDER_KEY);
-        nbt.remove(MINE_TARGET_KEY);
-        nbt.remove(WOOD_TARGET_KEY);
-        nbt.remove(FARM_AREA_KEY);
-        nbt.remove(FARM_CROP_MASK_KEY);
-        nbt.remove(FARM_REPLANT_KEY);
-        nbt.remove(FARM_TILL_SOIL_KEY);
-        nbt.remove(ANIMAL_AREA_KEY);
-        nbt.remove(ANIMAL_FEED_KEY);
-        nbt.remove(ANIMAL_BREED_KEY);
-        nbt.remove(ANIMAL_SHEAR_KEY);
-        nbt.remove(ANIMAL_COLLECT_EGGS_KEY);
-        nbt.remove(ANIMAL_MILK_KEY);
-        nbt.remove(ANIMAL_CULL_KEY);
-        nbt.remove(ANIMAL_MAX_KEY);
-        nbt.remove(CONSTRUCTION_TARGET_KEY);
-        nbt.remove(CRAFT_TARGET_KEY);
+    private static void removeOrderNbt(ValueOutput output) {
+        output.discard(DATA_VERSION_KEY);
+        output.discard(ORDER_KEY);
+        output.discard(MINE_TARGET_KEY);
+        output.discard(WOOD_TARGET_KEY);
+        output.discard(FARM_AREA_KEY);
+        output.discard(FARM_CROP_MASK_KEY);
+        output.discard(FARM_REPLANT_KEY);
+        output.discard(FARM_TILL_SOIL_KEY);
+        output.discard(ANIMAL_AREA_KEY);
+        output.discard(LEGACY_ANIMAL_FEED_KEY);
+        output.discard(ANIMAL_BREED_KEY);
+        output.discard(ANIMAL_SHEAR_KEY);
+        output.discard(ANIMAL_COLLECT_EGGS_KEY);
+        output.discard(ANIMAL_MILK_KEY);
+        output.discard(ANIMAL_CULL_KEY);
+        output.discard(ANIMAL_MAX_KEY);
+        output.discard(CONSTRUCTION_TARGET_KEY);
+        output.discard(CRAFT_TARGET_KEY);
     }
 
-    private static void removeNonMatchingNbt(CompoundTag nbt, ValetOrder order) {
+    private static void removeNonMatchingNbt(ValueOutput output, ValetOrder order) {
+        output.discard(LEGACY_ANIMAL_FEED_KEY);
         if (order != ValetOrder.MINE_ORES) {
-            nbt.remove(MINE_TARGET_KEY);
+            output.discard(MINE_TARGET_KEY);
         }
         if (order != ValetOrder.CHOP_WOOD) {
-            nbt.remove(WOOD_TARGET_KEY);
+            output.discard(WOOD_TARGET_KEY);
         }
         if (order != ValetOrder.HARVEST_CROPS) {
-            nbt.remove(FARM_AREA_KEY);
-            nbt.remove(FARM_CROP_MASK_KEY);
-            nbt.remove(FARM_REPLANT_KEY);
-            nbt.remove(FARM_TILL_SOIL_KEY);
+            output.discard(FARM_AREA_KEY);
+            output.discard(FARM_CROP_MASK_KEY);
+            output.discard(FARM_REPLANT_KEY);
+            output.discard(FARM_TILL_SOIL_KEY);
         }
         if (order != ValetOrder.BREED_ANIMALS) {
-            nbt.remove(ANIMAL_AREA_KEY);
-            nbt.remove(ANIMAL_FEED_KEY);
-            nbt.remove(ANIMAL_BREED_KEY);
-            nbt.remove(ANIMAL_SHEAR_KEY);
-            nbt.remove(ANIMAL_COLLECT_EGGS_KEY);
-            nbt.remove(ANIMAL_MILK_KEY);
-            nbt.remove(ANIMAL_CULL_KEY);
-            nbt.remove(ANIMAL_MAX_KEY);
+            output.discard(ANIMAL_AREA_KEY);
+            output.discard(ANIMAL_BREED_KEY);
+            output.discard(ANIMAL_SHEAR_KEY);
+            output.discard(ANIMAL_COLLECT_EGGS_KEY);
+            output.discard(ANIMAL_MILK_KEY);
+            output.discard(ANIMAL_CULL_KEY);
+            output.discard(ANIMAL_MAX_KEY);
         }
         if (order != ValetOrder.BUILD_STRUCTURE) {
-            nbt.remove(CONSTRUCTION_TARGET_KEY);
+            output.discard(CONSTRUCTION_TARGET_KEY);
         }
         if (order != ValetOrder.CRAFT) {
-            nbt.remove(CRAFT_TARGET_KEY);
+            output.discard(CRAFT_TARGET_KEY);
         }
     }
 

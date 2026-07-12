@@ -4,8 +4,11 @@ import com.wawane.valet.ValetConversations;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.breeding.ValetAnimalArea;
-import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.breeding.ValetAnimalStorage;
+import com.wawane.valet.construction.ValetConstructionSummary;
+import com.wawane.valet.construction.ValetConstructionStorage;
 import com.wawane.valet.farm.ValetFarmArea;
+import com.wawane.valet.farm.ValetFarmStorage;
 import com.wawane.valet.order.ValetCraftTarget;
 import com.wawane.valet.order.ValetMineTarget;
 import com.wawane.valet.order.ValetOrder;
@@ -32,6 +35,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public class ValetOrdersScreenHandler extends AbstractContainerMenu {
+    private static final int MAX_INVENTORY_SLOTS = 64;
     private final int valetEntityId;
     private final UUID valetUuid;
     private final Identifier valetDimension;
@@ -44,7 +48,6 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final boolean farmReplant;
     private final boolean farmTillSoil;
     private final int currentAnimalAreaId;
-    private final boolean animalFeed;
     private final boolean animalBreed;
     private final boolean animalShear;
     private final boolean animalCollectEggs;
@@ -59,7 +62,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final int[] woodCounts;
     private final List<ValetFarmArea> farmAreas;
     private final List<ValetAnimalArea> animalAreas;
-    private final List<ValetConstructionBlueprint> constructions;
+    private final List<ValetConstructionSummary> constructions;
     private final List<ItemStack> valetInventory;
     private final int level;
     private final int xp;
@@ -79,22 +82,25 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     private final String valetName;
 
     public ValetOrdersScreenHandler(int syncId, Inventory inventory, FriendlyByteBuf buf) {
-        this(syncId, inventory, new RegistryFriendlyByteBuf(buf, inventory.player.registryAccess()));
+        this(syncId, inventory, new RegistryFriendlyByteBuf(buf, inventory.player.registryAccess()), false);
     }
 
     public ValetOrdersScreenHandler(int syncId, Inventory inventory, OpeningData data) {
-        this(syncId, inventory, data.asBuffer(inventory.player.registryAccess()));
+        this(syncId, inventory, data.asBuffer(inventory.player.registryAccess()), true);
     }
 
-    private ValetOrdersScreenHandler(int syncId, Inventory inventory, RegistryFriendlyByteBuf buf) {
-        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readAnimalAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
+    private ValetOrdersScreenHandler(int syncId, Inventory inventory, RegistryFriendlyByteBuf buf, boolean releaseBuffer) {
+        this(syncId, inventory, buf.readInt(), buf.readUUID(), buf.readIdentifier(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), readOreCounts(buf), readWoodCounts(buf), readFarmAreas(buf), readAnimalAreas(buf), readConstructions(buf), readInventory(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), readPerks(buf), readCombatPerks(buf), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean(), buf.readUtf(32));
+        if (releaseBuffer) {
+            buf.release();
+        }
     }
 
     public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId) {
-        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, -1, true, true, true, true, true, false, com.wawane.valet.order.ValetOrders.DEFAULT_MAX_ANIMALS, true, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
+        this(syncId, inventory, valetEntityId, new UUID(0L, 0L), Level.OVERWORLD.identifier(), ValetRole.ARTISAN.ordinal(), ValetOrder.NONE.ordinal(), -1, -1, -1, com.wawane.valet.order.ValetFarmCrop.defaultMask(), false, false, -1, true, true, true, true, false, com.wawane.valet.order.ValetOrders.DEFAULT_MAX_ANIMALS, true, false, -1, -1, new int[ValetMineTarget.values().length], new int[ValetWoodTarget.values().length], List.of(), List.of(), List.of(), List.of(), 1, 0, 40, 0, new boolean[ValetPerk.values().length], new boolean[ValetCombatPerk.values().length], 1, 0, 30, 0, 1, 0, 30, 0, true, "");
     }
 
-    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, int currentAnimalAreaId, boolean animalFeed, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetAnimalArea> animalAreas, List<ValetConstructionBlueprint> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
+    public ValetOrdersScreenHandler(int syncId, Inventory inventory, int valetEntityId, UUID valetUuid, Identifier valetDimension, int roleIndex, int currentOrderIndex, int currentMineTargetIndex, int currentWoodTargetIndex, int currentFarmAreaId, int currentFarmCropMask, boolean farmReplant, boolean farmTillSoil, int currentAnimalAreaId, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int currentConstructionTargetId, int currentCraftTargetIndex, int[] oreCounts, int[] woodCounts, List<ValetFarmArea> farmAreas, List<ValetAnimalArea> animalAreas, List<ValetConstructionSummary> constructions, List<ItemStack> valetInventory, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         super(ValetMod.VALET_ORDERS_SCREEN_HANDLER, syncId);
         this.valetEntityId = valetEntityId;
         this.valetUuid = valetUuid;
@@ -108,7 +114,6 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.farmReplant = farmReplant;
         this.farmTillSoil = farmTillSoil;
         this.currentAnimalAreaId = currentAnimalAreaId;
-        this.animalFeed = animalFeed;
         this.animalBreed = animalBreed;
         this.animalShear = animalShear;
         this.animalCollectEggs = animalCollectEggs;
@@ -119,18 +124,18 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.freeBehavior = freeBehavior;
         this.currentConstructionTargetId = currentConstructionTargetId;
         this.currentCraftTargetIndex = currentCraftTargetIndex;
-        this.oreCounts = oreCounts;
-        this.woodCounts = woodCounts;
+        this.oreCounts = Arrays.copyOf(oreCounts, ValetMineTarget.values().length);
+        this.woodCounts = Arrays.copyOf(woodCounts, ValetWoodTarget.values().length);
         this.farmAreas = List.copyOf(farmAreas);
         this.animalAreas = List.copyOf(animalAreas);
-        this.constructions = constructions;
+        this.constructions = List.copyOf(constructions);
         this.valetInventory = copyInventory(valetInventory);
         this.level = level;
         this.xp = xp;
         this.nextLevelXp = nextLevelXp;
         this.pendingPerks = pendingPerks;
-        this.perks = perks;
-        this.combatPerks = combatPerks;
+        this.perks = Arrays.copyOf(perks, ValetPerk.values().length);
+        this.combatPerks = Arrays.copyOf(combatPerks, ValetCombatPerk.values().length);
         this.swordLevel = swordLevel;
         this.swordXp = swordXp;
         this.swordNextLevelXp = swordNextLevelXp;
@@ -140,7 +145,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         this.bowNextLevelXp = bowNextLevelXp;
         this.bowPendingPerks = bowPendingPerks;
         this.allyAwareness = allyAwareness;
-        this.valetName = valetName;
+        this.valetName = valetName == null ? "" : valetName;
     }
 
     public int getValetEntityId() {
@@ -189,10 +194,6 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
 
     public int getCurrentAnimalAreaId() {
         return currentAnimalAreaId;
-    }
-
-    public boolean shouldFeedAnimals() {
-        return animalFeed;
     }
 
     public boolean shouldBreedAnimals() {
@@ -251,7 +252,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         return woodCounts[index];
     }
 
-    public List<ValetConstructionBlueprint> getConstructions() {
+    public List<ValetConstructionSummary> getConstructions() {
         return constructions;
     }
 
@@ -337,6 +338,8 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     public boolean stillValid(Player player) {
         net.minecraft.world.entity.Entity entity = player.level().getEntity(valetEntityId);
         return entity instanceof Villager villager
+                && villager.getUUID().equals(valetUuid)
+                && player.level().dimension().identifier().equals(valetDimension)
                 && ValetMod.isValet(villager)
                 && player.distanceToSqr(villager) <= 64.0D;
     }
@@ -388,20 +391,17 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
         return perks;
     }
 
-    private static List<ValetConstructionBlueprint> readConstructions(FriendlyByteBuf buf) {
-        int count = buf.readInt();
-        List<ValetConstructionBlueprint> result = new ArrayList<>(count);
+    private static List<ValetConstructionSummary> readConstructions(FriendlyByteBuf buf) {
+        int count = readBoundedCount(buf, ValetConstructionStorage.MAX_BLUEPRINTS, "constructions");
+        List<ValetConstructionSummary> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            CompoundTag nbt = buf.readNbt();
-            if (nbt != null) {
-                result.add(ValetConstructionBlueprint.readNbt(nbt));
-            }
+            result.add(ValetConstructionSummary.read(buf));
         }
         return result;
     }
 
     private static List<ValetFarmArea> readFarmAreas(FriendlyByteBuf buf) {
-        int count = buf.readInt();
+        int count = readBoundedCount(buf, ValetFarmStorage.MAX_AREAS, "farm areas");
         List<ValetFarmArea> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             CompoundTag nbt = buf.readNbt();
@@ -413,7 +413,7 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     }
 
     private static List<ValetAnimalArea> readAnimalAreas(FriendlyByteBuf buf) {
-        int count = buf.readInt();
+        int count = readBoundedCount(buf, ValetAnimalStorage.MAX_AREAS, "animal areas");
         List<ValetAnimalArea> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             CompoundTag nbt = buf.readNbt();
@@ -425,12 +425,20 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
     }
 
     private static List<ItemStack> readInventory(RegistryFriendlyByteBuf buf) {
-        int count = Math.max(0, buf.readInt());
+        int count = readBoundedCount(buf, MAX_INVENTORY_SLOTS, "inventory slots");
         List<ItemStack> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             result.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
         }
         return result;
+    }
+
+    private static int readBoundedCount(FriendlyByteBuf buf, int maximum, String label) {
+        int count = buf.readInt();
+        if (count < 0 || count > maximum) {
+            throw new IllegalArgumentException("Invalid " + label + " count: " + count);
+        }
+        return count;
     }
 
     private static List<ItemStack> copyInventory(List<ItemStack> stacks) {
@@ -451,10 +459,14 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
 
         public static OpeningData create(RegistryAccess registryAccess, Consumer<RegistryFriendlyByteBuf> writer) {
             RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), registryAccess);
-            writer.accept(buf);
-            byte[] bytes = new byte[buf.readableBytes()];
-            buf.getBytes(buf.readerIndex(), bytes);
-            return new OpeningData(bytes);
+            try {
+                writer.accept(buf);
+                byte[] bytes = new byte[buf.readableBytes()];
+                buf.getBytes(buf.readerIndex(), bytes);
+                return new OpeningData(bytes);
+            } finally {
+                buf.release();
+            }
         }
 
         public static OpeningData read(RegistryFriendlyByteBuf buf) {
@@ -463,6 +475,11 @@ public class ValetOrdersScreenHandler extends AbstractContainerMenu {
 
         public void write(RegistryFriendlyByteBuf buf) {
             buf.writeByteArray(bytes);
+        }
+
+        @Override
+        public byte[] bytes() {
+            return Arrays.copyOf(bytes, bytes.length);
         }
 
         public RegistryFriendlyByteBuf asBuffer(RegistryAccess registryAccess) {

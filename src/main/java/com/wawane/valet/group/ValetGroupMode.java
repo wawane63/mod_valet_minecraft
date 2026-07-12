@@ -7,7 +7,10 @@ public enum ValetGroupMode {
     GUARD_WIDE("group.valet.mode.guard_wide"),
     ATTACK_TARGET("group.valet.mode.attack_target"),
     ATTACK_AREA("group.valet.mode.attack_area"),
-    RECALL("group.valet.mode.recall");
+    RECALL("group.valet.mode.recall"),
+    MOVE_TO("group.valet.mode.move_to");
+
+    private static final ValetGroupMode[] VALUES = values();
 
     private final String translationKey;
 
@@ -19,19 +22,14 @@ public enum ValetGroupMode {
         return translationKey;
     }
 
-    public boolean hasPlayerAnchor() {
-        return this == FOLLOW || this == GUARD_CLOSE || this == GUARD_WIDE;
-    }
-
     public boolean isCombatMode() {
         return this == GUARD_CLOSE || this == GUARD_WIDE || this == ATTACK_TARGET || this == ATTACK_AREA;
     }
 
     public static ValetGroupMode fromIndex(int index) {
-        ValetGroupMode[] values = values();
-        if (index < 0 || index >= values.length) {
+        if (index < 0 || index >= VALUES.length) {
             return IDLE;
         }
-        return values[index];
+        return VALUES[index];
     }
 }

@@ -13,9 +13,15 @@ import net.minecraft.server.level.ServerLevel;
 
 public final class ValetPathPlanner {
     private static final int SEARCH_MARGIN = 6;
+    private static final int[][] NEIGHBOR_OFFSETS = {
+            {1, -1, 0}, {1, 0, 0}, {1, 1, 0},
+            {-1, -1, 0}, {-1, 0, 0}, {-1, 1, 0},
+            {0, -1, 1}, {0, 0, 1}, {0, 1, 1},
+            {0, -1, -1}, {0, 0, -1}, {0, 1, -1}
+    };
 
     public List<BlockPos> planPathToAdjacent(ServerLevel world, BlockPos origin, BlockPos start, BlockPos targetBlock, Set<BlockPos> goals, int maxPathNodes, int maxPathLength, StepPredicate stepPredicate, StepCost stepCost) {
-        if (goals.isEmpty()) {
+        if (goals.isEmpty() || maxPathNodes <= 0 || maxPathLength < 0) {
             return List.of();
         }
 
@@ -29,17 +35,19 @@ public final class ValetPathPlanner {
         open.add(new PathNode(start, heuristic(start, targetBlock)));
 
         int visited = 0;
-        while (!open.isEmpty() && visited++ < maxPathNodes) {
+        while (!open.isEmpty() && visited < maxPathNodes) {
             PathNode node = open.poll();
             if (!closed.add(node.pos)) {
                 continue;
             }
+            visited++;
 
             if (goals.contains(node.pos)) {
                 return rebuildPath(parents, start, node.pos, maxPathLength);
             }
 
-            for (BlockPos next : neighbors(node.pos)) {
+            for (int[] offset : NEIGHBOR_OFFSETS) {
+                BlockPos next = node.pos.offset(offset[0], offset[1], offset[2]);
                 if (!bounds.contains(next) || closed.contains(next) || !stepPredicate.canPrepareStep(world, node.pos, next)) {
                     continue;
                 }
@@ -74,19 +82,6 @@ public final class ValetPathPlanner {
         for (int i = reversed.size() - 1; i >= 0; i--) {
             result.add(reversed.get(i));
         }
-        return result;
-    }
-
-    private List<BlockPos> neighbors(BlockPos pos) {
-        List<BlockPos> result = new ArrayList<>(12);
-        int[][] horizontal = new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-
-        for (int[] direction : horizontal) {
-            for (int dy = -1; dy <= 1; dy++) {
-                result.add(pos.offset(direction[0], dy, direction[1]));
-            }
-        }
-
         return result;
     }
 

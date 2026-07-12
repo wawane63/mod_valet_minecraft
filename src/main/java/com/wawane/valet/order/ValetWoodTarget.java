@@ -55,20 +55,34 @@ public enum ValetWoodTarget {
     private boolean hasConnectedTreeCrown(Level world, BlockPos origin) {
         ArrayDeque<BlockPos> open = new ArrayDeque<>();
         Set<BlockPos> visited = new HashSet<>();
-        open.add(origin.immutable());
+        BlockPos start = origin.immutable();
+        open.add(start);
+        visited.add(start);
         int logs = 0;
         boolean hasCrown = false;
 
-        while (!open.isEmpty() && visited.size() < TREE_LOG_CLUSTER_LIMIT) {
+        while (!open.isEmpty() && logs < TREE_LOG_CLUSTER_LIMIT) {
             BlockPos current = open.removeFirst();
-            if (!visited.add(current) || !isInsideTreeCluster(origin, current) || !matches(world.getBlockState(current))) {
+            if (!isInsideTreeCluster(origin, current) || !matches(world.getBlockState(current))) {
                 continue;
             }
 
             logs++;
             hasCrown = hasCrown || hasNearbyCrownBlock(world, current);
-            for (BlockPos next : connectedLogNeighbors(current)) {
-                open.add(next);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) {
+                            continue;
+                        }
+                        BlockPos next = current.offset(dx, dy, dz);
+                        if (isInsideTreeCluster(origin, next)
+                                && matches(world.getBlockState(next))
+                                && visited.add(next)) {
+                            open.add(next);
+                        }
+                    }
+                }
             }
         }
 
@@ -98,20 +112,6 @@ public enum ValetWoodTarget {
         return Math.abs(pos.getX() - origin.getX()) <= TREE_HORIZONTAL_SPREAD
                 && Math.abs(pos.getY() - origin.getY()) <= TREE_VERTICAL_SPREAD
                 && Math.abs(pos.getZ() - origin.getZ()) <= TREE_HORIZONTAL_SPREAD;
-    }
-
-    private static Iterable<BlockPos> connectedLogNeighbors(BlockPos pos) {
-        Set<BlockPos> result = new HashSet<>(26);
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx != 0 || dy != 0 || dz != 0) {
-                        result.add(pos.offset(dx, dy, dz));
-                    }
-                }
-            }
-        }
-        return result;
     }
 
     public static ValetWoodTarget fromState(BlockState state) {

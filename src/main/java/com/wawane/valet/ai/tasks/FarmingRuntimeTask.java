@@ -239,9 +239,16 @@ public final class FarmingRuntimeTask {
         control.villager().getLookControl().setLookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
         control.villager().swing(InteractionHand.MAIN_HAND);
         clearSnowAbove(world, targetPos);
+        if (!world.destroyBlock(targetPos, false, control.villager())) {
+            ValetDebug.record(control.villager(), "farm break_failed target=" + ValetDebug.shortPos(targetPos));
+            rememberFailedTarget(targetPos);
+            control.setState(control.interruptedWorkState());
+            clearHarvestState();
+            control.setDelayTicks(20);
+            return;
+        }
         world.levelEvent(2001, targetPos, Block.getId(currentState));
         control.collectDrops(drops);
-        world.destroyBlock(targetPos, false, control.villager());
         control.collectNearbyItemEntities(world);
 
         boolean replanted = tryReplant(world, targetPos, currentState);
@@ -325,7 +332,7 @@ public final class FarmingRuntimeTask {
         }
 
         Planting planting = choosePlanting(ValetOrders.getFarmCropMask(control.villager()));
-        if (planting == null || !control.takeOneItem(planting.item())) {
+        if (planting == null) {
             ValetDebug.record(control.villager(), "farm no_seed target=" + ValetDebug.shortPos(targetPos));
             control.setState(afterFarmActionState());
             clearHarvestState();
@@ -341,10 +348,25 @@ public final class FarmingRuntimeTask {
             clearHarvestState();
             return;
         }
+        if (!control.takeOneItem(planting.item())) {
+            ValetDebug.record(control.villager(), "farm no_seed target=" + ValetDebug.shortPos(targetPos));
+            control.setState(afterFarmActionState());
+            clearHarvestState();
+            control.setDelayTicks(control.noTargetDelayTicks());
+            return;
+        }
 
         control.villager().getLookControl().setLookAt(cropPos.getX() + 0.5D, cropPos.getY() + 0.5D, cropPos.getZ() + 0.5D);
         control.villager().swing(InteractionHand.MAIN_HAND);
-        world.setBlock(cropPos, planting.state(), Block.UPDATE_ALL);
+        if (!world.setBlock(cropPos, planting.state(), Block.UPDATE_ALL)) {
+            control.returnItem(planting.item());
+            rememberFailedTarget(targetPos);
+            ValetDebug.record(control.villager(), "farm plant_failed target=" + ValetDebug.shortPos(cropPos));
+            control.setState(control.interruptedWorkState());
+            clearHarvestState();
+            control.setDelayTicks(20);
+            return;
+        }
         world.playSound(null, cropPos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 0.8F, 1.0F);
         ValetProgress.addXp(control.villager(), 2);
         ValetDebug.record(control.villager(), "farm planted target=" + ValetDebug.shortPos(cropPos));
@@ -509,8 +531,11 @@ public final class FarmingRuntimeTask {
             return false;
         }
 
-        world.setBlock(pos, replantState, Block.UPDATE_ALL);
-        return true;
+        if (world.setBlock(pos, replantState, Block.UPDATE_ALL)) {
+            return true;
+        }
+        control.returnItem(replantItem);
+        return false;
     }
 
     private boolean isValidTarget(ServerLevel world, BlockPos pos, TargetType type) {
@@ -588,10 +613,11 @@ public final class FarmingRuntimeTask {
     }
 
     private static boolean isHarvestableCrop(ServerLevel world, BlockPos pos, int cropMask) {
-        return pos != null
-                && cropMask != 0
-                && ValetFarmCrop.matchesAnyEnabled(world.getBlockState(pos), cropMask)
-                && isMatureCrop(world.getBlockState(pos));
+        if (pos == null || cropMask == 0) {
+            return false;
+        }
+        BlockState state = world.getBlockState(pos);
+        return ValetFarmCrop.matchesAnyEnabled(state, cropMask) && isMatureCrop(state);
     }
 
     private static BlockPos resolveCropPos(ServerLevel world, BlockPos pos, int cropMask) {
@@ -635,7 +661,8 @@ public final class FarmingRuntimeTask {
 
     private static void clearSnowAbove(ServerLevel world, BlockPos pos) {
         BlockPos above = pos.above();
-        if (world.getBlockState(above).is(Blocks.SNOW) || world.getBlockState(above).is(Blocks.SNOW_BLOCK)) {
+        BlockState state = world.getBlockState(above);
+        if (state.is(Blocks.SNOW) || state.is(Blocks.SNOW_BLOCK)) {
             world.setBlock(above, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
         }
     }
@@ -786,6 +813,8 @@ public final class FarmingRuntimeTask {
         void releaseBlock(BlockPos pos);
 
         boolean takeOneItem(Item item);
+
+        void returnItem(Item item);
 
         boolean hasItem(Item item);
 

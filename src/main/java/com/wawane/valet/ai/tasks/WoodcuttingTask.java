@@ -9,10 +9,6 @@ public final class WoodcuttingTask {
     }
 
     public static List<BlockPos> findWoodCluster(ServerLevel world, BlockPos seed, int maxBlocks, MiningTask.ResourceMatcher matcher) {
-        return MiningTask.findCluster(world, seed, maxBlocks, matcher, pos -> true, WoodcuttingTask::woodNeighbors);
-    }
-
-    public static List<BlockPos> woodNeighbors(BlockPos pos) {
-        return MiningTask.oreNeighbors(pos);
+        return MiningTask.findCluster(world, seed, maxBlocks, matcher, pos -> true);
     }
 }

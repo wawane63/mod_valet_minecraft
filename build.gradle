@@ -1,9 +1,16 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version '1.17.12'
+    id 'net.fabricmc.fabric-loom' version '1.17.14'
 }
 
 version = project.mod_version
 group = project.maven_group
+
+def archiveBaseName = project.archives_base_name.toString()
+def fabricApiVersion = project.fabric_version.toString()
+def javaRelease = project.java_version.toString()
+def loaderVersion = project.loader_version.toString()
+def minecraftVersion = project.minecraft_version.toString()
+def modVersion = project.version.toString()
 
 base {
     archivesName = project.archives_base_name
@@ -13,33 +20,43 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    implementation "net.fabricmc.fabric-api:fabric-creative-tab-api-v1:5.0.14+d871b99e9e"
-    implementation "net.fabricmc.fabric-api:fabric-entity-events-v1:5.0.5+06488ac19e"
-    implementation "net.fabricmc.fabric-api:fabric-events-interaction-v0:5.2.6+8f57f7ee9e"
-    implementation "net.fabricmc.fabric-api:fabric-item-api-v1:14.2.0+7aec7be39e"
-    implementation "net.fabricmc.fabric-api:fabric-lifecycle-events-v1:4.1.3+4575b05f9e"
-    implementation "net.fabricmc.fabric-api:fabric-menu-api-v1:2.0.16+086d547a9e"
-    implementation "net.fabricmc.fabric-api:fabric-networking-api-v1:6.3.3+72073ef09e"
-    implementation "net.fabricmc.fabric-api:fabric-object-builder-api-v1:24.0.6+46a6d00c9e"
-    implementation "net.fabricmc.fabric-api:fabric-rendering-v1:25.2.0+2b0d8a229e"
 }
 
 processResources {
-    inputs.property 'version', project.version
+    inputs.properties(
+            version: modVersion,
+            minecraft_version: minecraftVersion,
+            loader_version: loaderVersion,
+            fabric_version: fabricApiVersion,
+            java_version: javaRelease
+    )
 
     filesMatching('fabric.mod.json') {
-        expand 'version': project.version
+        expand(
+                version: modVersion,
+                minecraft_version: minecraftVersion,
+                loader_version: loaderVersion,
+                fabric_version: fabricApiVersion,
+                java_version: javaRelease
+        )
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
+    it.options.release = javaRelease as int
+    it.options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:unchecked'])
 }
 
 java {
-    sourceCompatibility = JavaVersion.toVersion(25)
-    targetCompatibility = JavaVersion.toVersion(25)
+    sourceCompatibility = JavaVersion.toVersion(javaRelease)
+    targetCompatibility = JavaVersion.toVersion(javaRelease)
     withSourcesJar()
+}
+
+tasks.withType(Jar).configureEach {
+    from('LICENSE') {
+        rename { "${it}_${archiveBaseName}" }
+    }
 }
 
 def osName = System.getProperty('os.name').toLowerCase()
@@ -48,17 +65,24 @@ def minecraftDir = System.getenv('APPDATA') != null
     : osName.contains('mac')
         ? file("${System.getProperty('user.home')}/Library/Application Support/minecraft")
         : file("${System.getProperty('user.home')}/.minecraft")
+def minecraftModsDir = file("${minecraftDir}/mods")
+def shouldInstallClientJar = {
+    def buildTask = tasks.named('build').get()
+    !gradle.taskGraph.hasTask(buildTask) || (buildTask.state.executed && buildTask.state.failure == null)
+}
+
+tasks.register('cleanInstalledClientJars', Delete) {
+    onlyIf shouldInstallClientJar
+    delete fileTree(minecraftModsDir) {
+        include "${archiveBaseName}-*.jar"
+    }
+}
 
 tasks.register('installClientJar', Copy) {
-    dependsOn tasks.named('jar')
+    onlyIf shouldInstallClientJar
+    dependsOn tasks.named('jar'), tasks.named('cleanInstalledClientJars')
     from tasks.named('jar').flatMap { it.archiveFile }
-    into file("${minecraftDir}/mods")
-    doFirst {
-        file("${minecraftDir}/mods").mkdirs()
-        delete fileTree("${minecraftDir}/mods") {
-            include "${project.archives_base_name}-*.jar"
-        }
-    }
+    into minecraftModsDir
 }
 
 tasks.named('build') {

@@ -7,6 +7,7 @@ import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.progress.ValetProgress;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -24,7 +25,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * conteneur filtrent les items acceptes et restent reserves au joueur.
  */
 public final class StewardRuntimeTask {
-    private static final int FILTER_SLOT_COUNT = 9;
+    public static final int FILTER_SLOT_COUNT = 9;
     private static final int TRANSFER_BATCH = 16;
     private static final int FILTER_PRIORITY_WEIGHT = 10_000;
 
@@ -267,14 +268,19 @@ public final class StewardRuntimeTask {
 
     private List<ContainerRef> findContainers(ServerLevel world, BlockPos workOrigin) {
         List<ContainerRef> containers = new ArrayList<>();
+        Set<BlockPos> seen = new HashSet<>();
         for (BlockPos pos : BlockPos.withinManhattan(workOrigin, control.transferRadius(), 4, control.transferRadius())) {
             BlockPos candidate = pos.immutable();
             if (!isManagedContainer(world.getBlockState(candidate))) {
                 continue;
             }
-            Container inventory = ValetInventoryTransfer.getContainerInventory(world, candidate);
+            BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, candidate);
+            if (!seen.add(canonical)) {
+                continue;
+            }
+            Container inventory = ValetInventoryTransfer.getContainerInventory(world, canonical);
             if (inventory != null) {
-                containers.add(new ContainerRef(candidate, inventory, hasFilters(inventory)));
+                containers.add(new ContainerRef(canonical, inventory, hasFilters(inventory)));
             }
         }
         return containers;
@@ -347,8 +353,10 @@ public final class StewardRuntimeTask {
             }
             moved += accepted;
         }
-        source.inventory().setChanged();
-        target.setChanged();
+        if (moved > 0) {
+            source.inventory().setChanged();
+            target.setChanged();
+        }
         return moved;
     }
 
@@ -373,8 +381,10 @@ public final class StewardRuntimeTask {
             }
             moved += accepted;
         }
-        source.setChanged();
-        target.setChanged();
+        if (moved > 0) {
+            source.setChanged();
+            target.setChanged();
+        }
         return moved;
     }
 
@@ -440,8 +450,8 @@ public final class StewardRuntimeTask {
         int firstSlot = Math.min(Math.max(0, startSlot), inventory.getContainerSize());
         for (int slot = firstSlot; slot < inventory.getContainerSize() && !stack.isEmpty(); slot++) {
             ItemStack current = inventory.getItem(slot);
-            if (canMerge(current, stack, inventory)) {
-                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize());
+            if (inventory.canPlaceItem(slot, stack) && canMerge(current, stack, inventory)) {
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
                     current.grow(amount);
@@ -450,8 +460,8 @@ public final class StewardRuntimeTask {
             }
         }
         for (int slot = firstSlot; slot < inventory.getContainerSize() && !stack.isEmpty(); slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize()));
+            if (inventory.getItem(slot).isEmpty() && inventory.canPlaceItem(slot, stack)) {
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize(stack)));
                 inventory.setItem(slot, stack.split(amount));
             }
         }
@@ -468,9 +478,11 @@ public final class StewardRuntimeTask {
             slots.add(inventory.getItem(slot).copy());
         }
 
-        for (ItemStack current : slots) {
-            if (canMerge(current, stack, inventory)) {
-                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize());
+        for (int slot = 0; slot < slots.size(); slot++) {
+            ItemStack current = slots.get(slot);
+            int inventorySlot = firstSlot + slot;
+            if (inventory.canPlaceItem(inventorySlot, stack) && canMerge(current, stack, inventory)) {
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
                 int amount = Math.min(stack.getCount(), limit - current.getCount());
                 if (amount > 0) {
                     current.grow(amount);
@@ -479,8 +491,9 @@ public final class StewardRuntimeTask {
             }
         }
         for (int slot = 0; slot < slots.size() && !stack.isEmpty(); slot++) {
-            if (slots.get(slot).isEmpty()) {
-                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize()));
+            int inventorySlot = firstSlot + slot;
+            if (slots.get(slot).isEmpty() && inventory.canPlaceItem(inventorySlot, stack)) {
+                int amount = Math.min(stack.getCount(), Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize(stack)));
                 slots.set(slot, stack.split(amount));
             }
         }
@@ -489,7 +502,7 @@ public final class StewardRuntimeTask {
     private static boolean canMerge(ItemStack current, ItemStack incoming, Container inventory) {
         return !current.isEmpty()
                 && sameStackKind(current, incoming)
-                && current.getCount() < Math.min(current.getMaxStackSize(), inventory.getMaxStackSize());
+                && current.getCount() < Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
     }
 
     private static boolean sameStackKind(ItemStack first, ItemStack second) {

@@ -7,8 +7,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 
 public final class ValetGroup {
+    public static final int MAX_NAME_LENGTH = 32;
+    private static final int MAX_MEMBERS = 4096;
+
     private final int id;
-    private String name;
+    private final String name;
     private final Set<UUID> members = new LinkedHashSet<>();
     private ValetGroupCommand command = ValetGroupCommand.idle();
 
@@ -25,10 +28,6 @@ public final class ValetGroup {
         return name;
     }
 
-    public void rename(String name) {
-        this.name = cleanName(name, this.name);
-    }
-
     public Set<UUID> members() {
         return Set.copyOf(members);
     }
@@ -42,7 +41,9 @@ public final class ValetGroup {
     }
 
     public void addMember(UUID uuid) {
-        members.add(uuid);
+        if (uuid != null && members.size() < MAX_MEMBERS) {
+            members.add(uuid);
+        }
     }
 
     public void removeMember(UUID uuid) {
@@ -77,7 +78,7 @@ public final class ValetGroup {
         ValetGroup group = new ValetGroup(id, nbt.getStringOr("Name", "Groupe " + id));
         group.setCommand(nbt.getCompound("Command").map(ValetGroupCommand::readNbt).orElse(ValetGroupCommand.idle()));
         ListTag memberList = nbt.getListOrEmpty("Members");
-        for (int i = 0; i < memberList.size(); i++) {
+        for (int i = 0; i < memberList.size() && group.members.size() < MAX_MEMBERS; i++) {
             CompoundTag memberNbt = memberList.getCompound(i).orElse(null);
             if (memberNbt == null) {
                 continue;
@@ -94,6 +95,9 @@ public final class ValetGroup {
 
     private static String cleanName(String name, String fallback) {
         String clean = name == null ? "" : name.trim().replaceAll("\\s+", " ");
-        return clean.isEmpty() ? fallback : clean;
+        if (clean.isEmpty()) {
+            clean = fallback;
+        }
+        return clean.length() <= MAX_NAME_LENGTH ? clean : clean.substring(0, MAX_NAME_LENGTH);
     }
 }

@@ -15,9 +15,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class ValetConstructionMarkers {
-    private static final int MAX_HEIGHT = 64;
-    private static final int MAX_VOLUME = 24000;
-    private static final int MAX_BLOCKS = 12000;
     private static final Map<UUID, Marker> FIRST_MARKERS = new ConcurrentHashMap<>();
 
     private ValetConstructionMarkers() {
@@ -54,46 +51,53 @@ public final class ValetConstructionMarkers {
         int minZ = Math.min(first.getZ(), second.getZ());
         int maxZ = Math.max(first.getZ(), second.getZ());
         int baseY = Math.min(first.getY(), second.getY());
-        int width = maxX - minX + 1;
-        int depth = maxZ - minZ + 1;
-        int maxWorldY = Math.min(world.getMaxY(), baseY + MAX_HEIGHT);
+        long widthLong = (long) maxX - minX + 1L;
+        long depthLong = (long) maxZ - minZ + 1L;
+        long footprint = widthLong * depthLong;
+        if (widthLong > ValetConstructionBlueprint.MAX_VOLUME
+                || depthLong > ValetConstructionBlueprint.MAX_VOLUME
+                || footprint > ValetConstructionBlueprint.MAX_VOLUME) {
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
+            return;
+        }
+        int width = (int) widthLong;
+        int depth = (int) depthLong;
+        int maxWorldY = Math.min(world.getMaxY(), baseY + ValetConstructionBlueprint.MAX_HEIGHT);
+        if (maxWorldY <= baseY || !areChunksLoaded(world, minX, minZ, maxX, maxZ)) {
+            player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
+            return;
+        }
 
         int topY = baseY - 1;
+        ArrayList<ValetConstructionBlueprint.Entry> entries = new ArrayList<>();
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int y = baseY; y < maxWorldY; y++) {
-            if (hasCopyableBlockInLayer(world, minX, maxX, y, minZ, maxZ)) {
+            boolean hasCopyableBlock = false;
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockState state = world.getBlockState(cursor.set(x, y, z));
+                    if (!isCopyable(state)) {
+                        continue;
+                    }
+
+                    hasCopyableBlock = true;
+                    entries.add(new ValetConstructionBlueprint.Entry(x - minX, y - baseY, z - minZ, state));
+                    if (entries.size() > ValetConstructionBlueprint.MAX_BLOCKS) {
+                        player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
+                        return;
+                    }
+                }
+            }
+            if (hasCopyableBlock) {
                 topY = y;
-                if (width * depth * (topY - baseY + 1) > MAX_VOLUME) {
+                if (footprint * (topY - baseY + 1L) > ValetConstructionBlueprint.MAX_VOLUME) {
                     player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
                     return;
                 }
             }
         }
 
-        if (topY < baseY) {
-            player.sendOverlayMessage(Component.translatable("message.valet.construction_empty"));
-            return;
-        }
-
-        ArrayList<ValetConstructionBlueprint.Entry> entries = new ArrayList<>();
-        for (int y = baseY; y <= topY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = world.getBlockState(pos);
-                    if (!isCopyable(state)) {
-                        continue;
-                    }
-
-                    entries.add(new ValetConstructionBlueprint.Entry(x - minX, y - baseY, z - minZ, state));
-                    if (entries.size() > MAX_BLOCKS) {
-                        player.sendOverlayMessage(Component.translatable("message.valet.construction_too_large"));
-                        return;
-                    }
-                }
-            }
-        }
-
-        if (entries.isEmpty()) {
+        if (topY < baseY || entries.isEmpty()) {
             player.sendOverlayMessage(Component.translatable("message.valet.construction_empty"));
             return;
         }
@@ -115,15 +119,19 @@ public final class ValetConstructionMarkers {
         ));
     }
 
-    private static boolean hasCopyableBlockInLayer(ServerLevel world, int minX, int maxX, int y, int minZ, int maxZ) {
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                if (isCopyable(world.getBlockState(new BlockPos(x, y, z)))) {
-                    return true;
+    private static boolean areChunksLoaded(ServerLevel world, int minX, int minZ, int maxX, int maxZ) {
+        int minChunkX = minX >> 4;
+        int minChunkZ = minZ >> 4;
+        int maxChunkX = maxX >> 4;
+        int maxChunkZ = maxZ >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                if (!world.hasChunk(chunkX, chunkZ)) {
+                    return false;
                 }
             }
         }
-        return false;
+        return true;
     }
 
     private static boolean isCopyable(BlockState state) {

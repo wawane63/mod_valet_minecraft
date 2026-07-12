@@ -4,12 +4,14 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Derniere version : 0.3.7 - poste d'intendant et transferts automatiques entre coffres.
+Version actuelle : 0.3.8 - audit, carte tactique et missions de groupe.
+
+Derniere version publiee : 0.3.8 (`v0.3.8`).
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
-- [Notes 0.3.7](docs/releases/v0.3.7.md)
+- [Notes 0.3.8](docs/releases/v0.3.8.md)
 
 ## Versions disponibles
 
@@ -29,6 +31,7 @@ Derniere version : 0.3.7 - poste d'intendant et transferts automatiques entre co
 | 0.3.5 | Blueprints ameliores | [`v0.3.5`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.5) |
 | 0.3.6 | Cuisinier + correctifs metiers | [`v0.3.6`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.6) |
 | 0.3.7 | Intendant + transferts coffres | [`v0.3.7`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.7) |
+| 0.3.8 | Audit, carte tactique et missions de groupe | [`v0.3.8`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.8) |
 
 ## Depart
 
@@ -46,6 +49,7 @@ Derniere version : 0.3.7 - poste d'intendant et transferts automatiques entre co
 - Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 - Pupitre de groupe : cree des groupes et lie une carte ou une corne de chevre pour commander suivi, garde, attaque et rappel.
+- Carte tactique : depuis le menu Echap, affiche le terrain charge, permet de creer des groupes, d'y affecter les valets visibles et de les envoyer vers un repere.
 
 ## Build
 
@@ -53,14 +57,26 @@ Prerequis :
 
 - JDK 25
 - Minecraft 26.2 + Fabric Loader 0.19.3
-- Fabric API 0.153.0+26.2 dans `%APPDATA%\.minecraft\mods`
+- Fabric API 0.154.2+26.2 pour lancer le jeu (la dependance de compilation est geree par Gradle)
 - Gradle wrapper du repo
 
-Commande :
+Windows PowerShell :
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
-.\gradlew.bat build
+.\gradlew.bat --no-daemon clean build
 ```
 
-Le `.jar` est genere dans `build/libs/` et la tache `installClientJar` installe automatiquement la derniere version dans `%APPDATA%\.minecraft\mods`.
+macOS/Linux :
+
+```bash
+./gradlew --no-daemon clean build
+```
+
+Le `.jar` est genere dans `build/libs/`. A la fin du build, `installClientJar` retire les anciens `valet-*.jar` puis installe la version courante dans le dossier Minecraft de l'OS :
+
+- Windows : `%APPDATA%\.minecraft\mods`
+- macOS : `~/Library/Application Support/minecraft/mods`
+- Linux : `~/.minecraft/mods`
+
+Le projet est distribue sous licence MIT, voir [LICENSE](LICENSE).

@@ -9,7 +9,6 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 public record SetBreedingOrderPayload(
         int valetEntityId,
         int animalAreaId,
-        boolean feed,
         boolean breed,
         boolean shear,
         boolean collectEggs,
@@ -30,7 +29,6 @@ public record SetBreedingOrderPayload(
                 buf.readBoolean(),
                 buf.readBoolean(),
                 buf.readBoolean(),
-                buf.readBoolean(),
                 buf.readInt(),
                 buf.readBoolean()
         );
@@ -39,7 +37,6 @@ public record SetBreedingOrderPayload(
     public void write(FriendlyByteBuf buf) {
         buf.writeInt(valetEntityId);
         buf.writeInt(animalAreaId);
-        buf.writeBoolean(feed);
         buf.writeBoolean(breed);
         buf.writeBoolean(shear);
         buf.writeBoolean(collectEggs);

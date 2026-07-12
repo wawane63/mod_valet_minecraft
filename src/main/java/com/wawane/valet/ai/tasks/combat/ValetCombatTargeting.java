@@ -1,6 +1,5 @@
 package com.wawane.valet.ai.tasks.combat;
 
-import java.util.Comparator;
 import java.util.List;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
@@ -37,9 +36,16 @@ public final class ValetCombatTargeting {
                 hostile -> isValidTarget(villager, hostile, maxDistanceSquared)
         );
 
-        return hostiles.stream()
-                .min(Comparator.comparingDouble(villager::distanceToSqr))
-                .orElse(null);
+        Monster nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (Monster hostile : hostiles) {
+            double distance = villager.distanceToSqr(hostile);
+            if (distance < nearestDistance) {
+                nearest = hostile;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
     }
 
     private static boolean isValidTarget(Villager villager, LivingEntity target, double maxDistanceSquared) {

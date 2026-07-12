@@ -15,9 +15,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
 public final class ValetAnimalMarkers {
-    private static final int MAX_WIDTH = 64;
-    private static final int MAX_DEPTH = 64;
-    private static final int MAX_HEIGHT = 24;
     private static final int DETECTION_VERTICAL_MARGIN = 2;
     private static final Map<UUID, Marker> FIRST_MARKERS = new ConcurrentHashMap<>();
 
@@ -59,7 +56,7 @@ public final class ValetAnimalMarkers {
         int width = maxX - minX + 1;
         int height = maxY - minY + 1;
         int depth = maxZ - minZ + 1;
-        if (width > MAX_WIDTH || depth > MAX_DEPTH || height > MAX_HEIGHT) {
+        if (width > ValetAnimalArea.MAX_WIDTH || depth > ValetAnimalArea.MAX_DEPTH || height > ValetAnimalArea.MAX_HEIGHT) {
             player.sendOverlayMessage(Component.translatable("message.valet.animal_too_large"));
             return;
         }

@@ -1,6 +1,6 @@
 package com.wawane.valet.gui;
 
-import com.wawane.valet.construction.ValetConstructionBlueprint;
+import com.wawane.valet.construction.ValetConstructionSummary;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.breeding.ValetAnimalArea;
 import com.wawane.valet.farm.ValetFarmArea;
@@ -25,7 +25,6 @@ public record ValetOrdersViewModel(
         boolean farmReplant,
         boolean farmTillSoil,
         int currentAnimalAreaId,
-        boolean animalFeed,
         boolean animalBreed,
         boolean animalShear,
         boolean animalCollectEggs,
@@ -40,7 +39,7 @@ public record ValetOrdersViewModel(
         int[] woodCounts,
         List<ValetFarmArea> farmAreas,
         List<ValetAnimalArea> animalAreas,
-        List<ValetConstructionBlueprint> constructions,
+        List<ValetConstructionSummary> constructions,
         List<ItemStack> valetInventory,
         int level,
         int xp,
@@ -100,7 +99,6 @@ public record ValetOrdersViewModel(
                 handler.shouldReplantFarm(),
                 handler.shouldTillFarm(),
                 handler.getCurrentAnimalAreaId(),
-                handler.shouldFeedAnimals(),
                 handler.shouldBreedAnimals(),
                 handler.shouldShearAnimals(),
                 handler.shouldCollectAnimalEggs(),

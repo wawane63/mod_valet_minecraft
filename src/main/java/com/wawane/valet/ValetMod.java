@@ -19,12 +19,18 @@ import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
 import com.wawane.valet.group.ValetGroupCardItem;
 import com.wawane.valet.group.ValetGroupInteractions;
-import com.wawane.valet.group.ValetGroupStationBlock;
+import com.wawane.valet.group.ValetGroupRuntime;
+import com.wawane.valet.group.ValetGroupTravelTickets;
 import com.wawane.valet.gui.ValetGroupScreenHandler;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetBehavior;
 import com.wawane.valet.state.ValetData;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -45,6 +51,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.effect.MobEffects;
@@ -80,7 +87,7 @@ public class ValetMod implements ModInitializer {
     private static final int PLAYER_SCAN_RADIUS = 48;
     private static final int WORKSTATION_RECALL_RADIUS = 128;
     private static final int WORKSTATION_SEARCH_RADIUS = 8;
-    private static final java.util.Set<java.util.UUID> GLOWING_VALETS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Set<UUID> GLOWING_VALETS = ConcurrentHashMap.newKeySet();
     public static final Identifier VALET_WORKSTATION_ID = id("valet_workstation");
     public static final Identifier COMBAT_WORKSTATION_ID = id("combat_workstation");
     public static final Identifier FARMER_WORKSTATION_ID = id("farmer_workstation");
@@ -96,6 +103,12 @@ public class ValetMod implements ModInitializer {
     public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
     public static final Identifier VALET_GROUP_STATION_ID = id("valet_group_station");
     public static final Identifier VALET_GROUP_CARD_ID = id("valet_group_card");
+    public static final Identifier VALET_GROUP_MISSION_TICKET_ID = id("group_mission");
+    public static final TicketType VALET_GROUP_MISSION_TICKET = Registry.register(
+            BuiltInRegistries.TICKET_TYPE,
+            VALET_GROUP_MISSION_TICKET_ID,
+            new TicketType(TicketType.NO_TIMEOUT, TicketType.FLAG_LOADING | TicketType.FLAG_SIMULATION | TicketType.FLAG_KEEP_DIMENSION_ACTIVE)
+    );
     public static final ResourceKey<PoiType> VALET_POI_KEY = ResourceKey.create(
             Registries.POINT_OF_INTEREST_TYPE,
             VALET_WORKSTATION_ID
@@ -264,7 +277,7 @@ public class ValetMod implements ModInitializer {
     public static final Block VALET_GROUP_STATION = Registry.register(
             BuiltInRegistries.BLOCK,
             VALET_GROUP_STATION_ID,
-            new ValetGroupStationBlock(blockProperties(VALET_GROUP_STATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.LECTERN).strength(2.5F)))
+            new Block(blockProperties(VALET_GROUP_STATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.LECTERN).strength(2.5F)))
     );
 
     public static final Item VALET_GROUP_STATION_ITEM = Registry.register(
@@ -282,13 +295,13 @@ public class ValetMod implements ModInitializer {
     public static final BlockEntityType<ConstructionBlueprintBlockEntity> CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY = Registry.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
             CONSTRUCTION_BLUEPRINT_ID,
-            new BlockEntityType<>(ConstructionBlueprintBlockEntity::new, java.util.Set.of(CONSTRUCTION_BLUEPRINT))
+            new BlockEntityType<>(ConstructionBlueprintBlockEntity::new, Set.of(CONSTRUCTION_BLUEPRINT))
     );
 
     public static final BlockEntityType<CookChestBlockEntity> COOK_CHEST_BLOCK_ENTITY = Registry.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
             COOK_CHEST_ID,
-            new BlockEntityType<>(CookChestBlockEntity::new, java.util.Set.of(COOK_CHEST))
+            new BlockEntityType<>(CookChestBlockEntity::new, Set.of(COOK_CHEST))
     );
 
     public static final PoiType VALET_POI = PoiHelper.register(
@@ -344,19 +357,21 @@ public class ValetMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COMBAT_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARMER_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(MAGIC_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(STEWARD_WORKSTATION_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(COOK_CHEST_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(CONSTRUCTION_BEACON_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(FARM_BEACON_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(ANIMAL_BEACON_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(INFINITE_ARROW_CHEST_ITEM));
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> entries.accept(VALET_GROUP_STATION_ITEM));
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
+            entries.accept(VALET_WORKSTATION_ITEM);
+            entries.accept(COMBAT_WORKSTATION_ITEM);
+            entries.accept(FARMER_WORKSTATION_ITEM);
+            entries.accept(ANIMAL_WORKSTATION_ITEM);
+            entries.accept(MAGIC_WORKSTATION_ITEM);
+            entries.accept(COOK_WORKSTATION_ITEM);
+            entries.accept(STEWARD_WORKSTATION_ITEM);
+            entries.accept(COOK_CHEST_ITEM);
+            entries.accept(CONSTRUCTION_BEACON_ITEM);
+            entries.accept(FARM_BEACON_ITEM);
+            entries.accept(ANIMAL_BEACON_ITEM);
+            entries.accept(INFINITE_ARROW_CHEST_ITEM);
+            entries.accept(VALET_GROUP_STATION_ITEM);
+        });
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> entries.accept(VALET_GROUP_CARD_ITEM));
         UseEntityCallback.EVENT.register(ValetGroupInteractions::useEntity);
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
@@ -373,6 +388,7 @@ public class ValetMod implements ModInitializer {
         });
         ServerTickEvents.END_LEVEL_TICK.register(world -> {
             assignValetJobs(world);
+            ValetGroupTravelTickets.tick(world);
             ValetWorkDriver.tick(world);
             ValetDebug.tick(world);
         });
@@ -388,7 +404,12 @@ public class ValetMod implements ModInitializer {
             ValetConversations.clear(villager.getUUID());
             ValetBlockReservations.releaseAll(villager.getUUID());
             ValetEntityReservations.releaseAll(villager.getUUID());
+            ValetGroupRuntime.clear(villager.getUUID());
             ValetBehavior.clearRecall(villager.getUUID());
+            GLOWING_VALETS.remove(villager.getUUID());
+            if (entity.getRemovalReason() != null && entity.getRemovalReason().shouldDestroy()) {
+                ValetData.clearVillagerRuntime(villager.getUUID());
+            }
         }
     }
 
@@ -401,6 +422,8 @@ public class ValetMod implements ModInitializer {
         ValetDebug.clearAll();
         ValetBlockReservations.clearAll();
         ValetEntityReservations.clearAll();
+        ValetGroupRuntime.clearAll();
+        ValetGroupTravelTickets.clearAll();
         GLOWING_VALETS.clear();
     }
 
@@ -409,7 +432,7 @@ public class ValetMod implements ModInitializer {
             return;
         }
 
-        java.util.Set<java.util.UUID> checkedVillagers = new java.util.HashSet<>();
+        Set<UUID> checkedVillagers = new HashSet<>();
         for (ServerPlayer player : world.players()) {
             AABB searchBox = AABB.unitCubeFromLowerCorner(player.position()).inflate(PLAYER_SCAN_RADIUS);
             normalizeValetZombies(world, searchBox);
@@ -639,17 +662,21 @@ public class ValetMod implements ModInitializer {
         if (!world.getPoiManager().existsAtPosition(VALET_POI_KEY, workstation)) {
             world.getPoiManager().add(workstation, BuiltInRegistries.POINT_OF_INTEREST_TYPE.wrapAsHolder(VALET_POI));
         }
+        boolean alreadyAssigned = hasJobSite(villager, world, workstation);
         clearNonValetWorkstationClaims(world, workstation, villager);
         if (isWorkstationClaimed(world, workstation, villager)) {
             return false;
         }
-        boolean alreadyAssigned = hasJobSite(villager, world, workstation);
+        if (alreadyAssigned && ValetHome.isHome(world, villager, workstation)) {
+            suppressVanillaVillageMemoriesIfNeeded(world, villager);
+            return true;
+        }
         if (alreadyAssigned) {
             villager.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(world.dimension(), workstation));
             suppressVanillaVillageMemoriesIfNeeded(world, villager);
             return true;
         } else {
-            java.util.Optional<BlockPos> claimed = world.getPoiManager().take(
+            Optional<BlockPos> claimed = world.getPoiManager().take(
                     entry -> entry.is(VALET_POI_KEY),
                     (entry, pos) -> pos.equals(workstation),
                     workstation,

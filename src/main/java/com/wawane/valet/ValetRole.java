@@ -1,28 +1,43 @@
 package com.wawane.valet;
 
 import com.wawane.valet.order.ValetOrder;
+import com.wawane.valet.order.ValetOrders;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 public enum ValetRole {
-    ARTISAN("role.valet.artisan"),
-    COMBATANT("role.valet.combatant"),
-    FARMER("role.valet.farmer"),
-    BREEDER("role.valet.breeder"),
-    MAGICIAN("role.valet.magician"),
-    COOK("role.valet.cook"),
-    STEWARD("role.valet.steward");
+    ARTISAN("artisan", "role.valet.artisan"),
+    COMBATANT("combatant", "role.valet.combatant"),
+    FARMER("farmer", "role.valet.farmer"),
+    BREEDER("breeder", "role.valet.breeder"),
+    MAGICIAN("magician", "role.valet.magician"),
+    COOK("cook", "role.valet.cook"),
+    STEWARD("steward", "role.valet.steward");
 
+    private static final String ROLE_KEY = "ValetRole";
+    private static final Map<UUID, ValetRole> LAST_KNOWN_ROLES = new ConcurrentHashMap<>();
+
+    private final String id;
     private final String translationKey;
 
-    ValetRole(String translationKey) {
+    ValetRole(String id, String translationKey) {
+        this.id = id;
         this.translationKey = translationKey;
     }
 
     public String getTranslationKey() {
         return translationKey;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public boolean allows(ValetOrder order) {
@@ -45,6 +60,15 @@ public enum ValetRole {
             return ARTISAN;
         }
         return values[index];
+    }
+
+    public static ValetRole fromId(String id) {
+        for (ValetRole role : values()) {
+            if (role.id.equals(id) || role.name().equalsIgnoreCase(id)) {
+                return role;
+            }
+        }
+        return ARTISAN;
     }
 
     public static ValetRole fromWorkstation(BlockState state) {
@@ -72,8 +96,49 @@ public enum ValetRole {
     public static ValetRole get(ServerLevel world, Villager villager) {
         BlockPos home = ValetHome.get(world, villager);
         if (home == null) {
+            LAST_KNOWN_ROLES.remove(villager.getUUID());
             return ARTISAN;
         }
-        return fromWorkstation(world.getBlockState(home));
+        if (!ValetHome.isChunkLoaded(world, home)) {
+            ValetRole cached = LAST_KNOWN_ROLES.get(villager.getUUID());
+            return cached != null ? cached : inferFromOrder(villager);
+        }
+        ValetRole role = fromWorkstation(world.getBlockState(home));
+        LAST_KNOWN_ROLES.put(villager.getUUID(), role);
+        return role;
+    }
+
+    public static void clear(UUID uuid) {
+        LAST_KNOWN_ROLES.remove(uuid);
+    }
+
+    public static void clearAll() {
+        LAST_KNOWN_ROLES.clear();
+    }
+
+    public static boolean hasNbt(ValueInput input) {
+        return input.getString(ROLE_KEY).isPresent();
+    }
+
+    public static void writeToNbt(Villager villager, ValueOutput output) {
+        ValetRole role = villager.level() instanceof ServerLevel world
+                ? get(world, villager)
+                : LAST_KNOWN_ROLES.getOrDefault(villager.getUUID(), ARTISAN);
+        output.putString(ROLE_KEY, role.id);
+    }
+
+    public static void readFromNbt(Villager villager, ValueInput input) {
+        input.getString(ROLE_KEY).ifPresentOrElse(
+                id -> LAST_KNOWN_ROLES.put(villager.getUUID(), fromId(id)),
+                () -> LAST_KNOWN_ROLES.remove(villager.getUUID())
+        );
+    }
+
+    private static ValetRole inferFromOrder(Villager villager) {
+        return switch (ValetOrders.get(villager)) {
+            case HARVEST_CROPS -> FARMER;
+            case BREED_ANIMALS -> BREEDER;
+            case NONE, MINE_ORES, CHOP_WOOD, BUILD_STRUCTURE, CRAFT -> ARTISAN;
+        };
     }
 }

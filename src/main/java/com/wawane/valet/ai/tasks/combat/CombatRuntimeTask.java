@@ -1,19 +1,20 @@
 package com.wawane.valet.ai.tasks.combat;
 
-import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetDebug;
+import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
+import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import com.wawane.valet.progress.ValetCombatPerk;
 import com.wawane.valet.progress.ValetCombatProgress;
 import com.wawane.valet.progress.ValetCombatSkillTree;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
-import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -49,8 +50,11 @@ public final class CombatRuntimeTask {
     private static final float MAGIC_SHATTER_DAMAGE_BONUS = 1.0F;
     private static final int MAGIC_ICE_SLOW_TICKS = 80;
     private static final int MAGIC_SUPPORT_COOLDOWN_TICKS = 80;
+    private static final int MAGIC_SUPPORT_SCAN_INTERVAL_TICKS = 20;
     private static final double MAGIC_SUPPORT_RADIUS = 8.0D;
     private static final float MAGIC_HEAL_AMOUNT = 2.0F;
+    private static final int ARROW_SEARCH_INTERVAL_TICKS = 20;
+    private static final int ARROW_PATH_FAILURE_BACKOFF_TICKS = 100;
 
     private final Control control;
     private LivingEntity target;
@@ -161,8 +165,9 @@ public final class CombatRuntimeTask {
                         new ClientboundAnimatePacket(villager, ClientboundAnimatePacket.SWING_MAIN_HAND)
                 );
                 world.playSound(null, villager.blockPosition(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 1.0F, 1.0F);
-                target.hurt(world.damageSources().mobAttack(villager), control.combatAttackDamage());
-                addCombatXp(villager, ValetCombatSkillTree.SWORD, SWORD_XP_PER_ATTACK);
+                if (target.hurtServer(world, world.damageSources().mobAttack(villager), control.combatAttackDamage())) {
+                    addCombatXp(villager, ValetCombatSkillTree.SWORD, SWORD_XP_PER_ATTACK);
+                }
                 attackCooldownTicks = control.combatAttackCooldownTicks();
             }
             return;
@@ -254,8 +259,9 @@ public final class CombatRuntimeTask {
         iceBolt.setPos(start.x, start.y, start.z);
         iceBolt.shoot(direction.x, direction.y, direction.z, 1.45F, 2.0F);
         world.addFreshEntity(iceBolt);
-        applyIceDamage(world, villager, iceBolt, target);
-        addMagicXp(villager, MAGIC_ICE_XP_PER_SHOT);
+        if (applyIceDamage(world, villager, iceBolt, target)) {
+            addMagicXp(villager, MAGIC_ICE_XP_PER_SHOT);
+        }
         if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_FANGS)) {
             magicIceShots = Math.min(MAGIC_ICE_SHOTS_BEFORE_FANGS, magicIceShots + 1);
         } else {
@@ -267,7 +273,7 @@ public final class CombatRuntimeTask {
                 + " fangs=" + ValetProgress.hasPerk(villager, ValetPerk.MAGIC_FANGS));
     }
 
-    private void applyIceDamage(ServerLevel world, Villager villager, Snowball iceBolt, LivingEntity target) {
+    private boolean applyIceDamage(ServerLevel world, Villager villager, Snowball iceBolt, LivingEntity target) {
         float damage = MAGIC_ICE_DAMAGE;
         if (ValetProgress.hasPerk(villager, ValetPerk.MAGIC_ICE)) {
             damage += MAGIC_ICE_DAMAGE_BONUS;
@@ -276,13 +282,16 @@ public final class CombatRuntimeTask {
             damage += MAGIC_SHATTER_DAMAGE_BONUS;
         }
 
-        target.hurt(world.damageSources().thrown(iceBolt, villager), damage);
+        if (!target.hurtServer(world, world.damageSources().thrown(iceBolt, villager), damage)) {
+            return false;
+        }
         int slowAmplifier = ValetProgress.hasPerk(villager, ValetPerk.MAGIC_ICE) ? 1 : 0;
         target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, MAGIC_ICE_SLOW_TICKS, slowAmplifier, true, true));
         if (target.canFreeze()) {
             target.setTicksFrozen(Math.min(target.getTicksRequiredToFreeze(), target.getTicksFrozen() + 80));
         }
         applyEnemyAlteration(villager, target);
+        return true;
     }
 
     private void applyEnemyAlteration(Villager villager, LivingEntity target) {
@@ -321,13 +330,13 @@ public final class CombatRuntimeTask {
             }
         }
 
+        magicSupportCooldownTicks = cast ? MAGIC_SUPPORT_COOLDOWN_TICKS : MAGIC_SUPPORT_SCAN_INTERVAL_TICKS;
         if (!cast) {
             return;
         }
 
         playMagicCast(world, villager, SoundEvents.EVOKER_CAST_SPELL, 1.25F);
         addMagicXp(villager, 1);
-        magicSupportCooldownTicks = MAGIC_SUPPORT_COOLDOWN_TICKS;
         ValetDebug.record(villager, "combat magic_support heal=" + canHeal + " regen=" + canRegen + " ward=" + canWard);
     }
 
@@ -386,7 +395,7 @@ public final class CombatRuntimeTask {
     }
 
     private void applyDefensePerk() {
-        if (control.combatHasDefense()) {
+        if (control.combatHasDefense() && needsEffectRefresh(control.villager(), MobEffects.RESISTANCE)) {
             control.villager().addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 40, control.combatDefenseAmplifier(), true, false));
         }
     }
@@ -459,8 +468,9 @@ public final class CombatRuntimeTask {
             }
 
             arrowChestPos = findBestArrowContainer(world);
-            arrowSearchCooldownTicks = 20;
+            arrowSearchCooldownTicks = ARROW_SEARCH_INTERVAL_TICKS;
             if (arrowChestPos == null) {
+                arrowSearchCooldownTicks = ARROW_PATH_FAILURE_BACKOFF_TICKS;
                 ValetDebug.record(villager, "combat no_arrow_chest");
                 return false;
             }
@@ -490,6 +500,7 @@ public final class CombatRuntimeTask {
             if (!moving) {
                 ValetDebug.record(villager, "combat no_arrow_chest_path chest=" + ValetDebug.shortPos(arrowChestPos));
                 clearArrowChestTarget();
+                arrowSearchCooldownTicks = ARROW_PATH_FAILURE_BACKOFF_TICKS;
                 return false;
             }
         }
@@ -627,7 +638,7 @@ public final class CombatRuntimeTask {
 
     private void sendMagicCast(Villager villager) {
         ValetMagicCastPayload payload = new ValetMagicCastPayload(villager.getId());
-        for (net.minecraft.server.level.ServerPlayer player : PlayerLookup.tracking(villager)) {
+        for (ServerPlayer player : PlayerLookup.tracking(villager)) {
             if (ServerPlayNetworking.canSend(player, ValetMagicCastPayload.TYPE)) {
                 ServerPlayNetworking.send(player, payload);
             }

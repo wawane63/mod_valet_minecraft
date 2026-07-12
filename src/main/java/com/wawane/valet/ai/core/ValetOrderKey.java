@@ -20,7 +20,6 @@ public final class ValetOrderKey {
                     + ":" + ValetOrders.shouldTillFarm(villager);
             case BREED_ANIMALS -> order.getId()
                     + ":" + ValetOrders.getAnimalAreaId(villager)
-                    + ":" + ValetOrders.shouldFeedAnimals(villager)
                     + ":" + ValetOrders.shouldBreedAnimals(villager)
                     + ":" + ValetOrders.shouldShearAnimals(villager)
                     + ":" + ValetOrders.shouldCollectAnimalEggs(villager)

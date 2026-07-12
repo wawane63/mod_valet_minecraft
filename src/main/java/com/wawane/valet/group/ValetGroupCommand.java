@@ -33,19 +33,12 @@ public record ValetGroupCommand(ValetGroupMode mode, UUID playerUuid, UUID targe
         return new ValetGroupCommand(ValetGroupMode.ATTACK_AREA, null, null, pos, ATTACK_AREA_RADIUS);
     }
 
-    public static ValetGroupCommand recall() {
-        return new ValetGroupCommand(ValetGroupMode.RECALL, null, null, null, 0);
+    public static ValetGroupCommand moveTo(BlockPos pos) {
+        return new ValetGroupCommand(ValetGroupMode.MOVE_TO, null, null, pos, 4);
     }
 
-    public ValetGroupCommand withMode(ValetGroupMode mode, UUID playerUuid, BlockPos pos) {
-        return switch (mode) {
-            case FOLLOW -> follow(playerUuid);
-            case GUARD_CLOSE -> guardClose(playerUuid);
-            case GUARD_WIDE -> guardWide(playerUuid);
-            case ATTACK_AREA -> attackArea(pos);
-            case RECALL -> recall();
-            case IDLE, ATTACK_TARGET -> idle();
-        };
+    public static ValetGroupCommand recall() {
+        return new ValetGroupCommand(ValetGroupMode.RECALL, null, null, null, 0);
     }
 
     public CompoundTag writeNbt() {
@@ -73,8 +66,16 @@ public record ValetGroupCommand(ValetGroupMode mode, UUID playerUuid, UUID targe
         BlockPos pos = nbt.contains("X")
                 ? new BlockPos(nbt.getIntOr("X", 0), nbt.getIntOr("Y", 0), nbt.getIntOr("Z", 0))
                 : null;
-        int radius = Math.max(0, nbt.getIntOr("Radius", 0));
-        return new ValetGroupCommand(mode, playerUuid, targetUuid, pos, radius);
+        return switch (mode) {
+            case FOLLOW -> playerUuid == null ? idle() : follow(playerUuid);
+            case GUARD_CLOSE -> playerUuid == null ? idle() : guardClose(playerUuid);
+            case GUARD_WIDE -> playerUuid == null ? idle() : guardWide(playerUuid);
+            case ATTACK_TARGET -> targetUuid == null ? idle() : attackTarget(targetUuid, pos);
+            case ATTACK_AREA -> pos == null ? idle() : attackArea(pos);
+            case MOVE_TO -> pos == null ? idle() : moveTo(pos);
+            case RECALL -> recall();
+            case IDLE -> idle();
+        };
     }
 
     private static UUID readUuid(CompoundTag nbt, String key) {

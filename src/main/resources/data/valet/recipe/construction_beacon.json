@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " T ",
+    "SPS",
+    " W "
+  ],
+  "key": {
+    "T": "minecraft:torch",
+    "S": "minecraft:stick",
+    "P": "minecraft:paper",
+    "W": "#minecraft:planks"
+  },
+  "result": {
+    "id": "valet:construction_beacon",
+    "count": 2
+  }
+}

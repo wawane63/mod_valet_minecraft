@@ -105,9 +105,14 @@ public final class CraftingRuntimeTask {
             return;
         }
 
-        control.villager().swing(InteractionHand.MAIN_HAND);
+        if (!world.destroyBlock(targetPos, false, control.villager())) {
+            ValetDebug.record(control.villager(), "craft break_failed pos=" + ValetDebug.shortPos(targetPos));
+            clearTarget();
+            control.setState(State.FIND_TARGET);
+            control.setDelayTicks(20);
+            return;
+        }
         control.animateMining(world, targetPos, current);
-        world.destroyBlock(targetPos, false, control.villager());
         control.collectDrops(drops);
         ValetProgress.addXp(control.villager(), action == Action.MINE_LOG ? 3 : 2);
         ValetDebug.record(control.villager(), "craft gathered action=" + action + " pos=" + ValetDebug.shortPos(targetPos));
@@ -200,8 +205,13 @@ public final class CraftingRuntimeTask {
 
         Container inventory = control.villager().getInventory();
         int slots = control.getUsableInventorySlots(inventory);
-        craftPlanksFromLogs(inventory, slots);
-        craftSticksFromPlanks(inventory, slots);
+        if (!craftPlanksFromLogs(inventory, slots) || !craftSticksFromPlanks(inventory, slots)) {
+            ValetDebug.record(control.villager(), "craft no_output_space intermediate");
+            clearTarget();
+            control.setState(State.RETURNING);
+            control.setDelayTicks(4);
+            return;
+        }
 
         if (countItem(inventory, Items.COBBLESTONE, slots) < 3 || countItem(inventory, Items.STICK, slots) < 2) {
             clearTarget();
@@ -209,9 +219,26 @@ public final class CraftingRuntimeTask {
             return;
         }
 
+        if (!canCraftStonePickaxe(inventory, slots)) {
+            ValetDebug.record(control.villager(), "craft no_output_space result=stone_pickaxe");
+            clearTarget();
+            control.setState(State.RETURNING);
+            control.setDelayTicks(4);
+            return;
+        }
+
         consumeItem(inventory, Items.COBBLESTONE, 3, slots);
         consumeItem(inventory, Items.STICK, 2, slots);
-        ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STONE_PICKAXE), slots);
+        ItemStack result = new ItemStack(Items.STONE_PICKAXE);
+        if (!ValetInventoryTransfer.insertStack(inventory, result, slots)) {
+            ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.COBBLESTONE, 3), slots);
+            ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STICK, 2), slots);
+            ValetDebug.record(control.villager(), "craft output_insert_failed result=stone_pickaxe");
+            clearTarget();
+            control.setState(State.RETURNING);
+            control.setDelayTicks(4);
+            return;
+        }
         inventory.setChanged();
         control.villager().swing(InteractionHand.MAIN_HAND);
         control.villager().getLookControl().setLookAt(workOrigin.getX() + 0.5D, workOrigin.getY() + 0.5D, workOrigin.getZ() + 0.5D);
@@ -305,8 +332,13 @@ public final class CraftingRuntimeTask {
         int radius = control.materialRadius();
         for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 8, radius)) {
             BlockPos immutable = pos.immutable();
-            if (isCraftContainer(world, immutable)) {
-                containers.add(immutable);
+            BlockState state = world.getBlockState(immutable);
+            if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) {
+                continue;
+            }
+            BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, immutable);
+            if (containers.add(canonical) && !isCraftContainer(world, canonical)) {
+                containers.remove(canonical);
             }
         }
     }
@@ -361,7 +393,7 @@ public final class CraftingRuntimeTask {
             ValetInventoryTransfer.insertStack(target, moving, targetSlots);
             int moved = requested - moving.getCount();
             if (moved <= 0) {
-                break;
+                continue;
             }
 
             sourceStack.shrink(moved);
@@ -395,19 +427,96 @@ public final class CraftingRuntimeTask {
                 || countMatching(inventory, CraftingRuntimeTask::isLog, slots) > 0;
     }
 
-    private void craftPlanksFromLogs(Container inventory, int slots) {
+    private boolean craftPlanksFromLogs(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
                 && countMatching(inventory, CraftingRuntimeTask::isPlank, slots) < 2
-                && consumeMatching(inventory, CraftingRuntimeTask::isLog, 1, slots) == 1) {
-            ValetInventoryTransfer.insertStack(inventory, new ItemStack(Blocks.OAK_PLANKS, 4), slots);
+                && countMatching(inventory, CraftingRuntimeTask::isLog, slots) > 0) {
+            ItemStack planks = new ItemStack(Blocks.OAK_PLANKS, 4);
+            if (!canTransform(inventory, slots, CraftingRuntimeTask::isLog, 1, planks)) {
+                return false;
+            }
+            if (consumeMatching(inventory, CraftingRuntimeTask::isLog, 1, slots) != 1
+                    || !ValetInventoryTransfer.insertStack(inventory, planks, slots)) {
+                return false;
+            }
         }
+        return true;
     }
 
-    private void craftSticksFromPlanks(Container inventory, int slots) {
+    private boolean craftSticksFromPlanks(Container inventory, int slots) {
         while (countItem(inventory, Items.STICK, slots) < 2
-                && consumeMatching(inventory, CraftingRuntimeTask::isPlank, 2, slots) == 2) {
-            ValetInventoryTransfer.insertStack(inventory, new ItemStack(Items.STICK, 4), slots);
+                && countMatching(inventory, CraftingRuntimeTask::isPlank, slots) >= 2) {
+            ItemStack sticks = new ItemStack(Items.STICK, 4);
+            if (!canTransform(inventory, slots, CraftingRuntimeTask::isPlank, 2, sticks)) {
+                return false;
+            }
+            if (consumeMatching(inventory, CraftingRuntimeTask::isPlank, 2, slots) != 2
+                    || !ValetInventoryTransfer.insertStack(inventory, sticks, slots)) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private boolean canCraftStonePickaxe(Container inventory, int slots) {
+        List<ItemStack> simulated = copyInventory(inventory, slots);
+        return consumeMatching(simulated, stack -> stack.is(Items.COBBLESTONE), 3) == 3
+                && consumeMatching(simulated, stack -> stack.is(Items.STICK), 2) == 2
+                && simulateInsert(inventory, simulated, new ItemStack(Items.STONE_PICKAXE));
+    }
+
+    private boolean canTransform(Container inventory, int slots, Predicate<ItemStack> ingredient, int amount, ItemStack result) {
+        List<ItemStack> simulated = copyInventory(inventory, slots);
+        return consumeMatching(simulated, ingredient, amount) == amount
+                && simulateInsert(inventory, simulated, result.copy());
+    }
+
+    private static List<ItemStack> copyInventory(Container inventory, int slots) {
+        int size = Math.min(inventory.getContainerSize(), Math.max(0, slots));
+        List<ItemStack> simulated = new ArrayList<>(size);
+        for (int slot = 0; slot < size; slot++) {
+            simulated.add(inventory.getItem(slot).copy());
+        }
+        return simulated;
+    }
+
+    private static int consumeMatching(List<ItemStack> stacks, Predicate<ItemStack> predicate, int amount) {
+        int consumed = 0;
+        for (ItemStack stack : stacks) {
+            if (stack.isEmpty() || !predicate.test(stack)) {
+                continue;
+            }
+            int take = Math.min(amount - consumed, stack.getCount());
+            stack.shrink(take);
+            consumed += take;
+            if (consumed >= amount) {
+                break;
+            }
+        }
+        return consumed;
+    }
+
+    private static boolean simulateInsert(Container inventory, List<ItemStack> stacks, ItemStack incoming) {
+        for (int slot = 0; slot < stacks.size() && !incoming.isEmpty(); slot++) {
+            ItemStack current = stacks.get(slot);
+            if (!current.isEmpty()
+                    && inventory.canPlaceItem(slot, incoming)
+                    && ItemStack.isSameItemSameComponents(current, incoming)) {
+                int limit = Math.min(current.getMaxStackSize(), inventory.getMaxStackSize(current));
+                int moved = Math.min(incoming.getCount(), limit - current.getCount());
+                if (moved > 0) {
+                    current.grow(moved);
+                    incoming.shrink(moved);
+                }
+            }
+        }
+        for (int slot = 0; slot < stacks.size() && !incoming.isEmpty(); slot++) {
+            if (stacks.get(slot).isEmpty() && inventory.canPlaceItem(slot, incoming)) {
+                int moved = Math.min(incoming.getCount(), Math.min(incoming.getMaxStackSize(), inventory.getMaxStackSize(incoming)));
+                stacks.set(slot, incoming.split(moved));
+            }
+        }
+        return incoming.isEmpty();
     }
 
     private int countItem(Container inventory, Item item, int slots) {

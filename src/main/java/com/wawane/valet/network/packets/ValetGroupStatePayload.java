@@ -18,8 +18,8 @@ public record ValetGroupStatePayload(
     public static final StreamCodec<RegistryFriendlyByteBuf, ValetGroupStatePayload> CODEC = StreamCodec.ofMember(ValetGroupStatePayload::write, ValetGroupStatePayload::read);
 
     public ValetGroupStatePayload {
-        groups = List.copyOf(groups);
-        valets = List.copyOf(valets);
+        groups = List.copyOf(groups.subList(0, Math.min(groups.size(), com.wawane.valet.group.ValetGroupStorage.MAX_GROUPS)));
+        valets = List.copyOf(valets.subList(0, Math.min(valets.size(), ValetGroupScreenHandler.MAX_VALETS)));
     }
 
     public static ValetGroupStatePayload read(RegistryFriendlyByteBuf buf) {

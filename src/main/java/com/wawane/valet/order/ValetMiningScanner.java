@@ -3,8 +3,6 @@ package com.wawane.valet.order;
 import com.wawane.valet.ValetHome;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -44,12 +42,10 @@ public final class ValetMiningScanner {
 
     private static int[] countNearbyWood(Level world, BlockPos origin, int radius, int verticalRadius) {
         int[] counts = new int[ValetWoodTarget.values().length];
-        Map<BlockPos, Boolean> naturalTreeCache = new HashMap<>();
 
         for (BlockPos pos : BlockPos.withinManhattan(origin, radius, verticalRadius, radius)) {
-            BlockPos immutable = pos.immutable();
-            ValetWoodTarget target = ValetWoodTarget.fromState(world.getBlockState(immutable));
-            if (target != null && naturalTreeCache.computeIfAbsent(immutable, key -> target.matchesNaturalTree(world, key))) {
+            ValetWoodTarget target = ValetWoodTarget.fromState(world.getBlockState(pos));
+            if (target != null && target.matchesNaturalTree(world, pos)) {
                 counts[target.ordinal()]++;
             }
         }

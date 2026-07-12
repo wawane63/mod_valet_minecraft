@@ -80,7 +80,7 @@ Sortie : `1 Poste d'eleveur`
 
 `valet:cook_workstation`
 
-Role : recolte du ble et des pommes de terre, collecte d'ingredients crus dans les coffres, cuisson et depot des repas.
+Role : recolte du ble et des pommes de terre, collecte d'ingredients crus dans son coffre de cuisinier, cuisson et depot des repas dans ce meme coffre dedie.
 
 | | Table de craft | |
 | --- | --- | --- |

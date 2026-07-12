@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -242,8 +243,21 @@ public final class MiningRuntimeTask {
             return;
         }
 
+        if (!world.destroyBlock(miningPos, false, control.villager())) {
+            ValetDebug.record(control.villager(), "mine break_failed target=" + ValetDebug.shortPos(miningPos));
+            if (miningOre) {
+                rememberFailedTarget(miningPos);
+                removeFromCurrentVein(miningPos);
+                control.setState(control.interruptedWorkState());
+            } else {
+                control.clearPathState();
+                control.setState(control.interruptedPathState());
+            }
+            clearMiningState();
+            control.setDelayTicks(20);
+            return;
+        }
         control.animateMining(world, miningPos, miningState);
-        world.destroyBlock(miningPos, false, control.villager());
         ValetDebug.record(control.villager(), "mine broke target=" + ValetDebug.shortPos(miningPos) + " block=" + miningState.getBlock().getDescriptionId());
         if (collectDrops) {
             control.placeTorchIfNeeded(world, miningPos);
@@ -313,6 +327,15 @@ public final class MiningRuntimeTask {
     }
 
     private void tickWoodMining(ServerLevel world) {
+        control.villager().getLookControl().setLookAt(miningPos.getX() + 0.5D, miningPos.getY() + 0.5D, miningPos.getZ() + 0.5D);
+        if (woodcuttingTicks > 0) {
+            if (woodcuttingTicks % 10 == 0) {
+                control.villager().swing(InteractionHand.MAIN_HAND);
+            }
+            woodcuttingTicks--;
+            return;
+        }
+
         List<BlockPos> logs = findWoodCluster(world, miningPos);
         if (logs.isEmpty()) {
             control.setState(control.interruptedWorkState());
@@ -320,20 +343,14 @@ public final class MiningRuntimeTask {
             return;
         }
 
-        control.villager().getLookControl().setLookAt(miningPos.getX() + 0.5D, miningPos.getY() + 0.5D, miningPos.getZ() + 0.5D);
-        if (woodcuttingTicks > 0) {
-            if (woodcuttingTicks % 10 == 0) {
-                control.villager().swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            }
-            woodcuttingTicks--;
-            return;
-        }
-
+        List<WoodBlock> blocks = new ArrayList<>();
         List<ItemStack> drops = new ArrayList<>();
         for (BlockPos pos : logs) {
             BlockState blockState = world.getBlockState(pos);
             if (control.matchesSelectedWoodBlock(blockState)) {
-                drops.addAll(Block.getDrops(blockState, world, pos, world.getBlockEntity(pos), control.villager(), control.getToolForBlock(blockState)));
+                List<ItemStack> blockDrops = Block.getDrops(blockState, world, pos, world.getBlockEntity(pos), control.villager(), control.getToolForBlock(blockState));
+                blocks.add(new WoodBlock(pos, blockState, blockDrops));
+                drops.addAll(blockDrops);
             }
         }
 
@@ -344,20 +361,31 @@ public final class MiningRuntimeTask {
             return;
         }
 
-        control.villager().swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-        for (BlockPos pos : logs) {
-            BlockState blockState = world.getBlockState(pos);
-            if (!control.matchesSelectedWoodBlock(blockState)) {
+        control.villager().swing(InteractionHand.MAIN_HAND);
+        List<ItemStack> collectedDrops = new ArrayList<>(drops.size());
+        int brokenBlocks = 0;
+        for (WoodBlock block : blocks) {
+            if (!world.getBlockState(block.pos()).is(block.state().getBlock())
+                    || !world.destroyBlock(block.pos(), false, control.villager())) {
                 continue;
             }
 
-            world.levelEvent(2001, pos, Block.getId(blockState));
-            world.destroyBlock(pos, false, control.villager());
-            removeFromCurrentVein(pos);
+            world.levelEvent(2001, block.pos(), Block.getId(block.state()));
+            collectedDrops.addAll(block.drops());
+            removeFromCurrentVein(block.pos());
+            brokenBlocks++;
         }
 
-        control.collectDrops(drops);
-        ValetProgress.addXp(control.villager(), Math.max(4, logs.size() * 3));
+        if (brokenBlocks == 0) {
+            rememberFailedTarget(miningPos);
+            control.setState(control.interruptedWorkState());
+            clearMiningState();
+            control.setDelayTicks(20);
+            return;
+        }
+
+        control.collectDrops(collectedDrops);
+        ValetProgress.addXp(control.villager(), Math.max(4, brokenBlocks * 3));
         control.setState(control.hasInventorySpace() && control.hasMiningOrder() ? State.COLLECTING : State.RETURNING);
         clearMiningState();
         control.setDelayTicks(control.actionDelayTicks());
@@ -401,8 +429,7 @@ public final class MiningRuntimeTask {
                 (targetWorld, pos, blockState) -> control.matchesSelectedTarget(targetWorld, pos, blockState)
                         && !control.isBlockReservedByOther(targetWorld, pos)
                         && control.canMineWorkBlock(targetWorld, pos, blockState),
-                pos -> isInsideMiningArea(origin, pos),
-                ValetOrders.get(control.villager()) == ValetOrder.CHOP_WOOD ? WoodcuttingTask::woodNeighbors : MiningTask::oreNeighbors
+                pos -> isInsideMiningArea(origin, pos)
         );
     }
 
@@ -537,6 +564,9 @@ public final class MiningRuntimeTask {
 
     private static String shortPos(BlockPos pos) {
         return pos == null ? "-" : ValetDebug.shortPos(pos);
+    }
+
+    private record WoodBlock(BlockPos pos, BlockState state, List<ItemStack> drops) {
     }
 
     public interface Control {

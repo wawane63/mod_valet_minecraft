@@ -2,6 +2,7 @@ package com.wawane.valet.ai;
 
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.core.ValetBlockReservations;
+import com.wawane.valet.ai.core.ValetEntityReservations;
 import com.wawane.valet.ai.core.ValetOrderKey;
 import com.wawane.valet.order.ValetOrder;
 import java.util.HashSet;
@@ -23,15 +24,18 @@ public final class ValetWorkDriver {
     }
 
     public static void tick(ServerLevel world) {
-        Set<UUID> seen = new HashSet<>();
+        boolean discoverValets = world.getGameTime() % VALET_DISCOVERY_INTERVAL_TICKS == 0;
+        Set<UUID> seen = discoverValets ? new HashSet<>() : null;
         for (Runtime runtime : RUNTIMES.values()) {
             if (runtime.villager.level() == world && isValet(runtime.villager) && isNearAnyPlayer(world, runtime.villager)) {
-                seen.add(runtime.villager.getUUID());
+                if (seen != null) {
+                    seen.add(runtime.villager.getUUID());
+                }
                 tickVillager(runtime.villager);
             }
         }
 
-        if (world.getGameTime() % VALET_DISCOVERY_INTERVAL_TICKS != 0) {
+        if (!discoverValets) {
             return;
         }
 
@@ -49,6 +53,7 @@ public final class ValetWorkDriver {
         Runtime runtime = RUNTIMES.remove(uuid);
         ValetWorkGoal.clearRestartRequest(uuid);
         ValetBlockReservations.releaseAll(uuid);
+        ValetEntityReservations.releaseAll(uuid);
         if (runtime != null && runtime.running) {
             runtime.goal.stop();
         }
@@ -62,6 +67,7 @@ public final class ValetWorkDriver {
         }
         RUNTIMES.clear();
         ValetBlockReservations.clearAll();
+        ValetEntityReservations.clearAll();
     }
 
     public static String describe(Villager villager) {
@@ -90,6 +96,9 @@ public final class ValetWorkDriver {
     private static void tickVillager(Villager villager) {
         Runtime runtime = RUNTIMES.compute(villager.getUUID(), (uuid, current) -> {
             if (current == null || current.villager != villager || current.villager.isRemoved()) {
+                if (current != null && current.running) {
+                    current.goal.stop();
+                }
                 return new Runtime(villager);
             }
             return current;

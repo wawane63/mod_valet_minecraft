@@ -2,9 +2,8 @@ package com.wawane.valet.construction;
 
 import com.mojang.serialization.MapCodec;
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.ValetRole;
 import com.wawane.valet.order.ValetOrders;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -25,6 +24,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.Nullable;
 
 public class ConstructionBlueprintBlock extends BaseEntityBlock {
     public static final MapCodec<ConstructionBlueprintBlock> CODEC = simpleCodec(ConstructionBlueprintBlock::new);
@@ -71,6 +71,9 @@ public class ConstructionBlueprintBlock extends BaseEntityBlock {
         }
 
         int constructionId = nbt.getInt(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY).orElse(-1);
+        if (constructionId <= 0 || ValetConstructionStorage.get(serverWorld).getBlueprint(constructionId) == null) {
+            return;
+        }
         Villager valet = findTargetValet(serverWorld, pos, nbt);
         if (valet != null) {
             ValetOrders.setConstructionTarget(valet, constructionId);
@@ -80,18 +83,44 @@ public class ConstructionBlueprintBlock extends BaseEntityBlock {
     @Nullable
     private Villager findTargetValet(ServerLevel world, BlockPos pos, CompoundTag nbt) {
         AABB searchBox = new AABB(pos).inflate(96.0D);
-        List<Villager> valets = world.getEntitiesOfClass(Villager.class, searchBox, ValetMod::isValet);
+        List<Villager> valets = world.getEntitiesOfClass(Villager.class, searchBox, valet ->
+                valet.isAlive()
+                        && !valet.isRemoved()
+                        && ValetMod.isValet(valet)
+                        && ValetRole.get(world, valet) == ValetRole.ARTISAN);
         if (nbt.contains(ConstructionBlueprintBlockEntity.VALET_UUID_KEY)) {
-            UUID valetUuid = nbt.getString(ConstructionBlueprintBlockEntity.VALET_UUID_KEY)
-                    .map(UUID::fromString)
-                    .orElse(null);
-            for (Villager valet : valets) {
-                if (valet.getUUID().equals(valetUuid)) {
-                    return valet;
+            UUID valetUuid = readUuid(nbt, ConstructionBlueprintBlockEntity.VALET_UUID_KEY);
+            if (valetUuid != null) {
+                for (Villager valet : valets) {
+                    if (valet.getUUID().equals(valetUuid)) {
+                        return valet;
+                    }
                 }
             }
         }
-        return valets.isEmpty() ? null : valets.get(0);
+        Villager nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (Villager valet : valets) {
+            double distance = valet.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
+            if (distance < nearestDistance) {
+                nearest = valet;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    @Nullable
+    private static UUID readUuid(CompoundTag nbt, String key) {
+        return nbt.getString(key)
+                .flatMap(value -> {
+                    try {
+                        return java.util.Optional.of(UUID.fromString(value));
+                    } catch (IllegalArgumentException ignored) {
+                        return java.util.Optional.empty();
+                    }
+                })
+                .orElse(null);
     }
 
     @Override

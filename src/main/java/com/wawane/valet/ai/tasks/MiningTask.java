@@ -12,7 +12,7 @@ public final class MiningTask {
     private MiningTask() {
     }
 
-    public static List<BlockPos> findCluster(ServerLevel world, BlockPos seed, int maxBlocks, ResourceMatcher matcher, AreaPredicate areaPredicate, NeighborProvider neighborProvider) {
+    public static List<BlockPos> findCluster(ServerLevel world, BlockPos seed, int maxBlocks, ResourceMatcher matcher, AreaPredicate areaPredicate) {
         if (!matcher.matches(world, seed, world.getBlockState(seed))) {
             return List.of();
         }
@@ -20,8 +20,9 @@ public final class MiningTask {
         List<BlockPos> result = new ArrayList<>();
         List<BlockPos> open = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        open.add(seed.immutable());
-        visited.add(seed.immutable());
+        BlockPos immutableSeed = seed.immutable();
+        open.add(immutableSeed);
+        visited.add(immutableSeed);
 
         for (int index = 0; index < open.size() && result.size() < maxBlocks; index++) {
             BlockPos current = open.get(index);
@@ -30,27 +31,21 @@ public final class MiningTask {
             }
 
             result.add(current);
-            for (BlockPos next : neighborProvider.neighbors(current)) {
-                if (visited.add(next)) {
-                    open.add(next);
-                }
-            }
-        }
-
-        return result;
-    }
-
-    public static List<BlockPos> oreNeighbors(BlockPos pos) {
-        List<BlockPos> result = new ArrayList<>(26);
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx != 0 || dy != 0 || dz != 0) {
-                        result.add(pos.offset(dx, dy, dz));
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) {
+                            continue;
+                        }
+                        BlockPos next = current.offset(dx, dy, dz);
+                        if (visited.add(next)) {
+                            open.add(next);
+                        }
                     }
                 }
             }
         }
+
         return result;
     }
 
@@ -64,8 +59,4 @@ public final class MiningTask {
         boolean contains(BlockPos pos);
     }
 
-    @FunctionalInterface
-    public interface NeighborProvider {
-        List<BlockPos> neighbors(BlockPos pos);
-    }
 }

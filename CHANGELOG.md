@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.3.8 - Audit et carte tactique
+
+### Added
+
+- Ajout d'un bouton `Carte des valets` dans le menu Echap.
+- Ajout d'une carte tactique plein ecran inspiree des cartes de jeux en monde ouvert.
+- Affichage topographique des chunks deja charges par le client, sans chargement force de chunks.
+- Zoom centre sur le curseur et deplacement de la carte par glisser gauche.
+- Affichage du joueur et des valets actuellement visibles.
+- Ajout d'un repere personnel par clic droit, avec coordonnees et bouton d'effacement.
+- Ajout d'une legende, des coordonnees du joueur et du curseur, et d'un bouton de recentrage.
+- Creation, suppression et selection des groupes directement depuis la carte tactique.
+- Un clic sur un marqueur de valet l'ajoute ou le retire du groupe selectionne; les cartes de groupe et cornes existantes restent compatibles.
+- Ajout de l'ordre universel `Aller au repere`, utilisable par tous les metiers.
+- Les valets parcourent reellement la distance avec le pathfinding Minecraft, recalcule par troncons locaux de 24 blocs au lieu de calculer un trajet global.
+- En cas d'echec local, la direction est decalee progressivement pour chercher un contournement sans exploration globale couteuse.
+- Des tickets temporaires non persistants suivent les groupes en mission afin que les entites continuent a se deplacer hors de la zone du joueur.
+- Le chargement de mission est borne a 32 centres de chunks et est retire des que l'ordre prend fin.
+
+### Limitations
+
+- Le repere est conserve pendant la session de jeu et peut servir de destination au groupe selectionne.
+- Les zones jamais recues par le client restent masquees.
+
+### Fixed
+
+- Restauration de la persistence complete des valets via un mixin 26.2 actif : poste, role, ordres, progression et reglages survivent de nouveau aux sauvegardes.
+- Migration du mixin de protection des allies vers `AbstractArrow`, avec verification du tireur avant d'annuler les degats.
+- Validation serveur renforcee pour tous les payloads : menu ouvert, valet, UUID, dimension, distance, bornes et tailles de listes.
+- Les buffers reseau temporaires sont liberes et les etats envoyes au client utilisent des copies defensives bornees.
+- Les taches craft, cuisine, ferme et construction restaurent les ingredients ou blocs si la sortie echoue.
+- Les transferts respectent les limites et regles de chaque slot, y compris les doubles coffres dedupliques.
+- Les UUID, dimensions, groupes, zones et blueprints NBT invalides ou surdimensionnes sont ignores sans exception ni chargement arbitraire de chunk.
+- Les homes hors limites sont rejetes; les roles 0.3.7 sans cle dediee sont inferes sans effacer leur ordre, et deux valets ne peuvent plus conserver le meme poste restaure.
+- L'ouverture artisan transmet des resumes de blueprint compacts au lieu de plans complets; l'interface de groupe borne les valets et exige le bon menu/pupitre.
+- Le tri preserve les 9 slots de filtre des coffres geres par un poste d'intendant proche.
+- Les portes et lits ne sont plus comptes deux fois dans les materiaux requis d'un blueprint.
+- Les caches persistants sont purges quand un valet est reellement detruit, sans effacer les donnees lors d'un simple dechargement de chunk.
+- Le coffre de cuisinier ne double plus son contenu a la destruction et met correctement a jour les comparateurs.
+- Ajout de la loot table manquante du coffre de fleches infini.
+- Migration des recettes, loot tables et tags de blocs vers les dossiers de registre et schemas JSON requis par Minecraft 26.2; les crafts et la conservation des donnees du blueprint sont de nouveau charges correctement.
+- Les sorts de glace ne donnent plus d'XP quand les degats sont refuses.
+
+### Optimized
+
+- Reduction des allocations par tick dans l'orchestration, les recherches de menaces, les directions, les recettes et les inventaires.
+- Mise en cache ou temporisation des scans de combat, fuite, support magique, fleches et cibles d'elevage.
+- Expiration proactive des reservations de blocs et d'entites pour eviter l'accumulation en memoire.
+- Les scans de construction reutilisent une position mutable, bornent volume/blocs et refusent proprement les chunks non charges.
+- Les snapshots GUI ne scannent plus les fermes, enclos ou constructions sans rapport avec le role affiche.
+- Les apercus de construction sont compresses en grilles de hauteur 16x16, ce qui borne fortement la taille des paquets d'ouverture.
+- Consolidation des enregistrements d'onglet creatif et nettoyage des caches de rendu au dechargement.
+
+### Cleaned
+
+- Suppression de sept classes Java mortes, dont trois mixins vides ou obsoletes, et remplacement du mixin projectile renomme.
+- Suppression de l'archive asset externe inutilisee, des fichiers `.DS_Store` et de huit entrees de traduction orphelines.
+- Suppression de l'option `Nourrir` inactive, de ses donnees reseau/runtime et des surcharges de methodes sans appel.
+- Suppression des imports, champs, methodes, TODO et chemins de code sans appel identifies par l'audit.
+- Simplification des dependances Gradle, centralisation des versions du manifeste et ajout du checksum du wrapper.
+- Mise a jour de maintenance vers Fabric API `0.154.2+26.2` et Loom `1.17.14`; Fabric Loader `0.19.3` reste la version courante.
+- Ajout des regles d'edition/Git, de la licence MIT et d'une installation Gradle multiplateforme.
+- Migration des API Minecraft/Fabric depreciees quand une alternative 26.2 stable existe.
+
 ## 0.3.7 - Intendant et transferts coffres
 
 Bugs corriges / fonctionnalite :
@@ -278,7 +342,7 @@ Modifications structurelles :
 - `ConstructionBlueprintPlacementPreview.java`, `ValetClient.java`, `ValetOrdersScreen.java`: ajoute une preview hologramme avant pose du blueprint tenu et une mini-preview top-down dans l'UI valet; risque residuel faible, rendu limite a 6000 blocs.
 - `ConstructionBlueprintBlockEntity.java`, `ConstructionRuntimeTask.java`: rend la pose de blueprint tolerante aux anciens stacks qui n'ont que le NBT `Blueprint` et fait matcher le chantier sur l'id imbrique; corrige le valet qui ne demarrait pas apres pose du blueprint.
 - `ValetNetworking.java`, `ValetOrdersScreen.java`, `DeleteConstructionPayload.java`, lang: expose la suppression des constructions depuis l'UI valet et efface le blueprint persistant cote serveur; risque residuel faible, l'UI retire localement l'entree avant confirmation serveur.
-- `src/main/resources/data/valet/loot_tables/blocks/*`, `ConstructionBlueprintBlock.java`: ajoute les loot tables des blocs custom et preserve le NBT des blueprints via loot table; risque residuel faible, depend de `copy_nbt` vanilla.
+- `src/main/resources/data/valet/loot_table/blocks/*`, `ConstructionBlueprintBlock.java`: ajoute les loot tables des blocs custom et preserve le NBT des blueprints via loot table; risque residuel faible, depend de `copy_nbt` vanilla.
 - `ValetNetworking.java`, `ValetOrdersScreen.java`: supprime le flag glowing serveur permanent et remet le highlight client a false a la fermeture; risque residuel faible, l'effet Glowing serveur reste temporaire pendant 30 minutes.
 - `VillagerEntityMixin.java`, `ValetMod.java`, `ValetHome.java`, `ValetOrders.java`, `ValetProgress.java`, `ValetConversations.java`: limite la lecture/ecriture NBT Valet aux valets ou donnees deja presentes et purge les maps UUID a l'unload/world stop; risque residuel moyen, purge unload depend du timing de sauvegarde entite Fabric/vanilla.
 - `ValetConstructionBlueprint.java`, `BlockStateCodec.java`: remplace la serialization raw ID des BlockState par NBT stable `NbtHelper` avec `DataVersion` blueprint et migration legacy `State`; risque residuel faible, les anciens blueprints sont convertis au prochain write.

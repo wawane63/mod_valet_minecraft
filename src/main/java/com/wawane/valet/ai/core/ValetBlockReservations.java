@@ -29,7 +29,12 @@ public final class ValetBlockReservations {
 
     public static boolean isClaimedByOther(ServerLevel world, UUID owner, BlockPos pos) {
         long now = world.getGameTime();
-        Reservation reservation = RESERVATIONS.get(new Key(world.dimension(), pos.immutable()));
+        Key key = new Key(world.dimension(), pos.immutable());
+        Reservation reservation = RESERVATIONS.get(key);
+        if (reservation != null && reservation.expiresAt <= now) {
+            RESERVATIONS.remove(key, reservation);
+            return false;
+        }
         return reservation != null && reservation.expiresAt > now && !reservation.owner.equals(owner);
     }
 

@@ -1,8 +1,5 @@
 package com.wawane.valet.construction;
 
-import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 import java.util.function.Consumer;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -11,7 +8,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.TooltipDisplay;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
 public class ConstructionBlueprintItem extends BlockItem {
@@ -29,6 +25,7 @@ public class ConstructionBlueprintItem extends BlockItem {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Preserves tooltips on existing CUSTOM_DATA blueprints.
     public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
         CompoundTag nbt = ConstructionBlueprintNbt.get(stack);
         if (nbt != null && nbt.contains(ConstructionBlueprintBlockEntity.CONSTRUCTION_ID_KEY)) {

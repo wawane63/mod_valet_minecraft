@@ -10,7 +10,9 @@ import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +27,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -111,7 +112,7 @@ public final class BreedingRuntimeTask {
 
         WorkTarget target = findWorkTarget(world, workOrigin, area);
         if (target == null) {
-            releaseReservedEntities(world);
+            releaseReservedEntities();
             ValetDebug.record(control.villager(), "breeding no_target animals=" + countAnimalsInScope(world, workOrigin, area));
             control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
             control.setDelayTicks(control.noTargetDelayTicks());
@@ -137,7 +138,7 @@ public final class BreedingRuntimeTask {
             pathFailures++;
             rememberFailedTarget(primaryEntityUuid);
             ValetDebug.record(control.villager(), "breeding no_path action=" + action + " target=" + ValetDebug.shortPos(targetPos));
-            clearTarget(world);
+            clearTarget();
             if (pathFailures >= MAX_PATH_FAILURES_BEFORE_BACKOFF) {
                 pathFailures = 0;
                 control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
@@ -155,7 +156,7 @@ public final class BreedingRuntimeTask {
 
     public void completePath(ServerLevel world) {
         if (resolvePrimaryEntity(world) == null) {
-            clearTarget(world);
+            clearTarget();
             control.setState(control.interruptedWorkState());
             return;
         }
@@ -165,14 +166,14 @@ public final class BreedingRuntimeTask {
     public void tickBreeding(ServerLevel world) {
         Entity primary = resolvePrimaryEntity(world);
         if (primary == null || primary.isRemoved()) {
-            clearTarget(world);
+            clearTarget();
             control.setState(control.interruptedWorkState());
             return;
         }
 
         targetPos = primary.blockPosition();
         if (!isNearTarget()) {
-            clearTarget(world);
+            clearTarget();
             control.setState(State.FIND_TARGET);
             return;
         }
@@ -189,21 +190,21 @@ public final class BreedingRuntimeTask {
         if (!done) {
             rememberFailedTarget(primaryEntityUuid);
         }
-        clearTarget(world);
+        clearTarget();
         control.setState(done && control.hasBreedingOrder() ? State.FIND_TARGET : control.interruptedWorkState());
         control.setDelayTicks(done ? control.actionDelayTicks() : 20);
     }
 
-    public void clearTarget(ServerLevel world) {
-        releaseReservedEntities(world);
+    public void clearTarget() {
+        releaseReservedEntities();
         primaryEntityUuid = null;
         secondaryEntityUuid = null;
         targetPos = null;
         action = Action.NONE;
     }
 
-    public void clearAll(ServerLevel world) {
-        clearTarget(world);
+    public void clearAll() {
+        clearTarget();
         failedTargets.clear();
         milkCooldowns.clear();
         breedCooldowns.clear();
@@ -310,13 +311,21 @@ public final class BreedingRuntimeTask {
     }
 
     private WorkTarget findBreedTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
-        List<Animal> animals = animalsInScope(world, workOrigin, area, this::canParticipateInBreeding);
+        List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> true);
+        Map<ValetAnimalType, Integer> animalCounts = new EnumMap<>(ValetAnimalType.class);
+        for (Animal animal : animals) {
+            ValetAnimalType type = ValetAnimalType.fromAnimal(animal);
+            if (type != null) {
+                animalCounts.merge(type, 1, Integer::sum);
+            }
+        }
+        animals.removeIf(animal -> !canParticipateInBreeding(animal));
         animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
         boolean capLogged = false;
         for (int firstIndex = 0; firstIndex < animals.size(); firstIndex++) {
             Animal first = animals.get(firstIndex);
             ValetAnimalType type = ValetAnimalType.fromAnimal(first);
-            int animalCount = type == null ? 0 : countAnimals(world, workOrigin, area, type);
+            int animalCount = type == null ? 0 : animalCounts.getOrDefault(type, 0);
             int maxAnimals = ValetOrders.getMaxAnimals(control.villager());
             if (type == null
                     || isFailedTarget(first.getUUID())
@@ -333,6 +342,7 @@ public final class BreedingRuntimeTask {
                 Animal second = animals.get(secondIndex);
                 if (second.getUUID().equals(first.getUUID())
                         || !type.matches(second)
+                        || isFailedTarget(second.getUUID())
                         || control.isEntityReservedByOther(world, second)) {
                     continue;
                 }
@@ -404,10 +414,6 @@ public final class BreedingRuntimeTask {
             animals.add(animal);
         }
         return animals;
-    }
-
-    private int countAnimals(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area, ValetAnimalType type) {
-        return animalsInScope(world, workOrigin, area, animal -> type.matches(animal)).size();
     }
 
     private int countAnimalsInScope(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
@@ -569,7 +575,10 @@ public final class BreedingRuntimeTask {
         lookAt(animal);
         control.villager().swing(InteractionHand.MAIN_HAND);
         world.playSound(null, animal.blockPosition(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 0.8F, 1.0F);
-        animal.hurt(world.damageSources().mobAttack(control.villager()), animal.getMaxHealth() + 10.0F);
+        if (!animal.hurtServer(world, world.damageSources().mobAttack(control.villager()), animal.getMaxHealth() + 10.0F)) {
+            ValetDebug.record(control.villager(), "breeding cull_failed pos=" + ValetDebug.shortPos(animal.blockPosition()));
+            return false;
+        }
         control.collectNearbyItemEntities(world);
         ValetProgress.addXp(control.villager(), 2);
         ValetDebug.record(control.villager(), "breeding culled pos=" + ValetDebug.shortPos(animal.blockPosition()));
@@ -620,12 +629,13 @@ public final class BreedingRuntimeTask {
 
     private List<BlockPos> collectContainers(ServerLevel world, BlockPos workOrigin) {
         List<BlockPos> containers = new ArrayList<>();
-        collectContainersAround(world, control.villager().blockPosition(), containers);
-        collectContainersAround(world, workOrigin, containers);
+        Set<BlockPos> seen = new HashSet<>();
+        collectContainersAround(world, control.villager().blockPosition(), containers, seen);
+        collectContainersAround(world, workOrigin, containers, seen);
         return containers;
     }
 
-    private void collectContainersAround(ServerLevel world, BlockPos origin, List<BlockPos> containers) {
+    private void collectContainersAround(ServerLevel world, BlockPos origin, List<BlockPos> containers, Set<BlockPos> seen) {
         if (origin == null) {
             return;
         }
@@ -633,13 +643,13 @@ public final class BreedingRuntimeTask {
         int radius = control.materialRadius();
         for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 8, radius)) {
             BlockPos immutable = pos.immutable();
-            if (containers.contains(immutable)) {
+            BlockState state = world.getBlockState(immutable);
+            if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) {
                 continue;
             }
-            BlockState state = world.getBlockState(immutable);
-            if ((state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST) || state.is(Blocks.BARREL))
-                    && ValetInventoryTransfer.getContainerInventory(world, immutable) != null) {
-                containers.add(immutable);
+            BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, immutable);
+            if (seen.add(canonical) && ValetInventoryTransfer.getContainerInventory(world, canonical) != null) {
+                containers.add(canonical);
             }
         }
     }
@@ -658,7 +668,7 @@ public final class BreedingRuntimeTask {
             ValetInventoryTransfer.insertStack(target, moving, control.getUsableInventorySlots(target));
             int moved = requested - moving.getCount();
             if (moved <= 0) {
-                break;
+                continue;
             }
 
             sourceStack.shrink(moved);
@@ -675,6 +685,9 @@ public final class BreedingRuntimeTask {
     }
 
     private boolean takeFeed(ValetAnimalType type, int amount) {
+        if (countFeed(type) < amount) {
+            return false;
+        }
         for (int i = 0; i < amount; i++) {
             boolean taken = false;
             for (Item item : type.feedItems()) {
@@ -756,7 +769,7 @@ public final class BreedingRuntimeTask {
         Entity primary = resolvePrimaryEntity(world);
         if (primary == null || !control.claimEntity(world, primary, ENTITY_RESERVATION_TICKS)) {
             rememberFailedTarget(primaryEntityUuid);
-            clearTarget(world);
+            clearTarget();
             control.setState(control.interruptedWorkState());
             control.setDelayTicks(8);
             return false;
@@ -765,7 +778,7 @@ public final class BreedingRuntimeTask {
         Entity secondary = resolveSecondaryEntity(world);
         if (secondary != null && !control.claimEntity(world, secondary, ENTITY_RESERVATION_TICKS)) {
             rememberFailedTarget(secondaryEntityUuid);
-            clearTarget(world);
+            clearTarget();
             control.setState(control.interruptedWorkState());
             control.setDelayTicks(8);
             return false;
@@ -773,23 +786,29 @@ public final class BreedingRuntimeTask {
         return true;
     }
 
-    private void releaseReservedEntities(ServerLevel world) {
-        Entity primary = resolvePrimaryEntity(world);
-        if (primary != null) {
-            control.releaseEntity(primary);
+    private void releaseReservedEntities() {
+        if (primaryEntityUuid != null) {
+            control.releaseEntity(primaryEntityUuid);
         }
-        Entity secondary = resolveSecondaryEntity(world);
-        if (secondary != null) {
-            control.releaseEntity(secondary);
+        if (secondaryEntityUuid != null) {
+            control.releaseEntity(secondaryEntityUuid);
         }
     }
 
     private Entity resolvePrimaryEntity(ServerLevel world) {
-        return primaryEntityUuid == null ? null : world.getEntityInAnyDimension(primaryEntityUuid);
+        return resolveEntity(world, primaryEntityUuid);
     }
 
     private Entity resolveSecondaryEntity(ServerLevel world) {
-        return secondaryEntityUuid == null ? null : world.getEntityInAnyDimension(secondaryEntityUuid);
+        return resolveEntity(world, secondaryEntityUuid);
+    }
+
+    private static Entity resolveEntity(ServerLevel world, UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+        Entity entity = world.getEntityInAnyDimension(uuid);
+        return entity != null && entity.level() == world ? entity : null;
     }
 
     private Animal resolvePrimaryAnimal(ServerLevel world) {
@@ -894,7 +913,7 @@ public final class BreedingRuntimeTask {
 
         boolean isEntityReservedByOther(ServerLevel world, Entity entity);
 
-        void releaseEntity(Entity entity);
+        void releaseEntity(UUID entityUuid);
 
         State interruptedWorkState();
 

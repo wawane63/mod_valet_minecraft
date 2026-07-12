@@ -10,6 +10,7 @@ public enum ValetFarmCrop {
     BEETROOT("crop.valet.beetroot"),
     NETHER_WART("crop.valet.nether_wart");
 
+    private static final int ALL_CROPS_MASK = (1 << values().length) - 1;
     private final String translationKey;
 
     ValetFarmCrop(String translationKey) {
@@ -39,11 +40,7 @@ public enum ValetFarmCrop {
     }
 
     public static int defaultMask() {
-        int mask = 0;
-        for (ValetFarmCrop crop : values()) {
-            mask |= crop.mask();
-        }
-        return mask;
+        return ALL_CROPS_MASK;
     }
 
     public static boolean matchesAnyEnabled(BlockState state, int cropMask) {

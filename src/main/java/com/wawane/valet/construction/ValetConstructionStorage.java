@@ -3,8 +3,9 @@ package com.wawane.valet.construction;
 import com.mojang.serialization.Codec;
 import com.wawane.valet.ValetMod;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.server.level.ServerLevel;
@@ -31,11 +32,20 @@ public final class ValetConstructionStorage extends SavedData {
     }
 
     public ValetConstructionBlueprint addBlueprint(String name, int width, int height, int depth, List<ValetConstructionBlueprint.Entry> entries) {
-        if (blueprints.size() >= MAX_BLUEPRINTS) {
+        if (blueprints.size() >= MAX_BLUEPRINTS
+                || nextId <= 0
+                || nextId == Integer.MAX_VALUE
+                || !ValetConstructionBlueprint.hasValidDimensions(width, height, depth)
+                || entries == null
+                || entries.isEmpty()
+                || entries.size() > ValetConstructionBlueprint.MAX_BLOCKS) {
             return null;
         }
 
         ValetConstructionBlueprint blueprint = new ValetConstructionBlueprint(nextId, name, width, height, depth, entries);
+        if (!blueprint.isValid()) {
+            return null;
+        }
         nextId++;
         blueprints.add(blueprint);
         setDirty();
@@ -50,23 +60,6 @@ public final class ValetConstructionStorage extends SavedData {
         return removed;
     }
 
-    public boolean renameBlueprint(int id, String name) {
-        String cleanName = name == null ? "" : name.trim().replaceAll("\\s+", " ");
-        if (cleanName.isEmpty()) {
-            return false;
-        }
-
-        for (int i = 0; i < blueprints.size(); i++) {
-            ValetConstructionBlueprint blueprint = blueprints.get(i);
-            if (blueprint.id() == id) {
-                blueprints.set(i, new ValetConstructionBlueprint(blueprint.id(), cleanName, blueprint.width(), blueprint.height(), blueprint.depth(), blueprint.entries()));
-                setDirty();
-                return true;
-            }
-        }
-        return false;
-    }
-
     public ValetConstructionBlueprint getBlueprint(int id) {
         for (ValetConstructionBlueprint blueprint : blueprints) {
             if (blueprint.id() == id) {
@@ -76,16 +69,8 @@ public final class ValetConstructionStorage extends SavedData {
         return null;
     }
 
-    public List<ValetConstructionSummary> getSummaries() {
-        return getBlueprints().stream()
-                .map(ValetConstructionSummary::fromBlueprint)
-                .toList();
-    }
-
     public List<ValetConstructionBlueprint> getBlueprints() {
-        return blueprints.stream()
-                .sorted(Comparator.comparingInt(ValetConstructionBlueprint::id))
-                .toList();
+        return List.copyOf(blueprints);
     }
 
     public String nextDefaultName() {
@@ -105,17 +90,23 @@ public final class ValetConstructionStorage extends SavedData {
 
     private static ValetConstructionStorage fromNbt(CompoundTag nbt) {
         ValetConstructionStorage storage = new ValetConstructionStorage();
-        storage.nextId = Math.max(1, nbt.getIntOr("NextId", 1));
+        int savedNextId = nbt.getIntOr("NextId", 1);
+        storage.nextId = savedNextId > 0 && savedNextId < Integer.MAX_VALUE ? savedNextId : 1;
         ListTag list = nbt.getListOrEmpty("Blueprints");
-        for (int i = 0; i < list.size(); i++) {
+        Set<Integer> loadedIds = new HashSet<>();
+        for (int i = 0; i < list.size() && storage.blueprints.size() < MAX_BLUEPRINTS; i++) {
             CompoundTag blueprintNbt = list.getCompound(i).orElse(null);
             if (blueprintNbt == null) {
                 continue;
             }
             ValetConstructionBlueprint blueprint = ValetConstructionBlueprint.readNbt(blueprintNbt);
+            if (!blueprint.isValid() || blueprint.id() == Integer.MAX_VALUE || !loadedIds.add(blueprint.id())) {
+                continue;
+            }
             storage.blueprints.add(blueprint);
             storage.nextId = Math.max(storage.nextId, blueprint.id() + 1);
         }
+        storage.blueprints.sort(java.util.Comparator.comparingInt(ValetConstructionBlueprint::id));
         return storage;
     }
 }
