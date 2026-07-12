@@ -3,7 +3,6 @@ package com.wawane.valet.client;
 import com.wawane.valet.ValetNetworking;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.client.render.ValetConditionalVillagerRenderer;
-import com.wawane.valet.gui.ValetGroupScreen;
 import com.wawane.valet.gui.ValetOrdersScreen;
 import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import com.wawane.valet.network.packets.ValetGroupStatePayload;
@@ -27,7 +26,6 @@ public class ValetClient implements ClientModInitializer {
         EntityRenderers.register(EntityTypes.VILLAGER, ValetConditionalVillagerRenderer::new);
         ConstructionBlueprintPlacementPreview.register();
         MenuScreens.register(ValetMod.VALET_ORDERS_SCREEN_HANDLER, ValetOrdersScreen::new);
-        MenuScreens.register(ValetMod.VALET_GROUP_SCREEN_HANDLER, ValetGroupScreen::new);
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             if (screen instanceof PauseScreen pauseScreen && pauseScreen.showsPauseMenu() && client.level != null) {
                 Screens.getWidgets(screen).add(Button.builder(
@@ -56,8 +54,7 @@ public class ValetClient implements ClientModInitializer {
             context.client().execute(() -> {
                 if (context.client().gui.screen() instanceof ValetWorldMapScreen mapScreen) {
                     mapScreen.applyServerState(payload.selectedGroupId(), payload.groups(), payload.valets());
-                } else if (context.client().gui.screen() instanceof ValetGroupScreen screen
-                        && screen.getMenu().getStationPos().equals(payload.stationPos())) {
+                } else if (context.client().gui.screen() instanceof ValetGroupsScreen screen) {
                     screen.applyServerState(payload.selectedGroupId(), payload.groups(), payload.valets());
                 }
             });

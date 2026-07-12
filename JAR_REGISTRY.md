@@ -29,6 +29,7 @@ Regles obligatoires :
 | 0.3.6 | Cuisinier + correctifs metiers | `v0.3.6` | `build/libs/valet-0.3.6.jar` | `46FB736093CD499193BA415EB2889EE477CC066BDF2C849087909F66C9269807` |
 | 0.3.7 | Intendant + transferts coffres | `v0.3.7` | `build/libs/valet-0.3.7.jar` | `F917E72A650AFC405FC79E76BA924DD373049C2FA505ED60BF57521546D1D3D2` |
 | 0.3.8 | Audit, carte tactique et missions de groupe | `v0.3.8` | `build/libs/valet-0.3.8.jar` | `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB` |
+| 0.3.9 | Gestion centralisee des groupes | `v0.3.9` | `build/libs/valet-0.3.9.jar` | `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -40,6 +41,32 @@ Le jar `0.3.5` correspond aux blueprints ameliores.
 Le jar `0.3.6` ajoute le cuisinier et les correctifs metiers issus du test en jeu.
 Le jar `0.3.7` ajoute l'intendant et les transferts filtres entre coffres.
 Le jar `0.3.8` regroupe l'audit exhaustif et la carte tactique avec missions de groupe.
+Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anciens objets/blocs de commande.
+
+## 0.3.9 - Gestion centralisee des groupes
+
+Objectif : simplifier les groupes autour d'un menu unique accessible depuis la carte des valets.
+
+Fonctionnalite :
+
+- Onglets `Carte` et `Groupes de valets` dans le menu ouvert depuis Echap.
+- Creation, suppression et affectation des valets dans l'onglet dedie.
+- Selection partagee avec la carte pour l'envoi au repere et le rappel.
+- Persistance des groupes et runtime de mission conserves.
+
+Nettoyage :
+
+- Pupitre de groupe, carte de groupe et liaison des cornes retires.
+- Ancien menu, payload, interactions, recettes, loot table, modeles et traductions supprimes.
+
+Verification :
+
+- Compilation Java : OK.
+- Jar actuel : `valet-0.3.9.jar`.
+- SHA-256 : `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06`.
+- Build Gradle complet et installation locale : OK.
+- Dossier mods : un seul `valet-*.jar`, hash identique au build.
+- Publication GitHub : `v0.3.9`.
 
 ## 0.3.8 - Audit et carte tactique
 

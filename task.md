@@ -22,14 +22,15 @@
 - [x] Ajouter la carte tactique au menu Echap avec zoom, repere et legende.
 - [x] Gerer les groupes depuis la carte et envoyer tous les metiers vers un repere.
 - [x] Ajouter le pathfinding longue distance par etapes et les tickets de chunks temporaires bornes.
+- [x] Centraliser creation, suppression et affectation dans l'onglet `Groupes de valets`.
+- [x] Retirer le pupitre, la carte de groupe, la liaison de corne et leurs fichiers devenus inutiles.
 
 ## Derniere action
 
-- Audit complet, carte tactique et missions de groupe fusionnes sous la version 0.3.8.
-- Compilation et bootstrap serveur valides avec le ticket `group_mission` et les nouveaux paquets reseau.
-- Jar final `valet-0.3.8.jar` installe seul; SHA-256 `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB`.
-- Commit, tag `v0.3.8` et push GitHub autorises par l'utilisateur.
+- Version locale passee en 0.3.9 avec deux onglets sous la carte des valets.
+- Ancien pupitre, carte de groupe, liaison de corne, menu, payload, recettes et assets retires.
+- Build final valide; `valet-0.3.9.jar` installe seul avec le SHA-256 `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06`.
 
 ## Prochaine tache
 
-- Tester visuellement la carte et un trajet de groupe de plus de 1 000 blocs.
+- Tester visuellement les deux onglets, l'affectation d'un valet et un trajet de groupe de plus de 1 000 blocs.

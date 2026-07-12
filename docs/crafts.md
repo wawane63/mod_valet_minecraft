@@ -122,37 +122,9 @@ Utilisation : seul coffre dans lequel le cuisinier prend ses ingredients et depo
 
 Sortie : `1 Coffre de cuisinier`
 
-## Commandes de groupe
+## Groupes de valets
 
-### Pupitre de groupe
-
-`valet:valet_group_station`
-
-Utilisation : cree des groupes de valets proches, donne une carte de groupe et peut lier une corne de chevre tenue en main.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Papier | Papier | Papier |
-| Boussole | Lutrin | Boussole |
-| Papier | Papier | Papier |
-
-Sortie : `1 Pupitre de groupe`
-
-### Carte de groupe
-
-`valet:valet_group_card`
-
-Obtention : bouton `Carte` dans l'interface du pupitre de groupe.
-
-Utilisation : clic droit pour faire suivre le groupe, accroupi + clic droit pour changer d'ordre, clic sur un monstre pour attaquer une cible, clic sur un bloc pour attaquer une zone.
-
-### Corne de chevre liee
-
-`minecraft:goat_horn`
-
-Obtention vanilla : les cornes viennent des chevres et peuvent aussi se trouver dans les coffres d'avant-poste de pillards. Les pillards ne les dropent pas comme loot direct fiable.
-
-Utilisation mod : bouton `Lier corne` dans le pupitre avec une corne en main. Elle controle ensuite le meme groupe que la carte.
+La creation des groupes et l'affectation des valets se font dans `Echap > Carte des valets > Groupes de valets`.
 
 ## Balises de zone
 

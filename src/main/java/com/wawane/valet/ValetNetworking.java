@@ -29,7 +29,6 @@ import com.wawane.valet.progress.ValetProgress;
 import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
-import com.wawane.valet.network.packets.ManageGroupPayload;
 import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
@@ -100,7 +99,6 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(DeleteConstructionPayload.TYPE, ValetNetworking::deleteConstruction);
         ServerPlayNetworking.registerGlobalReceiver(SortContainerPayload.TYPE, ValetNetworking::sortOpenContainer);
         ServerPlayNetworking.registerGlobalReceiver(SetBehaviorPayload.TYPE, ValetNetworking::setBehavior);
-        ServerPlayNetworking.registerGlobalReceiver(ManageGroupPayload.TYPE, ValetGroupInteractions::handleManagement);
         ServerPlayNetworking.registerGlobalReceiver(ManageMapGroupPayload.TYPE, ValetGroupInteractions::handleMapManagement);
     }
 
@@ -118,7 +116,6 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(DeleteConstructionPayload.TYPE, DeleteConstructionPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SortContainerPayload.TYPE, SortContainerPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetBehaviorPayload.TYPE, SetBehaviorPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(ManageGroupPayload.TYPE, ManageGroupPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ManageMapGroupPayload.TYPE, ManageMapGroupPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetMagicCastPayload.TYPE, ValetMagicCastPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetStatePayload.TYPE, ValetStatePayload.CODEC);

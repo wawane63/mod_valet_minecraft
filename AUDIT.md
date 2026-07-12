@@ -1,5 +1,7 @@
 # Audit exhaustif du projet Valet - 0.3.8
 
+> Inventaire historique. Les fichiers du pupitre et de la carte de groupe listes ci-dessous ont ete retires en 0.3.9 au profit du menu `Carte > Groupes de valets`.
+
 Date : 12 juillet 2026
 
 ## Perimetre et resultat

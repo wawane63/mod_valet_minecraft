@@ -1,7 +1,7 @@
 package com.wawane.valet.client;
 
 import com.wawane.valet.ValetMod;
-import com.wawane.valet.gui.ValetGroupScreenHandler;
+import com.wawane.valet.group.ValetGroupViewData;
 import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ import net.minecraft.world.level.material.MapColor;
 public final class ValetWorldMapScreen extends Screen {
     private static final int LEGEND_WIDTH = 176;
     private static final int MAP_MARGIN = 12;
-    private static final int MAP_TOP = 34;
+    private static final int MAP_TOP = 58;
     private static final int MAP_BOTTOM_MARGIN = 28;
     private static final int CELL_SIZE = 6;
     private static final int[] ZOOM_LEVELS = {1, 2, 4, 8, 16};
@@ -53,10 +53,9 @@ public final class ValetWorldMapScreen extends Screen {
     private int rows;
     private int[] terrainColors = new int[0];
     private boolean dragging;
-    private final List<ValetGroupScreenHandler.GroupEntry> groups = new ArrayList<>();
-    private final List<ValetGroupScreenHandler.ValetEntry> valets = new ArrayList<>();
+    private final List<ValetGroupViewData.GroupEntry> groups = new ArrayList<>();
+    private final List<ValetGroupViewData.ValetEntry> valets = new ArrayList<>();
     private int selectedGroupId = -1;
-    private Button deleteGroupButton;
     private Button sendGroupButton;
     private Button recallGroupButton;
 
@@ -80,34 +79,31 @@ public final class ValetWorldMapScreen extends Screen {
         int panelLeft = mapLeft + mapWidth + MAP_MARGIN;
         int buttonWidth = Math.max(80, width - panelLeft - MAP_MARGIN);
         int halfButtonWidth = (buttonWidth - 4) / 2;
+        int tabWidth = Math.min(150, Math.max(100, (width - MAP_MARGIN * 2 - 4) / 2));
+        Button mapTab = addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.tab"), ignored -> {})
+                .bounds(MAP_MARGIN, 8, tabWidth, 22).build());
+        mapTab.active = false;
+        addRenderableWidget(Button.builder(Component.translatable("screen.valet_groups.tab"), ignored -> minecraft.setScreenAndShow(new ValetGroupsScreen(this)))
+                .bounds(MAP_MARGIN + tabWidth + 4, 8, tabWidth, 22).build());
         addRenderableWidget(Button.builder(Component.literal("<"), ignored -> cycleGroup(-1))
-                .bounds(panelLeft, height - 166, halfButtonWidth, 18)
+                .bounds(panelLeft, height - 122, halfButtonWidth, 18)
                 .build());
         addRenderableWidget(Button.builder(Component.literal(">"), ignored -> cycleGroup(1))
-                .bounds(panelLeft + halfButtonWidth + 4, height - 166, buttonWidth - halfButtonWidth - 4, 18)
-                .build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.create_group"), ignored -> sendMapAction(ManageMapGroupPayload.Action.CREATE, null, BlockPos.ZERO))
-                .bounds(panelLeft, height - 144, halfButtonWidth, 18)
-                .build());
-        deleteGroupButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.delete_group"), ignored -> sendMapAction(ManageMapGroupPayload.Action.DELETE, null, BlockPos.ZERO))
-                .bounds(panelLeft + halfButtonWidth + 4, height - 144, buttonWidth - halfButtonWidth - 4, 18)
+                .bounds(panelLeft + halfButtonWidth + 4, height - 122, buttonWidth - halfButtonWidth - 4, 18)
                 .build());
         sendGroupButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.send_group"), ignored -> sendSelectedGroup())
-                .bounds(panelLeft, height - 122, buttonWidth, 18)
-                .build());
-        recallGroupButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.recall_group"), ignored -> sendMapAction(ManageMapGroupPayload.Action.RECALL, null, BlockPos.ZERO))
                 .bounds(panelLeft, height - 100, buttonWidth, 18)
                 .build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.center"), ignored -> centerOnPlayer())
+        recallGroupButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.recall_group"), ignored -> sendMapAction(ManageMapGroupPayload.Action.RECALL, null, BlockPos.ZERO))
                 .bounds(panelLeft, height - 78, buttonWidth, 18)
+                .build());
+        addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.center"), ignored -> centerOnPlayer())
+                .bounds(panelLeft, height - 56, buttonWidth, 18)
                 .build());
         addRenderableWidget(Button.builder(Component.translatable("screen.valet_map.clear_waypoint"), ignored -> {
                     clearWaypoint();
                     updateGroupButtons();
                 })
-                .bounds(panelLeft, height - 56, buttonWidth, 18)
-                .build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.back"), ignored -> onClose())
                 .bounds(panelLeft, height - 34, buttonWidth, 18)
                 .build());
         rebuildTerrain();
@@ -118,7 +114,7 @@ public final class ValetWorldMapScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         graphics.fill(0, 0, width, height, 0xF20A0E12);
-        graphics.text(font, title, MAP_MARGIN, 12, 0xFFFFFFFF, false);
+        graphics.text(font, title, MAP_MARGIN, 40, 0xFFFFFFFF, false);
         drawHeaderInfo(graphics, mouseX, mouseY);
         drawTerrain(graphics);
         drawMarkers(graphics);
@@ -194,7 +190,7 @@ public final class ValetWorldMapScreen extends Screen {
 
         int groupLabelY = height - 190;
         graphics.text(font, Component.translatable("screen.valet_map.groups"), left + 10, groupLabelY, 0xFFFFFFFF, false);
-        ValetGroupScreenHandler.GroupEntry selected = selectedGroup();
+        ValetGroupViewData.GroupEntry selected = selectedGroup();
         Component groupLabel = selected == null
                 ? Component.translatable("screen.valet_map.no_group")
                 : Component.translatable("screen.valet_map.selected_group", selected.name(), selected.memberCount());
@@ -213,7 +209,7 @@ public final class ValetWorldMapScreen extends Screen {
         } else {
             return;
         }
-        graphics.text(font, info, x, 12, 0xFFCAD2D6, false);
+        graphics.text(font, info, x, 40, 0xFFCAD2D6, false);
     }
 
     private void drawLegendEntry(GuiGraphicsExtractor graphics, int x, int y, int color, Component label) {
@@ -248,11 +244,6 @@ public final class ValetWorldMapScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (isInsideMap(event.x(), event.y())) {
             if (event.button() == 0) {
-                Villager clickedValet = findValetMarker(event.x(), event.y());
-                if (clickedValet != null && selectedGroupId > 0) {
-                    sendMapAction(ManageMapGroupPayload.Action.TOGGLE_MEMBER, clickedValet.getUUID(), BlockPos.ZERO);
-                    return true;
-                }
                 dragging = true;
                 return true;
             }
@@ -344,7 +335,7 @@ public final class ValetWorldMapScreen extends Screen {
         clearWaypoint();
     }
 
-    public void applyServerState(int nextSelectedGroupId, List<ValetGroupScreenHandler.GroupEntry> nextGroups, List<ValetGroupScreenHandler.ValetEntry> nextValets) {
+    public void applyServerState(int nextSelectedGroupId, List<ValetGroupViewData.GroupEntry> nextGroups, List<ValetGroupViewData.ValetEntry> nextValets) {
         groups.clear();
         groups.addAll(nextGroups);
         valets.clear();
@@ -387,9 +378,6 @@ public final class ValetWorldMapScreen extends Screen {
 
     private void updateGroupButtons() {
         boolean hasGroup = selectedGroupId > 0;
-        if (deleteGroupButton != null) {
-            deleteGroupButton.active = hasGroup;
-        }
         if (sendGroupButton != null) {
             sendGroupButton.active = hasGroup && waypoint != null;
         }
@@ -398,8 +386,8 @@ public final class ValetWorldMapScreen extends Screen {
         }
     }
 
-    private ValetGroupScreenHandler.GroupEntry selectedGroup() {
-        for (ValetGroupScreenHandler.GroupEntry group : groups) {
+    private ValetGroupViewData.GroupEntry selectedGroup() {
+        for (ValetGroupViewData.GroupEntry group : groups) {
             if (group.id() == selectedGroupId) {
                 return group;
             }
@@ -408,7 +396,7 @@ public final class ValetWorldMapScreen extends Screen {
     }
 
     private int groupIdFor(UUID uuid) {
-        for (ValetGroupScreenHandler.ValetEntry valet : valets) {
+        for (ValetGroupViewData.ValetEntry valet : valets) {
             if (valet.uuid().equals(uuid)) {
                 return valet.groupId();
             }
@@ -416,26 +404,16 @@ public final class ValetWorldMapScreen extends Screen {
         return -1;
     }
 
-    private Villager findValetMarker(double mouseX, double mouseY) {
-        ClientLevel world = Minecraft.getInstance().level;
-        if (world == null) {
-            return null;
-        }
-        Villager nearest = null;
-        double nearestDistance = 64.0D;
-        for (Entity entity : world.entitiesForRendering()) {
-            if (!(entity instanceof Villager villager) || !ValetMod.isValet(villager)) {
-                continue;
-            }
-            double dx = mouseX - worldToScreenX(villager.getX());
-            double dy = mouseY - worldToScreenY(villager.getZ());
-            double distance = dx * dx + dy * dy;
-            if (distance <= nearestDistance) {
-                nearest = villager;
-                nearestDistance = distance;
-            }
-        }
-        return nearest;
+    public int getSelectedGroupId() {
+        return selectedGroupId;
+    }
+
+    public List<ValetGroupViewData.GroupEntry> getGroups() {
+        return List.copyOf(groups);
+    }
+
+    public List<ValetGroupViewData.ValetEntry> getValets() {
+        return List.copyOf(valets);
     }
 
     private void rebuildTerrain() {

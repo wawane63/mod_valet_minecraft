@@ -17,11 +17,8 @@ import com.wawane.valet.cooking.CookChestBlock;
 import com.wawane.valet.cooking.CookChestBlockEntity;
 import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
-import com.wawane.valet.group.ValetGroupCardItem;
-import com.wawane.valet.group.ValetGroupInteractions;
 import com.wawane.valet.group.ValetGroupRuntime;
 import com.wawane.valet.group.ValetGroupTravelTickets;
-import com.wawane.valet.gui.ValetGroupScreenHandler;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetBehavior;
@@ -34,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -101,8 +97,6 @@ public class ValetMod implements ModInitializer {
     public static final Identifier ANIMAL_BEACON_ID = id("animal_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
     public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
-    public static final Identifier VALET_GROUP_STATION_ID = id("valet_group_station");
-    public static final Identifier VALET_GROUP_CARD_ID = id("valet_group_card");
     public static final Identifier VALET_GROUP_MISSION_TICKET_ID = id("group_mission");
     public static final TicketType VALET_GROUP_MISSION_TICKET = Registry.register(
             BuiltInRegistries.TICKET_TYPE,
@@ -274,24 +268,6 @@ public class ValetMod implements ModInitializer {
             new BlockItem(INFINITE_ARROW_CHEST, itemProperties(INFINITE_ARROW_CHEST_ID))
     );
 
-    public static final Block VALET_GROUP_STATION = Registry.register(
-            BuiltInRegistries.BLOCK,
-            VALET_GROUP_STATION_ID,
-            new Block(blockProperties(VALET_GROUP_STATION_ID, BlockBehaviour.Properties.ofFullCopy(Blocks.LECTERN).strength(2.5F)))
-    );
-
-    public static final Item VALET_GROUP_STATION_ITEM = Registry.register(
-            BuiltInRegistries.ITEM,
-            VALET_GROUP_STATION_ID,
-            new BlockItem(VALET_GROUP_STATION, itemProperties(VALET_GROUP_STATION_ID))
-    );
-
-    public static final Item VALET_GROUP_CARD_ITEM = Registry.register(
-            BuiltInRegistries.ITEM,
-            VALET_GROUP_CARD_ID,
-            new ValetGroupCardItem(itemProperties(VALET_GROUP_CARD_ID).stacksTo(1))
-    );
-
     public static final BlockEntityType<ConstructionBlueprintBlockEntity> CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY = Registry.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
             CONSTRUCTION_BLUEPRINT_ID,
@@ -337,12 +313,6 @@ public class ValetMod implements ModInitializer {
             new ExtendedMenuType<>(ValetOrdersScreenHandler::new, ValetOrdersScreenHandler.OpeningData.CODEC)
     );
 
-    public static final MenuType<ValetGroupScreenHandler> VALET_GROUP_SCREEN_HANDLER = Registry.register(
-            BuiltInRegistries.MENU,
-            id("groups"),
-            new ExtendedMenuType<>(ValetGroupScreenHandler::new, ValetGroupScreenHandler.OpeningData.CODEC)
-    );
-
     public static Identifier id(String path) {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
@@ -370,13 +340,8 @@ public class ValetMod implements ModInitializer {
             entries.accept(FARM_BEACON_ITEM);
             entries.accept(ANIMAL_BEACON_ITEM);
             entries.accept(INFINITE_ARROW_CHEST_ITEM);
-            entries.accept(VALET_GROUP_STATION_ITEM);
         });
-        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> entries.accept(VALET_GROUP_CARD_ITEM));
-        UseEntityCallback.EVENT.register(ValetGroupInteractions::useEntity);
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
-        UseItemCallback.EVENT.register(ValetGroupInteractions::useItem);
-        UseBlockCallback.EVENT.register(ValetGroupInteractions::useBlock);
         UseBlockCallback.EVENT.register(ValetMod::recallValetAtWorkstation);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());

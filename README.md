@@ -4,14 +4,15 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version actuelle : 0.3.8 - audit, carte tactique et missions de groupe.
+Version locale actuelle : 0.3.9 - gestion centralisee des groupes.
 
-Derniere version publiee : 0.3.8 (`v0.3.8`).
+Derniere version publiee : 0.3.9 (`v0.3.9`).
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
 - [Notes 0.3.8](docs/releases/v0.3.8.md)
+- [Notes 0.3.9](docs/releases/v0.3.9.md)
 
 ## Versions disponibles
 
@@ -32,6 +33,7 @@ Derniere version publiee : 0.3.8 (`v0.3.8`).
 | 0.3.6 | Cuisinier + correctifs metiers | [`v0.3.6`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.6) |
 | 0.3.7 | Intendant + transferts coffres | [`v0.3.7`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.7) |
 | 0.3.8 | Audit, carte tactique et missions de groupe | [`v0.3.8`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.8) |
+| 0.3.9 | Gestion centralisee des groupes | [`v0.3.9`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.9) |
 
 ## Depart
 
@@ -48,8 +50,9 @@ Derniere version publiee : 0.3.8 (`v0.3.8`).
 - Filtres intendant : les 9 premiers slots d'un coffre/baril cible declarent les items acceptes; le filtre le plus a gauche et le coffre le plus proche du poste sont prioritaires.
 - Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
-- Pupitre de groupe : cree des groupes et lie une carte ou une corne de chevre pour commander suivi, garde, attaque et rappel.
-- Carte tactique : depuis le menu Echap, affiche le terrain charge, permet de creer des groupes, d'y affecter les valets visibles et de les envoyer vers un repere.
+- Carte des valets : depuis le menu Echap, propose les onglets `Carte` et `Groupes de valets`.
+- Groupes de valets : cree ou supprime les groupes et affecte les valets disponibles depuis un menu unique.
+- Carte tactique : affiche le terrain charge et permet d'envoyer ou rappeler le groupe selectionne.
 
 ## Build
 

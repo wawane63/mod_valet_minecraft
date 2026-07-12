@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.9 - Gestion centralisee des groupes
+
+### Changed
+
+- Ajout des onglets `Carte` et `Groupes de valets` dans la carte ouverte depuis le menu Echap.
+- Creation, suppression et affectation des valets centralisees dans l'onglet `Groupes de valets`.
+- La carte conserve la selection du groupe, le repere, l'envoi en mission et le rappel.
+
+### Removed
+
+- Retrait provisoire du pupitre de groupe, de sa recette et de ses ressources.
+- Retrait provisoire de la carte de groupe et de ses interactions.
+- Retrait de la liaison des cornes de chevre aux groupes.
+- Suppression de l'ancien menu de pupitre, de son payload et des classes de liaison d'items devenues inutiles.
+
 ## 0.3.8 - Audit et carte tactique
 
 ### Added
