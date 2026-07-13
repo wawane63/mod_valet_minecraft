@@ -25,6 +25,7 @@ public final class ValetData {
     }
 
     public static void writeToNbt(Villager villager, ValueOutput output) {
+        ValetIdentity.writeToNbt(villager, output);
         ValetBehavior.writeToNbt(villager, output);
         ValetHome.writeToNbt(villager, output);
         ValetRole.writeToNbt(villager, output);
@@ -34,6 +35,7 @@ public final class ValetData {
     }
 
     public static void readFromNbt(Villager villager, ValueInput input) {
+        ValetIdentity.readFromNbt(villager, input);
         ValetBehavior.readFromNbt(villager, input);
         ValetHome.readFromNbt(villager, input);
         ValetRole.readFromNbt(villager, input);
@@ -43,6 +45,7 @@ public final class ValetData {
     }
 
     public static void clearVillagerRuntime(UUID uuid) {
+        ValetIdentity.clear(uuid);
         ValetBehavior.clear(uuid);
         ValetHome.clear(uuid);
         ValetRole.clear(uuid);
@@ -53,6 +56,7 @@ public final class ValetData {
     }
 
     public static void clearAllVillagerRuntime() {
+        ValetIdentity.clearAll();
         ValetBehavior.clearAll();
         ValetHome.clearAll();
         ValetRole.clearAll();
@@ -67,7 +71,8 @@ public final class ValetData {
     }
 
     private static boolean hasPersistentData(ValueInput input) {
-        return ValetBehavior.hasNbt(input)
+        return ValetIdentity.hasNbt(input)
+                || ValetBehavior.hasNbt(input)
                 || ValetHome.hasNbt(input)
                 || ValetRole.hasNbt(input)
                 || ValetOrders.hasNbt(input)

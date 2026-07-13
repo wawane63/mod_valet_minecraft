@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:name_tag",
+    "minecraft:emerald"
+  ],
+  "result": {
+    "id": "valet:valet_tag",
+    "count": 1
+  }
+}

@@ -126,6 +126,19 @@ Sortie : `1 Coffre de cuisinier`
 
 La creation des groupes et l'affectation des valets se font dans `Echap > Carte des valets > Groupes de valets`.
 
+## Insigne de valet
+
+`valet:valet_tag`
+
+Utilisation : clic droit sur un villageois adulte pour lui attribuer une identite Valet persistante.
+
+Recette sans forme :
+
+- `1 Etiquette` (`minecraft:name_tag`)
+- `1 Emeraude`
+
+La recette apparait dans le livre de recettes lorsque le joueur a obtenu ces deux ingredients.
+
 ## Balises de zone
 
 Les balises servent a selectionner une zone dans le monde. Pose deux balises du meme type pour definir le volume.

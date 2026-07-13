@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.4.0 - Tag Valet
+
+### Added
+
+- Ajout de l'`Insigne de valet`, utilisable sur un villageois adulte.
+- Recette sans forme de l'insigne : une etiquette et une emeraude, avec deverrouillage dans le livre de recettes.
+- Ajout d'une identite Valet persistante en NBT, independante de la profession vanilla et du poste.
+- Migration automatique des valets 0.3.9 bases sur la profession vers cette nouvelle identite.
+
+### Changed
+
+- Un valet marque reste reconnu comme valet sans poste et pendant les missions longue distance.
+- Le métier se choisit directement dans l'interface du valet et ne dépend plus du type de poste.
+- Les postes ne créent plus automatiquement de valets; seule l'Insigne attribue cette identité.
+
+### Cleaned
+
+- Suppression des chemins de perte/restauration de profession qui effaçaient les données lorsque le poste devenait inaccessible.
+
+### Fixed
+
+- Les missions vers un repère passent en petits tronçons lorsque le dénivelé est fort ou que le meneur reste immobile.
+- Les valets réutilisent le planificateur 3D des artisans : galerie garantie à trois blocs de haut et escaliers limités à un bloc de montée ou descente par pas.
+- Les chutes d'eau sont refusées comme passage d'excavation et recherchées par angles de contournement locaux.
+- Le tunnelage de mission refuse les constructions, conteneurs, fluides et blocs incassables.
+- Un seul valet par petit groupe proche ouvre la galerie; les autres suivent ce passage au lieu de creuser en parallèle.
+- L'ordre `Aller au repère` prend désormais la priorité sur les retours métier, la fuite et le combat, notamment dans l'eau.
+- Le gravier et le sable isolés peuvent être retirés, mais une colonne susceptible de s'effondrer bloque le tunnelage et force un autre passage.
+- Le groupe conserve un meneur stable pendant toute la mission; les suiveurs visent uniquement ce meneur et continuent de le rattraper au-delà de 5 blocs sans bloquer sa progression.
+- En traversée d'eau, les valets recherchent une berge solide et sautent pour accoster.
+- Tous les membres d'un groupe peuvent interrompre brièvement la mission pour se défendre à l'épée en combat rapproché.
+- Le creuseur synchronise désormais le regard, la tête et le corps avec chaque bloc cassé et chaque pas, au lieu de glisser de côté ou à reculons.
+- Les pas d'excavation sont espacés, les chemins faisant un grand retour arrière sont refusés et la navigation des suiveurs n'est recalculée que deux fois par seconde.
+
 ## 0.3.9 - Gestion centralisee des groupes
 
 ### Changed

@@ -23,6 +23,7 @@ import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetBehavior;
 import com.wawane.valet.state.ValetData;
+import com.wawane.valet.state.ValetIdentity;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -97,6 +98,7 @@ public class ValetMod implements ModInitializer {
     public static final Identifier ANIMAL_BEACON_ID = id("animal_beacon");
     public static final Identifier CONSTRUCTION_BLUEPRINT_ID = id("construction_blueprint");
     public static final Identifier INFINITE_ARROW_CHEST_ID = id("infinite_arrow_chest");
+    public static final Identifier VALET_TAG_ID = id("valet_tag");
     public static final Identifier VALET_GROUP_MISSION_TICKET_ID = id("group_mission");
     public static final TicketType VALET_GROUP_MISSION_TICKET = Registry.register(
             BuiltInRegistries.TICKET_TYPE,
@@ -268,6 +270,12 @@ public class ValetMod implements ModInitializer {
             new BlockItem(INFINITE_ARROW_CHEST, itemProperties(INFINITE_ARROW_CHEST_ID))
     );
 
+    public static final Item VALET_TAG_ITEM = Registry.register(
+            BuiltInRegistries.ITEM,
+            VALET_TAG_ID,
+            new Item(itemProperties(VALET_TAG_ID).stacksTo(16))
+    );
+
     public static final BlockEntityType<ConstructionBlueprintBlockEntity> CONSTRUCTION_BLUEPRINT_BLOCK_ENTITY = Registry.register(
             BuiltInRegistries.BLOCK_ENTITY_TYPE,
             CONSTRUCTION_BLUEPRINT_ID,
@@ -341,6 +349,8 @@ public class ValetMod implements ModInitializer {
             entries.accept(ANIMAL_BEACON_ITEM);
             entries.accept(INFINITE_ARROW_CHEST_ITEM);
         });
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> entries.accept(VALET_TAG_ITEM));
+        UseEntityCallback.EVENT.register(ValetMod::tagVillagerAsValet);
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
         UseBlockCallback.EVENT.register(ValetMod::recallValetAtWorkstation);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
@@ -405,9 +415,7 @@ public class ValetMod implements ModInitializer {
                 if (!checkedVillagers.add(villager.getUUID())) {
                     continue;
                 }
-                if (!restoreValetIdentity(world, villager)) {
-                    tryAssignValetJob(world, villager, villager.blockPosition());
-                }
+                restoreValetIdentity(world, villager);
             }
         }
     }
@@ -418,30 +426,6 @@ public class ValetMod implements ModInitializer {
             zombie.setVillagerData(zombie.getVillagerData().withProfession(world.registryAccess(), VillagerProfession.NONE));
             LOGGER.info("Cleared valet profession from zombie villager {}", zombie.getUUID());
         }
-    }
-
-    public static boolean tryAssignValetJob(ServerLevel world, Villager villager, BlockPos searchOrigin) {
-        if (isValet(villager)) {
-            return true;
-        }
-        if (!canBecomeValet(villager)) {
-            return false;
-        }
-
-        BlockPos workstation = claimNearbyWorkstation(world, villager, villager.blockPosition());
-        if (workstation == null && !searchOrigin.equals(villager.blockPosition())) {
-            workstation = claimNearbyWorkstation(world, villager, searchOrigin);
-        }
-        if (workstation == null) {
-            return false;
-        }
-
-        villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VALET_PROFESSION_KEY));
-        villager.refreshBrain(world);
-        ValetHome.set(villager, workstation);
-        suppressVanillaVillageMemoriesIfNeeded(world, villager);
-        ValetDebug.record(villager, "profession_assigned role=" + ValetRole.fromWorkstation(world.getBlockState(workstation)).name().toLowerCase() + " home=" + ValetDebug.shortPos(workstation));
-        return true;
     }
 
     public static BlockPos claimOrRecoverValetHome(ServerLevel world, Villager villager, BlockPos recoveryOrigin) {
@@ -469,84 +453,22 @@ public class ValetMod implements ModInitializer {
     }
 
     private static boolean restoreValetIdentity(ServerLevel world, Villager villager) {
-        if (isValet(villager)) {
-            BlockPos home = ValetHome.get(world, villager);
-            if (home == null) {
-                loseValetJob(world, villager, "home_missing");
-                return false;
-            }
-            if (!claimValetJobSite(world, villager, home)) {
-                loseValetJob(world, villager, "job_site_claimed");
-                return false;
-            }
+        if (!ValetIdentity.isTagged(villager) && isValet(villager.getVillagerData())) {
+            ValetIdentity.tag(villager);
+            ValetRole.set(villager, ValetRole.get(world, villager));
+            ValetDebug.record(villager, "identity_migrated_from_profession");
+        }
+        if (ValetIdentity.isTagged(villager)) {
             suppressVanillaVillageMemoriesIfNeeded(world, villager);
             return true;
         }
-        if (!ValetData.hasRuntimeData(villager)) {
-            if (GLOWING_VALETS.contains(villager.getUUID())) {
-                clearValetGlow(villager);
-                clearValetHeldItem(villager);
-                ValetDebug.record(villager, "glow_removed reason=profession_lost_no_runtime");
-            }
-            return false;
+        if (ValetData.hasRuntimeData(villager)) {
+            ValetIdentity.tag(villager);
+            suppressVanillaVillageMemoriesIfNeeded(world, villager);
+            ValetDebug.record(villager, "identity_migrated_from_runtime");
+            return true;
         }
-
-        String previousProfession = villager.getVillagerData().profession().toString();
-        BlockPos home = ValetHome.get(world, villager);
-        if (home == null) {
-            clearFormerValetRuntime(world, villager, "home_missing_after_profession_loss");
-            ValetDebug.record(villager, "profession_lost previous=" + previousProfession + " home=missing");
-            return false;
-        }
-
-        if (!claimValetJobSite(world, villager, home)) {
-            clearFormerValetRuntime(world, villager, "restore_blocked_after_profession_loss");
-            ValetDebug.record(villager, "profession_restore_blocked home=" + ValetDebug.shortPos(home));
-            return false;
-        }
-        villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VALET_PROFESSION_KEY));
-        villager.refreshBrain(world);
-        suppressVanillaVillageMemoriesIfNeeded(world, villager);
-        ValetWorkGoal.requestRestart(villager);
-        ValetDebug.record(villager, "profession_restored previous=" + previousProfession + " home=" + ValetDebug.shortPos(home));
-        LOGGER.warn("Restored valet profession for {} from {} at {}", villager.getUUID(), previousProfession, home);
-        return true;
-    }
-
-    private static void loseValetJob(ServerLevel world, Villager villager, String reason) {
-        clearValetGlow(villager);
-        villager.getBrain().getMemoryInternal(MemoryModuleType.JOB_SITE)
-                .filter(pos -> pos.dimension().equals(world.dimension()))
-                .ifPresent(pos -> world.getPoiManager().release(pos.pos()));
-        villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
-        villager.setVillagerData(villager.getVillagerData().withProfession(world.registryAccess(), VillagerProfession.NONE));
-        villager.refreshBrain(world);
-        clearValetHeldItem(villager);
-        ValetWorkDriver.clear(villager.getUUID());
-        ValetWorkGoal.clearRestartRequest(villager.getUUID());
-        ValetConversations.clear(villager.getUUID());
-        ValetHome.clear(villager.getUUID());
-        ValetOrders.clear(villager.getUUID());
-        ValetBlockReservations.releaseAll(villager.getUUID());
-        ValetEntityReservations.releaseAll(villager.getUUID());
-        ValetDebug.record(villager, "profession_removed reason=" + reason);
-        LOGGER.info("Removed valet profession from {} reason={}", villager.getUUID(), reason);
-    }
-
-    private static void clearFormerValetRuntime(ServerLevel world, Villager villager, String reason) {
-        clearValetGlow(villager);
-        villager.getBrain().getMemoryInternal(MemoryModuleType.JOB_SITE)
-                .filter(pos -> pos.dimension().equals(world.dimension()))
-                .ifPresent(pos -> world.getPoiManager().release(pos.pos()));
-        villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
-        clearValetHeldItem(villager);
-        ValetWorkDriver.clear(villager.getUUID());
-        ValetWorkGoal.clearRestartRequest(villager.getUUID());
-        ValetConversations.clear(villager.getUUID());
-        ValetData.clearVillagerRuntime(villager.getUUID());
-        ValetBlockReservations.releaseAll(villager.getUUID());
-        ValetEntityReservations.releaseAll(villager.getUUID());
-        ValetDebug.record(villager, "former_valet_runtime_cleared reason=" + reason);
+        return false;
     }
 
     public static void markValetGlow(Villager villager) {
@@ -569,15 +491,8 @@ public class ValetMod implements ModInitializer {
         return !villager.isBaby()
                 && !villager.isSleeping()
                 && (isValet(villager)
-                || isUnemployed(villager)
                 || ValetData.hasRuntimeData(villager)
                 || GLOWING_VALETS.contains(villager.getUUID()));
-    }
-
-    private static boolean canBecomeValet(Villager villager) {
-        return !villager.isBaby()
-                && !villager.isSleeping()
-                && isUnemployed(villager);
     }
 
     private static BlockPos claimNearbyWorkstation(ServerLevel world, Villager villager, BlockPos origin) {
@@ -682,7 +597,28 @@ public class ValetMod implements ModInitializer {
     }
 
     public static boolean isValet(Villager villager) {
-        return isValet(villager.getVillagerData());
+        return ValetIdentity.isTagged(villager) || isValet(villager.getVillagerData());
+    }
+
+    private static InteractionResult tagVillagerAsValet(Player player, net.minecraft.world.level.Level world, InteractionHand hand, Entity entity, net.minecraft.world.phys.EntityHitResult hitResult) {
+        if (hand != InteractionHand.MAIN_HAND || !(entity instanceof Villager villager) || !player.getItemInHand(hand).is(VALET_TAG_ITEM)) {
+            return InteractionResult.PASS;
+        }
+        if (villager.isBaby()) {
+            return InteractionResult.FAIL;
+        }
+        if (!world.isClientSide() && world instanceof ServerLevel serverWorld) {
+            ValetIdentity.tag(villager);
+            ValetRole.set(villager, ValetRole.ARTISAN);
+            suppressVanillaVillageMemoriesIfNeeded(serverWorld, villager);
+            ValetWorkGoal.requestRestart(villager);
+            if (!player.getAbilities().instabuild) {
+                player.getItemInHand(hand).shrink(1);
+            }
+            player.sendOverlayMessage(Component.translatable("message.valet.tagged"));
+            ValetDebug.record(villager, "identity_tagged role=artisan");
+        }
+        return InteractionResult.SUCCESS;
     }
 
     public static boolean isValetWorkstation(net.minecraft.world.level.block.state.BlockState state) {
@@ -697,10 +633,6 @@ public class ValetMod implements ModInitializer {
 
     public static boolean isValet(net.minecraft.world.entity.npc.villager.VillagerData data) {
         return data.profession().is(VALET_PROFESSION_KEY);
-    }
-
-    public static boolean isUnemployed(Villager villager) {
-        return villager.getVillagerData().profession().is(VillagerProfession.NONE);
     }
 
     private static InteractionResult recallValetAtWorkstation(Player player, net.minecraft.world.level.Level world, InteractionHand hand, BlockHitResult hitResult) {

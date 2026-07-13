@@ -27,8 +27,11 @@
 - `progress/` : perks, arbres de competences et progression.
 - `construction/`, `farm/`, `breeding/`, `cooking/`, `combat/`, `group/` : modules fonctionnels dedies.
 - `client/` et `mixin/` : rendu, previews, animations et integrations Minecraft/Fabric.
-- `client/ValetWorldMapScreen`, `client/ValetGroupsScreen`, `group/ValetGroupRuntime` et `group/ValetGroupTravelTickets` : onglets carte/groupes, ordres longue distance et tickets temporaires de mission.
+- `client/ValetWorldMapScreen`, `client/ValetGroupsScreen`, `group/ValetGroupRuntime`, `group/ValetGroupExcavation` et `group/ValetGroupTravelTickets` : onglets carte/groupes, ordres longue distance, excavation 3D locale et tickets temporaires de mission.
 - La gestion des groupes est centralisee dans le menu Echap; aucun bloc ou item de groupe n'est enregistre en 0.3.9.
+- A partir de 0.4.0, `state/ValetIdentity` porte l'identite persistante du valet; les postes ne doivent plus pouvoir retirer cette identite.
+- L'`Insigne de valet` est l'unique point d'entree joueur; le rôle est choisi dans l'interface du valet.
+- Les postes restent des points de travail et ne créent, ne restaurent ni ne suppriment l'identité Valet.
 - `src/main/resources/assets/valet/` : blockstates, models, textures et traductions.
 - `src/main/resources/data/valet/recipe/` et `src/main/resources/data/valet/loot_table/` : recettes et loot tables aux chemins de registre Minecraft 26.2.
 

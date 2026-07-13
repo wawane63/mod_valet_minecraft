@@ -161,6 +161,7 @@ public final class ValetGroupInteractions {
         for (UUID member : group.members()) {
             Entity entity = world.getEntity(member);
             if (entity instanceof Villager villager && ValetMod.isValet(villager)) {
+                ValetGroupRuntime.clear(villager.getUUID());
                 ValetBehavior.clearRecall(villager.getUUID());
                 if (group.command().mode() == ValetGroupMode.RECALL) {
                     ValetBehavior.recallToWorkstation(world, villager);

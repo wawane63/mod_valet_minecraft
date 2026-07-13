@@ -2,6 +2,7 @@ package com.wawane.valet;
 
 import com.wawane.valet.order.ValetOrder;
 import com.wawane.valet.order.ValetOrders;
+import com.wawane.valet.state.ValetIdentity;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,6 +95,9 @@ public enum ValetRole {
     }
 
     public static ValetRole get(ServerLevel world, Villager villager) {
+        if (ValetIdentity.isTagged(villager)) {
+            return LAST_KNOWN_ROLES.getOrDefault(villager.getUUID(), ARTISAN);
+        }
         BlockPos home = ValetHome.get(world, villager);
         if (home == null) {
             LAST_KNOWN_ROLES.remove(villager.getUUID());
@@ -110,6 +114,10 @@ public enum ValetRole {
 
     public static void clear(UUID uuid) {
         LAST_KNOWN_ROLES.remove(uuid);
+    }
+
+    public static void set(Villager villager, ValetRole role) {
+        LAST_KNOWN_ROLES.put(villager.getUUID(), role == null ? ARTISAN : role);
     }
 
     public static void clearAll() {

@@ -4,15 +4,16 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version locale actuelle : 0.3.9 - gestion centralisee des groupes.
+Version locale actuelle : 0.4.0 - tag Valet et missions de groupe stabilisees.
 
-Derniere version publiee : 0.3.9 (`v0.3.9`).
+Derniere version publiee : 0.4.0 (`v0.4.0`).
 
 ## Guides
 
 - [Objets et crafts Valet](docs/crafts.md)
 - [Notes 0.3.8](docs/releases/v0.3.8.md)
 - [Notes 0.3.9](docs/releases/v0.3.9.md)
+- [Notes 0.4.0](docs/releases/v0.4.0.md)
 
 ## Versions disponibles
 
@@ -34,11 +35,15 @@ Derniere version publiee : 0.3.9 (`v0.3.9`).
 | 0.3.7 | Intendant + transferts coffres | [`v0.3.7`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.7) |
 | 0.3.8 | Audit, carte tactique et missions de groupe | [`v0.3.8`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.8) |
 | 0.3.9 | Gestion centralisee des groupes | [`v0.3.9`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.9) |
+| 0.4.0 | Tag Valet independant du poste | [`v0.4.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.0) |
 
 ## Depart
 
-- Place un `Poste d'artisan`, un `Poste de combattant`, un `Poste de fermier`, un `Poste de magicien`, un `Poste d'eleveur`, un `Poste de cuisinier` ou un `Poste d'intendant`.
-- Un villageois sans metier peut prendre un de ces postes comme travail.
+- Fabrique une `Insigne de valet` avec une etiquette et une emeraude.
+- Utilise l'insigne sur un villageois adulte pour lui attribuer l'identite Valet persistante.
+- Choisis son metier depuis son interface; le premier metier est Artisan.
+- Place ensuite le poste visible correspondant quand le travail choisi en a besoin.
+- Un poste seul ne cree plus de valet et son absence ne retire jamais l'identite Valet.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
 - Fermier : recolte, replantation, houe, zones de ferme.

@@ -1,0 +1,38 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_name_tag": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:name_tag"
+          }
+        ]
+      }
+    },
+    "has_emerald": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:emerald"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valet:valet_tag"
+      }
+    }
+  },
+  "requirements": [
+    ["has_the_recipe", "has_name_tag"],
+    ["has_the_recipe", "has_emerald"]
+  ],
+  "rewards": {
+    "recipes": ["valet:valet_tag"]
+  }
+}

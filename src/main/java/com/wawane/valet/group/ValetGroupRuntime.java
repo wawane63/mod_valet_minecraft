@@ -15,6 +15,8 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public final class ValetGroupRuntime {
     private static final double FOLLOW_DISTANCE = 4.0D;
@@ -22,8 +24,12 @@ public final class ValetGroupRuntime {
     private static final double GUARD_WIDE_DISTANCE = 10.0D;
     private static final double MOVE_STEP_DISTANCE = 24.0D;
     private static final int MOVE_REFRESH_TICKS = 20;
+    private static final int FOLLOW_REFRESH_TICKS = 10;
     private static final Map<UUID, Long> NEXT_MOVE_REFRESH = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> NEXT_FOLLOW_REFRESH = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> MOVE_FAILURES = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> NEXT_DEFENSE_HIT = new ConcurrentHashMap<>();
+    private static final Map<Integer, UUID> TRAVEL_LEADERS = new ConcurrentHashMap<>();
 
     private ValetGroupRuntime() {
     }
@@ -45,6 +51,30 @@ public final class ValetGroupRuntime {
             case MOVE_TO -> command.pos() != null;
             case RECALL -> true;
         };
+    }
+
+    public static boolean isTravelCommand(ServerLevel world, Villager villager) {
+        return getCommand(world, villager).mode() == ValetGroupMode.MOVE_TO;
+    }
+
+    public static boolean tickSelfDefense(ServerLevel world, Villager villager, double speed) {
+        LivingEntity target = findNearestHostileNearPos(world, villager, villager.blockPosition(), 5);
+        if (target == null) {
+            return false;
+        }
+        villager.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_SWORD));
+        villager.getLookControl().setLookAt(target, 30.0F, 30.0F);
+        if (villager.distanceToSqr(target) > 6.25D) {
+            villager.getNavigation().moveTo(target, speed);
+            return true;
+        }
+        long now = world.getGameTime();
+        if (now >= NEXT_DEFENSE_HIT.getOrDefault(villager.getUUID(), 0L)) {
+            villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            target.hurtServer(world, world.damageSources().mobAttack(villager), 3.0F);
+            NEXT_DEFENSE_HIT.put(villager.getUUID(), now + 20L);
+        }
+        return true;
     }
 
     public static double combatSearchRadius(ServerLevel world, Villager villager, double fallback) {
@@ -129,10 +159,23 @@ public final class ValetGroupRuntime {
     }
 
     private static boolean tickLongDistanceMovement(ServerLevel world, Villager villager, BlockPos destination, double speed) {
-        double offsetX = formationOffset(villager.getUUID(), true);
-        double offsetZ = formationOffset(villager.getUUID(), false);
-        double targetX = destination.getX() + 0.5D + offsetX;
-        double targetZ = destination.getZ() + 0.5D + offsetZ;
+        Villager leader = stableTravelLeader(world, villager);
+        if (leader != villager) {
+            double distanceSquared = villager.distanceToSqr(leader);
+            if (distanceSquared <= 9.0D) {
+                villager.getNavigation().stop();
+                return true;
+            }
+            long gameTime = world.getGameTime();
+            long nextRefresh = NEXT_FOLLOW_REFRESH.getOrDefault(villager.getUUID(), 0L);
+            if (villager.getNavigation().isDone() || gameTime >= nextRefresh) {
+                villager.getNavigation().moveTo(leader, speed * 1.15D);
+                NEXT_FOLLOW_REFRESH.put(villager.getUUID(), gameTime + FOLLOW_REFRESH_TICKS);
+            }
+            return true;
+        }
+        double targetX = destination.getX() + 0.5D;
+        double targetZ = destination.getZ() + 0.5D;
         double dx = targetX - villager.getX();
         double dz = targetZ - villager.getZ();
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
@@ -141,6 +184,14 @@ public final class ValetGroupRuntime {
             NEXT_MOVE_REFRESH.remove(villager.getUUID());
             MOVE_FAILURES.remove(villager.getUUID());
             return true;
+        }
+
+        boolean stuck = ValetGroupExcavation.observeAndIsStuck(villager);
+        if (ValetGroupExcavation.hasActivePath(villager) || stuck) {
+            villager.getNavigation().stop();
+            if (ValetGroupExcavation.tick(world, villager, destination)) {
+                return true;
+            }
         }
 
         long gameTime = world.getGameTime();
@@ -159,6 +210,24 @@ public final class ValetGroupRuntime {
             return true;
         }
         int stepY = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, stepX, stepZ);
+        int currentY = villager.blockPosition().getY();
+        if (!world.getFluidState(villager.blockPosition()).isEmpty()) {
+            BlockPos landing = findLanding(world, villager, dx, dz);
+            if (landing != null) {
+                villager.getNavigation().moveTo(landing.getX() + 0.5D, landing.getY(), landing.getZ() + 0.5D, speed * 1.2D);
+                if (villager.distanceToSqr(landing.getX() + 0.5D, landing.getY(), landing.getZ() + 0.5D) < 6.0D
+                        && landing.getY() > villager.getY()) {
+                    villager.getJumpControl().jump();
+                }
+                return true;
+            }
+        }
+        if (Math.abs(stepY - currentY) > 3) {
+            villager.getNavigation().stop();
+            if (ValetGroupExcavation.tick(world, villager, destination)) {
+                return true;
+            }
+        }
         boolean moving = villager.getNavigation().moveTo(stepX + 0.5D, stepY, stepZ + 0.5D, speed);
         NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
         if (moving) {
@@ -169,9 +238,53 @@ public final class ValetGroupRuntime {
         return true;
     }
 
-    private static double formationOffset(UUID uuid, boolean xAxis) {
-        int hash = xAxis ? uuid.hashCode() : Integer.rotateLeft(uuid.hashCode(), 13);
-        return Math.floorMod(hash, 7) - 3;
+    private static Villager stableTravelLeader(ServerLevel world, Villager villager) {
+        ValetGroup group = groupFor(world, villager);
+        if (group == null) {
+            return villager;
+        }
+        UUID selectedUuid = TRAVEL_LEADERS.get(group.id());
+        Entity selected = selectedUuid == null ? null : world.getEntity(selectedUuid);
+        if (selected instanceof Villager current && current.isAlive() && group.hasMember(current.getUUID())) {
+            return current;
+        }
+        Villager leader = null;
+        for (UUID member : group.members()) {
+            Entity entity = world.getEntity(member);
+            if (entity instanceof Villager candidate
+                    && candidate.isAlive()
+                    && (leader == null || candidate.getUUID().toString().compareTo(leader.getUUID().toString()) < 0)) {
+                leader = candidate;
+            }
+        }
+        if (leader == null) {
+            return villager;
+        }
+        TRAVEL_LEADERS.put(group.id(), leader.getUUID());
+        return leader;
+    }
+
+    private static ValetGroup groupFor(ServerLevel world, Villager villager) {
+        ValetGroupStorage storage = ValetGroupStorage.get(world);
+        return storage.getGroup(storage.getGroupIdForMember(villager.getUUID()));
+    }
+
+    private static BlockPos findLanding(ServerLevel world, Villager villager, double dx, double dz) {
+        double length = Math.max(0.001D, Math.sqrt(dx * dx + dz * dz));
+        for (int distance = 1; distance <= 8; distance++) {
+            int x = (int) Math.floor(villager.getX() + dx / length * distance);
+            int z = (int) Math.floor(villager.getZ() + dz / length * distance);
+            int surface = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            BlockPos stand = new BlockPos(x, surface, z);
+            if (world.getFluidState(stand).isEmpty()
+                    && world.getFluidState(stand.below()).isEmpty()
+                    && world.getBlockState(stand).getCollisionShape(world, stand).isEmpty()
+                    && world.getBlockState(stand.above()).getCollisionShape(world, stand.above()).isEmpty()
+                    && !world.getBlockState(stand.below()).getCollisionShape(world, stand.below()).isEmpty()) {
+                return stand;
+            }
+        }
+        return null;
     }
 
     private static double detourAngle(int failures) {
@@ -188,12 +301,20 @@ public final class ValetGroupRuntime {
 
     public static void clear(UUID valetUuid) {
         NEXT_MOVE_REFRESH.remove(valetUuid);
+        NEXT_FOLLOW_REFRESH.remove(valetUuid);
         MOVE_FAILURES.remove(valetUuid);
+        NEXT_DEFENSE_HIT.remove(valetUuid);
+        TRAVEL_LEADERS.entrySet().removeIf(entry -> entry.getValue().equals(valetUuid));
+        ValetGroupExcavation.clear(valetUuid);
     }
 
     public static void clearAll() {
         NEXT_MOVE_REFRESH.clear();
+        NEXT_FOLLOW_REFRESH.clear();
         MOVE_FAILURES.clear();
+        NEXT_DEFENSE_HIT.clear();
+        TRAVEL_LEADERS.clear();
+        ValetGroupExcavation.clearAll();
     }
 
     public static ServerPlayer getPlayer(ServerLevel world, java.util.UUID uuid) {

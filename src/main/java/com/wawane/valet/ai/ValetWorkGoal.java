@@ -262,6 +262,16 @@ public class ValetWorkGoal extends Goal {
             suppressVanillaMovementTargets();
         }
 
+        if (ValetGroupRuntime.hasControllingCommand(world, villager)
+                && ValetGroupRuntime.tickSelfDefense(world, villager, settings.combatMoveSpeed())) {
+            return;
+        }
+
+        if (ValetGroupRuntime.isTravelCommand(world, villager)
+                && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
+            return;
+        }
+
         if (escapeFluidIfNeeded(world)) {
             return;
         }
@@ -274,7 +284,8 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
+        if (!ValetGroupRuntime.isTravelCommand(world, villager)
+                && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
             return;
         }
 

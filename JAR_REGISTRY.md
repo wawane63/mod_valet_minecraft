@@ -30,6 +30,7 @@ Regles obligatoires :
 | 0.3.7 | Intendant + transferts coffres | `v0.3.7` | `build/libs/valet-0.3.7.jar` | `F917E72A650AFC405FC79E76BA924DD373049C2FA505ED60BF57521546D1D3D2` |
 | 0.3.8 | Audit, carte tactique et missions de groupe | `v0.3.8` | `build/libs/valet-0.3.8.jar` | `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB` |
 | 0.3.9 | Gestion centralisee des groupes | `v0.3.9` | `build/libs/valet-0.3.9.jar` | `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06` |
+| 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -42,6 +43,33 @@ Le jar `0.3.6` ajoute le cuisinier et les correctifs metiers issus du test en je
 Le jar `0.3.7` ajoute l'intendant et les transferts filtres entre coffres.
 Le jar `0.3.8` regroupe l'audit exhaustif et la carte tactique avec missions de groupe.
 Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anciens objets/blocs de commande.
+La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
+
+## 0.4.0 - Tag Valet
+
+Objectif : dissocier l'identite du valet de la profession vanilla et de la presence d'un poste.
+
+Fonctionnalite :
+
+- `Insigne de valet` utilisable sur un villageois adulte.
+- Identite `ValetTagged` persistante dans les donnees de l'entite.
+- Migration automatique des anciens valets bases sur la profession.
+- Identite conservee sans poste et pendant les missions longue distance.
+- Role Artisan au premier tag, puis choix du métier dans l'interface.
+- Les postes ne créent plus l'identité Valet et les anciennes restaurations destructrices sont supprimées.
+- Les missions de groupe reprennent le chemin 3D des artisans pour creuser des escaliers, contourner les fluides et repartir après 40 ticks d'immobilité.
+- La galerie de mission réserve trois blocs de hauteur pour le pathfinding des suiveurs et le creuseur oriente son corps vers chaque action.
+- Le meneur de mission est stable; il n'attend plus obligatoirement à 5 blocs, tandis que les suiveurs le rattrapent avec des recalculs bornés et sans chemins d'excavation en boucle.
+
+Verification :
+
+- Compilation Java : OK.
+- Jar actuel : `valet-0.4.0.jar`.
+- SHA-256 : `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688`.
+- Build Gradle complet et installation locale : OK.
+- Dossier mods : un seul jar Valet, hash identique au build.
+- Bootstrap serveur : mod 0.4.0 et ressources charges; arret attendu sur l'EULA de test.
+- Publication GitHub : `v0.4.0`.
 
 ## 0.3.9 - Gestion centralisee des groupes
 

@@ -20,6 +20,7 @@ import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
+import com.wawane.valet.network.packets.SetValetRolePayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -50,7 +51,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private static final int NODE_SIZE = 24;
     private static final int XP_BAR_WIDTH = 162;
     private static final int XP_BAR_HEIGHT = 9;
-    private static final int ORDER_LIST_TOP_OFFSET = 24;
+    private static final int ORDER_LIST_TOP_OFFSET = 48;
     private static final int ORDER_LIST_BOTTOM_PADDING = 54;
     private static final int ORDER_ROW_STRIDE = ORDER_ROW_HEIGHT + 3;
     private static final int CONSTRUCTION_PREVIEW_SIZE = 58;
@@ -108,6 +109,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Button swordPageButton;
     private Button bowPageButton;
     private Button inventoryPageButton;
+    private Button roleButton;
     private RightPage selectedRightPage = RightPage.GENERAL;
     private ValetRole localRole;
     private TargetCategory selectedCategory = TargetCategory.NONE;
@@ -210,6 +212,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         rebuildOrderEntries();
         int rightLeft = getRightPanelLeft();
         int top = getPanelTop();
+        roleButton = addRenderableWidget(Button.builder(roleLabel(), ignored -> cycleRole())
+                .bounds(getLeftPanelLeft() + 8, top + 22, LEFT_WIDTH - 16, 18)
+                .build());
         nameField = addRenderableWidget(new EditBox(font, rightLeft + 10, top + 21, RIGHT_WIDTH - 78, 16, Component.translatable("screen.valet.rename")));
         nameField.setMaxLength(32);
         nameField.setValue(localValetName);
@@ -1312,6 +1317,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
     public void applyServerState(int roleIndex, int orderIndex, int mineTargetIndex, int woodTargetIndex, int farmAreaId, int farmCropMask, boolean farmReplant, boolean farmTillSoil, int animalAreaId, boolean animalBreed, boolean animalShear, boolean animalCollectEggs, boolean animalMilk, boolean animalCull, int maxAnimals, boolean avoidNightReturn, boolean freeBehavior, int constructionTargetId, int craftTargetIndex, int[] oreCounts, int[] woodCounts, List<ItemStack> inventoryStacks, int level, int xp, int nextLevelXp, int pendingPerks, boolean[] perks, boolean[] combatPerks, int swordLevel, int swordXp, int swordNextLevelXp, int swordPendingPerks, int bowLevel, int bowXp, int bowNextLevelXp, int bowPendingPerks, boolean allyAwareness, String valetName) {
         localRole = ValetRole.fromIndex(roleIndex);
+        if (roleButton != null) {
+            roleButton.setMessage(roleLabel());
+        }
         ensurePageForRole();
         if (selectedPerk.getRole() != localRole) {
             selectedPerk = defaultPerkForRole();
@@ -1364,6 +1372,17 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             animalMaxField.setValue(Integer.toString(localMaxAnimals));
         }
         rebuildOrderEntries();
+    }
+
+    private Component roleLabel() {
+        return Component.translatable("screen.valet.role", Component.translatable(localRole.getTranslationKey()));
+    }
+
+    private void cycleRole() {
+        ValetRole[] roles = ValetRole.values();
+        localRole = roles[(localRole.ordinal() + 1) % roles.length];
+        roleButton.setMessage(roleLabel());
+        ClientPlayNetworking.send(new SetValetRolePayload(getValetEntityId(), localRole));
     }
 
     @Override

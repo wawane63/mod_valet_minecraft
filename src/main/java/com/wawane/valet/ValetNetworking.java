@@ -35,6 +35,7 @@ import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
 import com.wawane.valet.network.packets.SetOrderPayload;
+import com.wawane.valet.network.packets.SetValetRolePayload;
 import com.wawane.valet.network.packets.SortContainerPayload;
 import com.wawane.valet.network.packets.ValetGroupStatePayload;
 import com.wawane.valet.network.packets.ValetMagicCastPayload;
@@ -91,6 +92,7 @@ public final class ValetNetworking {
     public static void registerServerReceivers() {
         registerPayloadTypes();
         ServerPlayNetworking.registerGlobalReceiver(SetOrderPayload.TYPE, ValetNetworking::setValetOrder);
+        ServerPlayNetworking.registerGlobalReceiver(SetValetRolePayload.TYPE, ValetNetworking::setValetRole);
         ServerPlayNetworking.registerGlobalReceiver(SetFarmOrderPayload.TYPE, ValetNetworking::setFarmOrder);
         ServerPlayNetworking.registerGlobalReceiver(SetBreedingOrderPayload.TYPE, ValetNetworking::setBreedingOrder);
         ServerPlayNetworking.registerGlobalReceiver(ChoosePerkPayload.TYPE, ValetNetworking::chooseValetPerk);
@@ -108,6 +110,7 @@ public final class ValetNetworking {
         }
         payloadTypesRegistered = true;
         PayloadTypeRegistry.serverboundPlay().register(SetOrderPayload.TYPE, SetOrderPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SetValetRolePayload.TYPE, SetValetRolePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetFarmOrderPayload.TYPE, SetFarmOrderPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetBreedingOrderPayload.TYPE, SetBreedingOrderPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ChoosePerkPayload.TYPE, ChoosePerkPayload.CODEC);
@@ -128,9 +131,6 @@ public final class ValetNetworking {
         }
 
         if (!ValetMod.isValet(villager)) {
-            if (world instanceof ServerLevel serverWorld && ValetMod.tryAssignValetJob(serverWorld, villager, player.blockPosition())) {
-                return openValetOrders(player, world, hand, entity, hitResult);
-            }
             return InteractionResult.PASS;
         }
 
@@ -450,6 +450,23 @@ public final class ValetNetworking {
                 finishOrderInteraction(player, villager);
                 return;
             }
+            sendValetState(player, villager);
+        });
+    }
+
+    private static void setValetRole(SetValetRolePayload payload, ServerPlayNetworking.Context context) {
+        ServerPlayer player = context.player();
+        context.server().execute(() -> {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager) || !isValidValetInteraction(player, villager)) {
+                return;
+            }
+            ValetRole.set(villager, payload.role());
+            if (!payload.role().allows(ValetOrders.get(villager))) {
+                ValetOrders.set(villager, ValetOrder.NONE);
+            }
+            ValetWorkGoal.requestRestart(villager);
+            player.sendOverlayMessage(Component.translatable("message.valet.role_set", Component.translatable(payload.role().getTranslationKey())));
             sendValetState(player, villager);
         });
     }
