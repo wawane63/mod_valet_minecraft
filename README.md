@@ -4,9 +4,9 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version locale actuelle : 0.4.1 - maire, quetes et raccourcis clavier.
+Version locale actuelle : 0.4.2 - navigation vanilla, fermier et ameliorations generales.
 
-Derniere version publiee : 0.4.1 (`v0.4.1`).
+Derniere version publiee : 0.4.2 (`v0.4.2`).
 
 ## Guides
 
@@ -15,6 +15,7 @@ Derniere version publiee : 0.4.1 (`v0.4.1`).
 - [Notes 0.3.9](docs/releases/v0.3.9.md)
 - [Notes 0.4.0](docs/releases/v0.4.0.md)
 - [Notes 0.4.1](docs/releases/v0.4.1.md)
+- [Notes 0.4.2](docs/releases/v0.4.2.md)
 
 ## Versions disponibles
 
@@ -38,6 +39,7 @@ Derniere version publiee : 0.4.1 (`v0.4.1`).
 | 0.3.9 | Gestion centralisee des groupes | [`v0.3.9`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.9) |
 | 0.4.0 | Tag Valet independant du poste | [`v0.4.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.0) |
 | 0.4.1 | Maire, quetes et raccourcis | [`v0.4.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.1) |
+| 0.4.2 | Navigation vanilla, fermier et ameliorations generales | [`v0.4.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.2) |
 
 ## Depart
 
@@ -48,7 +50,7 @@ Derniere version publiee : 0.4.1 (`v0.4.1`).
 - Un poste seul ne cree plus de valet et son absence ne retire jamais l'identite Valet.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
-- Fermier : recolte, replantation, houe, zones de ferme.
+- Fermier : recolte et plantation du ble, carottes, pommes de terre, betteraves et verrues du Nether; reserve les items a replanter, peut en prendre dans un coffre proche, zones supprimables depuis l'UI et deplacement continu vanilla.
 - Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
 - Eleveur : reproduit, tond, ramasse les oeufs, trait et abat le surplus dans les enclos.
 - Cuisinier : recolte ble et pommes de terre, prend les ingredients crus dans son coffre dedie, prepare puis depose les repas.

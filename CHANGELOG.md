@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.4.2 - Navigation vanilla, fermier et ameliorations generales
+
+### Added
+
+- L'UI du fermier permet de supprimer definitivement le champ selectionne avec le bouton `Suppr. champ`.
+
+### Changed
+
+- Les trajets de travail locaux utilisent maintenant `PathNavigation` au lieu de teleporter le valet bloc par bloc.
+- Le creuseur des missions longue distance marche reellement dans les galeries apres les avoir ouvertes.
+- La sortie d'eau recherche une berge atteignable, nage et saute vers elle sans teleportation.
+- Les missions de groupe detectent l'eau dans l'axe du repere, nagent vers la rive opposee ou par points intermediaires et maintiennent les suiveurs en mouvement dans l'eau.
+- L'approche d'une rive reste confiee a `PathNavigation`, puis `MoveControl` et `JumpControl` vanilla prennent le relais au bord et dans l'eau pour eviter le refus des cibles aquatiques.
+- La cible de nage reste stable jusqu'a son atteinte; apres 40 ticks sans progres, le meneur tente automatiquement un detour aquatique alterne.
+- Les suiveurs gardent une distance minimale dans l'eau au lieu de se concentrer exactement sur le meneur et de le bloquer par collision.
+- Les pas adjacents d'une galerie securisee sont parcourus physiquement sans relancer un calcul A* complet a chaque bloc.
+
+### Safety
+
+- Validation de chaque chemin local : support solide, espace libre, fluides, denivele maximal d'un bloc et nombre de noeuds borne.
+- Refus des surfaces dangereuses : feu, cactus, magma, feux de camp, buissons epineux, rose du Wither, neige poudreuse et stalagmites.
+- Abandon et replanification apres immobilite, timeout ou interruption par fuite, combat et ordre de groupe.
+- Les troncons longue distance et accostages sont verifies avant execution; le tunnelage continue de refuser fluides, blocs artificiels et colonnes instables.
+- Une traversee d'eau detectee ne peut plus basculer en excavation sous-marine si le chemin de nage est refuse.
+- Le meneur ne valide plus l'arrivee tant qu'il est encore dans l'eau; les suiveurs nagent directement vers lui au lieu d'attendre un chemin terrestre impossible.
+
+### Fixed
+
+- Le fermier conserve jusqu'a une pile de chaque item de plantation actif au lieu de deposer toutes les pommes de terre, graines, carottes, betteraves ou verrues du Nether dans le coffre.
+- Quand une terre compatible est vide et son inventaire ne contient rien a planter, le fermier peut maintenant prendre une pile compatible dans un coffre proche puis revenir planter.
+- La suppression d'un champ annule les ordres des valets qui le referencent; une ancienne reference chargee plus tard est aussi nettoyee automatiquement.
+- Le fermier peut de nouveau quitter une terre labouree ou un chemin partiel pour aller labourer; le premier noeud vanilla n'est plus refuse quand sa hauteur logique differe du bloc occupe par l'entite.
+- Une cible de ferme dont la navigation est reellement refusee est temporairement ignoree au lieu de provoquer une boucle de mouvements de tete.
+- Le fermier vise maintenant sa destination avec `WALK_TARGET`, comme `HarvestFarmland`; `MoveToTargetSink` produit un trajet continu et `InteractWithDoor` gere les portes en bois naturellement.
+- L'approche agricole longue vise maintenant une case sure adjacente et maintient sa `WALK_TARGET` si le cerveau la perd, au lieu de demander a `HarvestFarmland` de rejoindre directement une culture lointaine.
+- Recolte, plantation et labour sont choisis par proximite; les cultures mures ne peuvent plus affamer indefiniment le labour ou la plantation voisine.
+- Un sol vide sans item compatible declenche immediatement une demande logistique, meme si d'autres cultures sont mures.
+- La recherche de plantations en coffre inclut les quatre coins du champ afin de couvrir les coffres places pres des balises.
+- Un coffre sans plantation impose maintenant un delai de 10 secondes avant une nouvelle demande; les recoltes mures et le labour continuent pendant ce temps.
+- La replantation est active par defaut sur un nouvel ordre de ferme; une option explicitement decochee reste respectee.
+- Un sol de culture vide sous les pieds du fermier est maintenant plante directement; le correctif couvre ble, carottes, pommes de terre, betteraves et verrues du Nether.
+- Les verrues du Nether disponibles dans l'inventaire peuvent aussi etre plantees automatiquement sur du sable des ames vide.
+- Le fermier peut sortir d'une maison depuis un lit ou un autre support partiel sans viser la porte comme destination intermediaire.
+
+### Performance
+
+- La carte tactique met en cache les couleurs de terrain deja lues, avec une limite memoire fixe.
+- Le glisser limite les reconstructions du terrain a 20 Hz au lieu de recalculer a chaque evenement souris.
+- Le terrain est envoye au rendu sous forme d'une texture dynamique unique au lieu d'une commande par cellule.
+
 ## 0.4.1 - Maire et quetes
 
 ### Added

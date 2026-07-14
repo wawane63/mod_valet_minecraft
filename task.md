@@ -13,6 +13,29 @@
 - [x] Ouvrir les quetes avec J et la carte tactique avec K, sans passer par Echap.
 - [x] Finaliser la 0.4.1 avec notes completes, jar et hash synchronises.
 - [x] Publier la 0.4.1 sur GitHub avec tag, release et jar.
+- [x] Cartographier les fonctions gameplay Valet face aux comportements vanilla Minecraft 26.2, sans modifier le code.
+- [x] Remplacer les deplacements `teleportTo` par `PathNavigation` avec garde-fous anti-chute, anti-fluide et anti-blocage.
+- [x] Verrouiller le build contre toute reintroduction de `teleportTo` dans le runtime Java.
+- [x] Finaliser la version locale 0.4.2, construire et installer son jar.
+- [x] Corriger la traversée d'eau des missions de groupe avec nage vanilla et sans excavation sous-marine.
+- [x] Fluidifier la carte tactique avec cache de terrain, recalcul borne et texture dynamique.
+- [x] Corriger les boucles `swim_rejected` et les a-coups d'excavation du dernier log.
+- [x] Ajouter une recuperation autonome de nage et supprimer l'oscillation des cibles aquatiques.
+- [x] Corriger la boucle `navigation_rejected purpose=CROP` du fermier sur les supports partiels.
+- [x] Permettre au fermier de quitter un lit et de franchir une porte ouverte pour rejoindre les cultures mures.
+- [x] Supprimer la boucle apres ouverture de porte en traversant directement son bloc avec `MoveControl` vanilla.
+- [x] Remplacer ce mouvement direct artificiel par le trajet continu du fermier vanilla et activer la replantation par defaut.
+- [x] Permettre au fermier deja debout sur une terre labouree vide d'y planter les pommes de terre de son inventaire.
+- [x] Generaliser cette plantation directe au ble, carottes, pommes de terre, betteraves et verrues du Nether.
+- [x] Ajouter la suppression persistante d'un champ depuis l'UI du fermier.
+- Suppression de champ terminee : bouton visible sur une zone selectionnee, effacement du `SavedData` cote serveur et annulation des ordres qui referencent la zone.
+- [x] Faire conserver au fermier une reserve de plantation et lui permettre de prendre les cultures a planter dans un coffre.
+- [x] Supprimer la boucle du fermier devant la porte en laissant `HarvestFarmland`/`MoveToTargetSink` posseder entierement la cible et le timeout de marche.
+- [x] Retablir un trajet agricole continu vers une case de travail atteignable et reaffirmer la cible vanilla si le cerveau l'abandonne.
+- [x] Prioriser localement labour/plantation/recolte et recuperer les plantations dans les coffres proches des coins du champ.
+- [x] Continuer les recoltes mures lorsqu'aucun coffre ne peut fournir les plantations demandees.
+- [x] Preparer la publication complete 0.4.2 avec maire, quetes, ameliorations generales, correctifs fermier, jar et notes synchronises.
+- Flux termine : reserve d'une pile par culture active lors du depot, demande de semences sur sol vide et retrait d'une pile compatible depuis un coffre proche; la plantation reste possible avec un inventaire plein de semences et evite les retours coffre inutiles.
 
 - [x] Initialiser `plan.md` a la racine du projet.
 - [x] Initialiser `task.md` a la racine du projet.
@@ -47,6 +70,89 @@
 
 ## Derniere action
 
+- Publication GitHub 0.4.2 preparee : notes completes, README et registre synchronises avant gel du jar, du commit et du tag.
+- Correctif de recolte apres epuisement du coffre construit et installe en 0.4.2 : un seul jar identique au build, SHA-256 `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5`.
+- Bootstrap serveur valide avec Java 25, Fabric Loader 0.19.3 et Valet 0.4.2 jusqu'a l'arret EULA attendu.
+- Nouveau `latest.log` relu : le fermier retire correctement 20 plantations du coffre, laboure et plante jusqu'a epuisement, puis boucle de `01:11:57` a `01:13:56` sur `needs_planting_items` / `no_planting_items` sans reprendre les cultures mures.
+- Cause identifiee : la demande logistique prioritaire est relancee sans delai apres un coffre vide et affame toutes les autres actions agricoles.
+- Correction codee : une demande de plantation sans coffre utilisable est differee de 200 ticks; pendant ce delai, le fermier continue a choisir les recoltes mures, le labour et toute plantation encore possible.
+- Compilation Java validee pour le repli non bloquant apres epuisement des plantations en coffre.
+- Correctifs labour/plantation/coffre construits et installes en 0.4.2 : un seul jar identique au build, SHA-256 `4A08FE9B04B540C5E2F4876C21F29EDEBBD169CF5756E98DFCA23E633C71F855`.
+- Bootstrap serveur valide avec Java 25, Fabric Loader 0.19.3 et Valet 0.4.2 jusqu'a l'arret EULA attendu.
+- Nouveau `latest.log` relu a `01:01` avec le jar `40C58E...` : les cibles agricoles expirent a 200 ticks et le villageois s'eloigne parfois de la culture, sans atteindre `farm begin`, `farm tilled` ni la logistique de plantation.
+- Sauvegarde `Nouveau monde (2)` inspectee : le champ 4 est ouvert et atteignable; le coffre `-2435,63,-194`, a deux blocs de la balise, contient 11 graines de ble, 8 pommes de terre et 1 carotte.
+- Cause precisee : `HarvestFarmland` ne vise le bloc de culture que lorsqu'il est deja a un bloc; l'utiliser comme destination longue distance declenche les positions de repli de `MoveToTargetSink`, puis la priorite stricte aux cultures affame labour, plantation et demande au coffre.
+- Correction codee : la marche longue vise de nouveau la case sure adjacente trouvee par le planificateur, reste continue via `WALK_TARGET` et reaffirme cette memoire toutes les 10 ticks si le cerveau vanilla l'abandonne.
+- Correction codee : les actions agricoles sont choisies par proximite; un sol vide sans plantation declenche la logistique avant les autres cibles, et la recherche inclut les quatre coins du champ pour trouver les coffres places pres des balises.
+- Compilation Java validee pour l'approche sure continue, l'arbitrage agricole local et la logistique des coffres de champ.
+- Correctif porte construit et installe en 0.4.2 : build complet valide, un seul jar local identique au build, SHA-256 `40C58E532F60CDF53C08FC9A7F928CE18BFD565C4F459E5B5269C1F9C07EEBF5`.
+- Bootstrap serveur valide avec Java 25, Fabric Loader 0.19.3 et Valet 0.4.2 jusqu'a l'arret EULA attendu.
+- Nouveau `latest.log` relu a `00:46` : le fermier rejoint la porte vers `-2429,65,-190`, puis la couche Valet abandonne apres 74/120 ticks (`navigation_stuck`) et relance une autre cible agricole.
+- Cause confirmee : la cible `WALK_TARGET` vanilla est encore pre-validee vers une case adjacente exacte, puis interrompue par les seuils `isStuck`/40 ticks sans progres de Valet; ces abandons ne font pas partie de `HarvestFarmland`.
+- Correction codee : la marche agricole vise maintenant le bloc de travail lui-meme avec la distance vanilla de 1 bloc; aucun A* Valet n'est recalcule avant `MoveToTargetSink` et seul le cycle vanilla de 200 ticks borne la tentative.
+- Compilation Java validee apres alignement sur `HarvestFarmland` de Minecraft 26.2.
+- Replantation prioritaire et retrait depuis coffre construits, installes et charges au bootstrap serveur en 0.4.2 : un seul jar, SHA-256 `E3334763CC5EB0B5F960F024DE525E2E85C1DFBDF2341EC49A1239E25DDD6652`.
+- Suppression persistante des champs construite, installee et chargee au bootstrap serveur en 0.4.2 : un seul jar, SHA-256 `ECE33D6EC39265BF300B6DF559817F4F8373E7856B07CBF08EDD9D439086BBE0`.
+- Plantation generalisee construite, installee et chargee au bootstrap serveur en 0.4.2 : un seul jar, SHA-256 `0ADE8136190C56B76E45AE8846224C42654BA7546B13BF3E0B5096694B34AF65`.
+- La plantation a portee couvre les quatre cultures de terre labouree et les verrues du Nether sur sable des ames, selon les cultures cochees et les items de l'inventaire.
+- Correctif pommes de terre construit, installe et charge au bootstrap serveur : un seul `valet-0.4.2.jar`, SHA-256 `F653CF79BF7740159B1CEA3ACA3A2733E9FC8CEFDBF4CD64ED9326F642FD1507`.
+- Nouveau `latest.log` relu a `23:19` : l'ordre a bien `replant=true`, les pommes de terre sont disponibles, mais la cible `PLANT` identique a la position du fermier echoue avec `farm no_path`.
+- Cause corrigee dans le code : une cible deja a portee demarre directement l'action de plantation au lieu d'exiger une case de chemin voisine; le log `farm planted` indique maintenant l'item plante.
+- Correction terminee : le fermier utilise `WALK_TARGET`, `MoveToTargetSink` et `InteractWithDoor` comme `HarvestFarmland`; le trajet vers le champ est continu et ne s'arrete plus sur chaque bloc.
+- Replantation corrigee a la source de l'ordre : elle est active par defaut; le log confirme deja `replanted=true` pour une pomme de terre lorsque l'option est active.
+- Build complet, installation locale et bootstrap serveur valides; un seul `valet-0.4.2.jar` installe, identique au build, SHA-256 `6F62812EB25A54BEEB745CE9D6ABE8C14551C2A59F5F71418D320DB2F2CB69F9`.
+- Nouveau `latest.log` relu : le trajet fonctionne mais reste decoupe bloc par bloc; les recoltes de pommes de terre a `22:59:08-10` avaient `replant=false`, puis celle de `22:59:35` est correctement replantee apres activation de l'option.
+- Correction en cours : le fermier pose une cible `WALK_TARGET` continue comme `HarvestFarmland`; `MoveToTargetSink` et `InteractWithDoor` gerent le chemin et la porte, avec validation de securite Valet conservee.
+- La replantation devient active par defaut pour les nouveaux ordres de ferme; un decochage explicite reste respecte.
+- Nouveau `latest.log` relu : a `22:51:19`, la porte est bien ouverte (`path door_open`), puis `PathNavigation` refuse encore `-2428,65,-190` et le fermier relance plusieurs cibles.
+- Cause confirmee : une porte ouverte est traversable, mais son bloc n'est pas une destination finale fiable pour `GroundPathNavigation`.
+- Correction terminee dans le code : les pas contenant une porte ou barriere ouverte utilisent le mouvement physique adjacent vanilla deja valide, avec surveillance de progression et timeout conserves.
+- Build complet, installation et bootstrap serveur valides; un seul `valet-0.4.2.jar` installe avec le SHA-256 `962D6F32D9D1A02C48161EFED245291ECA0E76AD79A18456C368646E286F30CC`.
+- Dernier `latest.log` de `Vlit` relu : la recolte fonctionne a `22:33`, puis le fermier bloque a `22:38` dans la maison sur des premiers pas `CROP` refuses.
+- Sauvegarde inspectee autour de `-2427,65,-190` : le depart est pres d'un lit et la sortie est une porte en chene deja ouverte a `-2428,65,-190`.
+- Cause identifiee : le planificateur metier acceptait la porte, mais `ValetSafeNavigation` refusait sa forme de collision laterale et le premier noeud pose sur un lit.
+- Correction terminee dans le code : portes et barrieres ouvertes autorisees, avec exception securisee pour quitter un support partiel uniquement sur le premier noeud.
+- Build complet, installation et bootstrap serveur valides; un seul `valet-0.4.2.jar` installe avec le SHA-256 `14EA47AC2CFCAA6498BC7723B919CE4854329DA94E2833588DAFA13F3CDB0E8D`.
+- Dernier `latest.log` de la partie `Vlit` relu : le fermier boucle sur `navigation_rejected purpose=CROP` entre `-2428,62,-205` et le premier pas logique `-2427,63,-205`.
+- Cause identifiee : sur la terre labouree, `blockPosition()` designe le bloc de support alors que le premier noeud vanilla designe l'espace de marche un bloc plus haut; le validateur interpretait ce decalage initial comme un pas vertical interdit.
+- Correction terminee dans le code : premier noeud vanilla normalise et cibles de ferme refusees temporairement memorisees pour supprimer la boucle de mouvements de tete.
+- Build complet, installation et bootstrap serveur valides; un seul `valet-0.4.2.jar` installe avec le SHA-256 `29FF343BF0E4962C4A628A0B9E65333CD4AA0C6AA396F04B7D5A4B7C70859307`.
+- Dernier `latest.log` relu : a `21:54:11`, la cible de nage alterne entre deux blocs voisins; la poussee du joueur relance ensuite le mouvement, sans garde-fou aquatique capable de le faire seul.
+- Correction terminee dans le code : cible de nage stable, detection de 40 ticks sans progres horizontal, detour aquatique automatique et distance anti-collision entre meneur et suiveurs.
+- Build complet, installation et bootstrap serveur valides; jar installe seul avec le SHA-256 `BC4DF0B7BCCBD868BAADC331E91309B5A7C185D7B3F3972BE6847E5B8965D316`.
+- Dernier `latest.log` relu : le jar `78A106E...` est charge, mais `swim_rejected` boucle jusqu'a 40 secondes et les descentes produisent des rafales `excavation_navigation_rejected`.
+- Cause confirmee : `GroundPathNavigation` refuse les cibles d'eau et les pas adjacents de galerie sont inutilement soumis a un nouveau calcul A*.
+- Correction terminee : navigation terrestre jusqu'a la berge, nage physique par `MoveControl`/`JumpControl`, et mouvement direct vanilla dans chaque pas de galerie deja securise.
+- Build complet valide et jar installe seul avec le SHA-256 `319A414B4D74292BC37C3636EE0BE8102E28A4BDA6F217A198529242A3F05407`.
+- Archive Xaero 1.44.0 inspectee uniquement au niveau manifeste/organisation : licence `All Rights Reserved`, donc aucun code copie ou decompile.
+- Cause du lag cartographique identifiee : lectures synchrones hauteur/bloc a chaque evenement de glisser et une commande `fill` par cellule a chaque image.
+- Optimisation terminee : cache de couleurs borne, recalcul limite a 20 Hz pendant le glisser et rendu du terrain en une texture dynamique.
+- Build complet valide et jar installe seul; nouveau SHA-256 `319A414B4D74292BC37C3636EE0BE8102E28A4BDA6F217A198529242A3F05407`.
+- Diagnostic du log archive `2026-07-14-2.log.gz` : Valet 0.4.2 charge, puis `excavation_navigation_rejected` repetes au lieu d'une traversee d'eau.
+- Cause identifiee : l'eau etait autorisee uniquement apres immersion pour rejoindre une berge; un troncon visant la surface de l'eau etait refuse avant le pathfinding.
+- Traversée amphibie terminee : rive opposee ou point d'eau intermediaire, saut de nage, suiveurs actifs dans l'eau et interdiction de basculer en excavation sous-marine.
+- Build complet et bootstrap serveur valides; un seul `valet-0.4.2.jar` installe avec le SHA-256 `319A414B4D74292BC37C3636EE0BE8102E28A4BDA6F217A198529242A3F05407`.
+- Adaptateur `ValetSafeNavigation` ajoute : validation des supports, volumes libres, fluides, deniveles et chemins locaux vanilla.
+- Vitesse de travail vanilla ajoutee aux reglages, avec conservation du perk de mouvement.
+- Etat de progression navigation ajoute au goal; les interruptions groupe/combat ne doivent plus reprendre un ancien chemin metier decale.
+- Les pas des trajets metier demarrent maintenant un `Path` vanilla, valident la progression et abandonnent proprement apres blocage/timeout.
+- Fuite, combat et ordres de groupe liberent maintenant le chemin metier interrompu sans stopper leur propre navigation.
+- La sortie d'eau cherche maintenant une berge atteignable par un chemin vanilla, nage et saute vers elle, sans teleportation ni minage de fluide.
+- Le creuseur de groupe marche maintenant avec `PathNavigation` dans la galerie ouverte; progression, blocage et timeout sont surveilles sans `teleportTo`.
+- Les etats temporaires de sortie d'eau sont nettoyes a l'arret du goal pour eviter toute reprise fantome.
+- La boucle longue distance ne stoppe plus la navigation vanilla a chaque tick pendant une excavation active.
+- Les chemins refusent aussi feu, cactus, magma, feux de camp, buissons epineux, rose du Wither, neige poudreuse et stalagmites; les supports indestructibles restent marchables.
+- Les troncons longue distance et les accostages sont maintenant inspectes par le meme validateur avant lancement de la navigation vanilla.
+- Le validateur conserve les supports vanilla utiles (terre labouree, chemins et escaliers) et autorise seulement le premier noeud fluide pour sortir d'un danger.
+- Nettoyage de l'API interne d'echec de navigation apres branchement des garde-fous.
+- `plan.md` precise l'architecture hybride future : ML limite au choix de mouvements legaux, securite deterministe et execution vanilla.
+- Version locale passee en `0.4.2`; README, changelog, registre, notes importantes et note de version initialises avant le build final.
+- Build complet 0.4.2 valide, jar installe seul et bootstrap serveur valide jusqu'a l'arret EULA attendu.
+- SHA-256 build et installation : `319A414B4D74292BC37C3636EE0BE8102E28A4BDA6F217A198529242A3F05407`.
+- `check` inclut maintenant `verifyNoValetTeleport` et echoue si `.teleportTo(` reapparait dans une source Java.
+- La cartographie distingue maintenant son instantane initial de la mise en oeuvre effective en 0.4.2.
+- Cartographie ajoutee dans `docs/vanilla-function-map.md` : vanilla deja utilise, hybride justifie, custom necessaire et remplacements prioritaires.
+- Aucun changement Java/resources ni jar pendant cette cartographie.
 - Version locale `0.4.1` ajoutee : maire persistant, trois quetes de livraison et menus sur `J` / `K`.
 - Build complet valide et `valet-0.4.1.jar` installe seul avec le SHA-256 `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156`.
 - 0.4.1 finalisee pour publication GitHub avec le jar `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156`.
@@ -63,4 +169,8 @@
 
 ## Prochaine tache
 
-- Reprendre le developpement sur une future version apres les retours de la 0.4.0.
+- Retester dans `Vlit` la porte fermee : le fermier doit l'ouvrir, la traverser et poursuivre jusqu'aux cultures mures.
+- Retester dans `Vlit` la sortie de la maison puis la recolte des cultures mures avec le prochain jar 0.4.2.
+- Tester en jeu le deplacement du fermier jusqu'a une terre a labourer avec le prochain jar 0.4.2.
+- Tester en jeu la traversee d'eau de groupe, puis les trajets metier, l'excavation, les escaliers, les portes et la sortie d'eau avec le jar 0.4.2.
+- Lire `latest.log` apres ce test avant tout nouvel ajustement du mouvement.

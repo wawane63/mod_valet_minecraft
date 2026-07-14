@@ -15,6 +15,7 @@ import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
+import com.wawane.valet.network.packets.DeleteFarmAreaPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
@@ -95,6 +96,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private Button renameButton;
     private Button buildConstructionButton;
     private Button deleteConstructionButton;
+    private Button deleteFarmAreaButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
     private Checkbox animalBreedCheckbox;
@@ -226,6 +228,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .build());
         deleteConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete"), button -> sendDeleteConstruction())
                 .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
+                .build());
+        deleteFarmAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete_farm_area"), button -> sendDeleteFarmArea())
+                .bounds(rightLeft + RIGHT_WIDTH - 88, top + 42, 78, 18)
                 .build());
         int behaviorLeft = getLeftPanelLeft() + 8;
         int behaviorTop = getPanelTop() + PANEL_HEIGHT - 44;
@@ -1465,7 +1470,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         rebuildOrderEntries();
 
         if (order == ValetOrder.HARVEST_CROPS) {
-            sendFarmSelection(true);
+            sendFarmSelection(false);
             return;
         }
 
@@ -1560,6 +1565,20 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         rebuildOrderEntries();
 
         ClientPlayNetworking.send(new DeleteConstructionPayload(viewModel.valetEntityId(), constructionId));
+    }
+
+    private void sendDeleteFarmArea() {
+        ValetFarmArea area = getSelectedFarmArea();
+        if (area == null) {
+            return;
+        }
+
+        int farmAreaId = area.id();
+        localFarmAreas.removeIf(candidate -> candidate.id() == farmAreaId);
+        selectedFarmAreaId = -1;
+        rebuildOrderEntries();
+
+        ClientPlayNetworking.send(new DeleteFarmAreaPayload(viewModel.valetEntityId(), farmAreaId));
     }
 
     private void selectRightPage(RightPage page) {
@@ -1664,6 +1683,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         for (Checkbox checkbox : farmCropCheckboxes) {
             checkbox.visible = farmVisible;
             checkbox.active = farmVisible;
+        }
+        if (deleteFarmAreaButton != null) {
+            boolean hasSelectedFarmArea = selectedCategory == TargetCategory.FARM && getSelectedFarmArea() != null;
+            deleteFarmAreaButton.visible = hasSelectedFarmArea;
+            deleteFarmAreaButton.active = hasSelectedFarmArea;
         }
 
         boolean animalVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.ANIMAL;

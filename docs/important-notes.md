@@ -7,8 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Version locale en cours : `0.4.1` (maire, quetes et raccourcis clavier)
-- Derniere release publiee : `v0.4.1`
+- Version locale en cours : `0.4.2` (navigation vanilla, fermier et ameliorations generales)
+- Derniere release publiee : `v0.4.2`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur
@@ -85,10 +85,25 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
   - `craft no_path`
   - `craft drops_no_space`
   - `group command=attack_area`
+  - `group swim_start`
+  - `group swim_approach`
+  - `group swim_recovery`
+  - `group swim_rejected`
   - `logistics no_home_path`
   - `breeding no_target`
   - `cap_reached`
 - Si le valet ne bouge pas, ne pas s'arreter a l'UI : verifier le chemin runtime et le comportement visible.
+- La boucle fermier `navigation_rejected purpose=CROP` depuis une terre labouree a ete corrigee en 0.4.2 en normalisant le premier noeud vanilla sur les supports partiels.
+- Le fermier 0.4.2 vise une case sure adjacente pendant l'approche longue, maintient sa `WALK_TARGET`, puis agit localement a portee; `MoveToTargetSink` calcule le trajet et `InteractWithDoor` ouvre les portes.
+- Un nouvel ordre de ferme active `Replanter` par defaut. Dans les logs, `replanted=false` reste normal si l'ordre affiche `replant=false`.
+- Une cible `PLANT` deja sous les pieds du fermier doit produire directement `farm planted ... item=...`, sans passer par `farm no_path`; le flux couvre les quatre cultures de terre labouree et les verrues du Nether sur sable des ames.
+- Avec `Replanter` actif, le depot doit conserver une pile par item de plantation. Si l'inventaire est vide devant un sol compatible, les logs attendus sont `farm needs_planting_items`, puis `logistics withdrew_planting`, puis `farm planted`.
+- Retirer les balises ne supprime pas un champ deja enregistre : selectionner sa ligne dans l'UI du fermier puis utiliser `Suppr. champ`; le serveur efface alors la zone persistante et les ordres qui la referencent.
+- Pour planter depuis un stockage, placer un coffre/baril pres du valet, du poste ou d'un coin du champ; les quatre coins sauvegardes sont recherches meme si les balises ont ete retirees.
+- Quand ces stockages sont epuises, le fermier continue la recolte et le labour puis retente la demande de plantation apres 10 secondes.
+- Pour une traversee, `swim_approach` doit preceder `swim_start`; toute nouvelle occurrence de l'ancienne signature `swim_rejected` indiquerait qu'un ancien jar est encore charge.
+- `swim_recovery` doit apparaitre environ deux secondes apres une immobilite aquatique et indiquer le nouveau detour choisi.
+- La carte tactique utilise une texture dynamique liberee a la fermeture de l'ecran et un cache de 131 072 cellules; verifier ces deux points avant d'ajouter un nouveau rendu par cellule.
 
 ## Direction gameplay
 

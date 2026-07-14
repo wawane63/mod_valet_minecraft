@@ -55,6 +55,14 @@ public final class ValetFarmStorage extends SavedData {
         return null;
     }
 
+    public boolean removeArea(int id) {
+        boolean removed = areas.removeIf(area -> area.id() == id);
+        if (removed) {
+            setDirty();
+        }
+        return removed;
+    }
+
     public List<ValetFarmArea> getAreas() {
         return List.copyOf(areas);
     }

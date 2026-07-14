@@ -2,6 +2,7 @@ package com.wawane.valet.group;
 
 import com.wawane.valet.ValetDebug;
 import com.wawane.valet.ai.path.ValetPathPlanner;
+import com.wawane.valet.ai.path.ValetSafeNavigation;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,10 @@ final class ValetGroupExcavation {
     private static final int MAX_PATH_NODES = 2_500;
     private static final int MAX_PATH_LENGTH = 32;
     private static final int ACTION_INTERVAL_TICKS = 4;
+    private static final int NAVIGATION_NO_PROGRESS_TICKS = 50;
+    private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 140;
+    private static final double NAVIGATION_PROGRESS_EPSILON = 0.04D;
+    private static final double EXCAVATION_MOVE_SPEED = 0.5D;
     private static final double[] SEARCH_ANGLES = {0.0D, 30.0D, -30.0D, 60.0D, -60.0D, 90.0D, -90.0D};
     private static final Set<Block> NATURAL_PATH_BLOCKS = Set.of(
             Blocks.STONE, Blocks.GRANITE, Blocks.DIORITE, Blocks.ANDESITE,
@@ -43,6 +48,7 @@ final class ValetGroupExcavation {
     private static final Map<UUID, TravelPath> PATHS = new ConcurrentHashMap<>();
     private static final Map<UUID, Progress> PROGRESS = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> NEXT_ACTION = new ConcurrentHashMap<>();
+    private static final Map<UUID, NavigationProgress> NAVIGATION_PROGRESS = new ConcurrentHashMap<>();
     private static final ValetPathPlanner PATH_PLANNER = new ValetPathPlanner();
 
     private ValetGroupExcavation() {
@@ -82,25 +88,36 @@ final class ValetGroupExcavation {
                     + " target=" + ValetDebug.shortPos(travelPath.target()));
         }
 
-        BlockPos current = currentStandPos(world, villager);
         int index = travelPath.index();
-        while (index < travelPath.steps().size() && current.equals(travelPath.steps().get(index))) {
+        while (index < travelPath.steps().size() && ValetSafeNavigation.hasReached(villager, travelPath.steps().get(index))) {
+            BlockPos reached = travelPath.steps().get(index);
+            ValetDebug.record(villager, "group excavation_step pos=" + ValetDebug.shortPos(reached));
             index++;
+            NAVIGATION_PROGRESS.remove(villager.getUUID());
+            PROGRESS.remove(villager.getUUID());
         }
         if (index >= travelPath.steps().size()) {
             PATHS.remove(villager.getUUID());
             PROGRESS.remove(villager.getUUID());
+            NAVIGATION_PROGRESS.remove(villager.getUUID());
             return true;
+        }
+        if (index != travelPath.index()) {
+            travelPath = new TravelPath(travelPath.steps(), index, travelPath.target());
+            PATHS.put(villager.getUUID(), travelPath);
         }
 
         BlockPos next = travelPath.steps().get(index);
         BlockPos obstruction = findObstruction(world, next);
         if (obstruction != null) {
+            villager.getNavigation().stop();
+            NAVIGATION_PROGRESS.remove(villager.getUUID());
             BlockState state = world.getBlockState(obstruction);
             if (!canMineNaturalBlock(world, obstruction, state)) {
                 ValetDebug.record(villager, "group excavation_blocked pos=" + ValetDebug.shortPos(obstruction)
                         + " block=" + state.getBlock().getDescriptionId());
                 PATHS.remove(villager.getUUID());
+                NAVIGATION_PROGRESS.remove(villager.getUUID());
                 return false;
             }
             villager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
@@ -113,25 +130,72 @@ final class ValetGroupExcavation {
                 return true;
             }
             PATHS.remove(villager.getUUID());
+            NAVIGATION_PROGRESS.remove(villager.getUUID());
             return false;
         }
 
+        NavigationProgress navigationProgress = NAVIGATION_PROGRESS.get(villager.getUUID());
+        if (navigationProgress != null && navigationProgress.target().equals(next)) {
+            if (!continueNavigation(world, villager, navigationProgress)) {
+                ValetDebug.record(villager, "group excavation_navigation_stuck pos=" + ValetDebug.shortPos(next));
+                villager.getNavigation().stop();
+                PATHS.remove(villager.getUUID());
+                NAVIGATION_PROGRESS.remove(villager.getUUID());
+                return false;
+            }
+            return true;
+        }
+
+        BlockPos current = currentStandPos(world, villager);
         if (!canTraverseStep(world, current, next)) {
             PATHS.remove(villager.getUUID());
+            NAVIGATION_PROGRESS.remove(villager.getUUID());
             return false;
         }
 
-        villager.getNavigation().stop();
         double targetX = next.getX() + 0.5D;
         double targetZ = next.getZ() + 0.5D;
         faceTarget(villager, targetX, targetZ);
         villager.getLookControl().setLookAt(targetX, next.getY() + 1.0D, targetZ);
-        villager.teleportTo(targetX, next.getY(), targetZ);
-        villager.setDeltaMovement(0.0D, 0.0D, 0.0D);
-        PATHS.put(villager.getUUID(), new TravelPath(travelPath.steps(), index + 1, travelPath.target()));
-        PROGRESS.remove(villager.getUUID());
-        NEXT_ACTION.put(villager.getUUID(), gameTime + ACTION_INTERVAL_TICKS);
-        ValetDebug.record(villager, "group excavation_step pos=" + ValetDebug.shortPos(next));
+        villager.getNavigation().stop();
+        villager.getMoveControl().setWantedPosition(targetX, next.getY(), targetZ, EXCAVATION_MOVE_SPEED);
+        double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, next);
+        NAVIGATION_PROGRESS.put(villager.getUUID(), new NavigationProgress(next.immutable(), distanceSquared, 0, 0));
+        ValetDebug.record(villager, "group excavation_navigation_start pos=" + ValetDebug.shortPos(next));
+        return true;
+    }
+
+    private static boolean continueNavigation(ServerLevel world, Villager villager, NavigationProgress progress) {
+        if (!ValetSafeNavigation.isSafeStand(world, progress.target(), PASSAGE_HEIGHT)) {
+            return false;
+        }
+
+        double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, progress.target());
+        double bestDistanceSquared = progress.bestDistanceSquared();
+        int noProgressTicks = progress.noProgressTicks();
+        if (distanceSquared + NAVIGATION_PROGRESS_EPSILON < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            noProgressTicks = 0;
+        } else {
+            noProgressTicks++;
+        }
+        int totalTicks = progress.totalTicks() + 1;
+        if (noProgressTicks >= NAVIGATION_NO_PROGRESS_TICKS
+                || totalTicks >= NAVIGATION_STEP_TIMEOUT_TICKS) {
+            return false;
+        }
+
+        BlockPos target = progress.target();
+        faceTarget(villager, target.getX() + 0.5D, target.getZ() + 0.5D);
+        villager.getMoveControl().setWantedPosition(
+                target.getX() + 0.5D,
+                target.getY(),
+                target.getZ() + 0.5D,
+                EXCAVATION_MOVE_SPEED
+        );
+        NAVIGATION_PROGRESS.put(villager.getUUID(), new NavigationProgress(
+                progress.target(), bestDistanceSquared, noProgressTicks, totalTicks
+        ));
         return true;
     }
 
@@ -276,7 +340,6 @@ final class ValetGroupExcavation {
         BlockState state = world.getBlockState(pos);
         return !isPassable(world, pos)
                 && state.getFluidState().isEmpty()
-                && state.getDestroySpeed(world, pos) >= 0.0F
                 && state.isFaceSturdy(world, pos, Direction.UP);
     }
 
@@ -291,17 +354,22 @@ final class ValetGroupExcavation {
         PATHS.remove(uuid);
         PROGRESS.remove(uuid);
         NEXT_ACTION.remove(uuid);
+        NAVIGATION_PROGRESS.remove(uuid);
     }
 
     static void clearAll() {
         PATHS.clear();
         PROGRESS.clear();
         NEXT_ACTION.clear();
+        NAVIGATION_PROGRESS.clear();
     }
 
     private record TravelPath(List<BlockPos> steps, int index, BlockPos target) {
     }
 
     private record Progress(BlockPos pos, int stillTicks) {
+    }
+
+    private record NavigationProgress(BlockPos target, double bestDistanceSquared, int noProgressTicks, int totalTicks) {
     }
 }

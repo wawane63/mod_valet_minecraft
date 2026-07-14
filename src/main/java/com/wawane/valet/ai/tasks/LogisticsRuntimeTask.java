@@ -5,6 +5,8 @@ import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
+import com.wawane.valet.order.ValetFarmCrop;
+import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
 import com.wawane.valet.state.ValetBehavior;
 import java.util.List;
@@ -13,10 +15,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class LogisticsRuntimeTask {
+    private static final int FARM_PLANTING_RESERVE_PER_ITEM = 64;
+
     private final Control control;
     private BlockPos chestPos;
 
@@ -32,16 +38,22 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (!control.hasInventoryItems()) {
+        int requestedPlantingCropMask = control.requestedFarmPlantingCropMask();
+        if (!control.hasInventoryItems() && requestedPlantingCropMask == 0) {
             ValetDebug.record(control.villager(), "logistics no_items");
             control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
             control.setDelayTicks(4);
             return;
         }
 
-        chestPos = findBestContainer(world, workOrigin);
+        chestPos = findBestContainer(world, workOrigin, requestedPlantingCropMask);
         if (chestPos == null) {
-            ValetDebug.record(control.villager(), "logistics no_chest");
+            if (requestedPlantingCropMask != 0) {
+                control.deferFarmPlantingRequest();
+            }
+            ValetDebug.record(control.villager(), requestedPlantingCropMask == 0
+                    ? "logistics no_chest"
+                    : "logistics no_planting_items crops=" + requestedPlantingCropMask + " deferred=true");
             control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
@@ -55,6 +67,9 @@ public final class LogisticsRuntimeTask {
 
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CHEST, chestPos, goals);
         if (path.isEmpty()) {
+            if (requestedPlantingCropMask != 0) {
+                control.deferFarmPlantingRequest();
+            }
             ValetDebug.record(control.villager(), "logistics no_chest_path pos=" + ValetDebug.shortPos(chestPos));
             control.setState(canResumeWorkWithoutDepositing() ? State.FIND_TARGET : State.RETURNING_HOME);
             control.setDelayTicks(20);
@@ -147,10 +162,34 @@ public final class LogisticsRuntimeTask {
     }
 
     public void tickDepositing(ServerLevel world) {
+        Container inventory = control.villager().getInventory();
+        int farmCropMask = control.hasFarmOrder() && ValetOrders.shouldReplantFarm(control.villager())
+                ? ValetOrders.getFarmCropMask(control.villager())
+                : 0;
         int movedItems = 0;
         if (chestPos != null) {
-            movedItems += ValetInventoryTransfer.depositInventory(world, chestPos, control.villager().getInventory());
+            movedItems += farmCropMask == 0
+                    ? ValetInventoryTransfer.depositInventory(world, chestPos, inventory)
+                    : ValetInventoryTransfer.depositInventory(
+                            world,
+                            chestPos,
+                            inventory,
+                            stack -> isFarmPlantingItem(stack, farmCropMask),
+                            FARM_PLANTING_RESERVE_PER_ITEM
+                    );
         }
+
+        int requestedPlantingCropMask = control.requestedFarmPlantingCropMask();
+        int withdrawnItems = chestPos == null || requestedPlantingCropMask == 0
+                ? 0
+                : ValetInventoryTransfer.withdrawMatching(
+                        world,
+                        chestPos,
+                        inventory,
+                        control.getUsableInventorySlots(inventory),
+                        stack -> isFarmPlantingItem(stack, requestedPlantingCropMask),
+                        FARM_PLANTING_RESERVE_PER_ITEM
+                );
 
         if (movedItems > 0) {
             control.animateChestUse(world, chestPos);
@@ -159,10 +198,30 @@ public final class LogisticsRuntimeTask {
         } else {
             ValetDebug.record(control.villager(), "logistics deposit_empty chest=" + shortPos(chestPos));
         }
+        if (withdrawnItems > 0) {
+            control.animateChestUse(world, chestPos);
+            ValetDebug.record(control.villager(), "logistics withdrew_planting items=" + withdrawnItems
+                    + " crops=" + requestedPlantingCropMask + " chest=" + shortPos(chestPos));
+        } else if (requestedPlantingCropMask != 0) {
+            control.deferFarmPlantingRequest();
+            ValetDebug.record(control.villager(), "logistics no_planting_items crops="
+                    + requestedPlantingCropMask + " chest=" + shortPos(chestPos) + " deferred=true");
+        }
 
         clearChestTarget();
         control.clearPathState();
+        if (withdrawnItems > 0) {
+            control.setState(State.FIND_TARGET);
+            control.setDelayTicks(4);
+            return;
+        }
         if (control.hasInventoryItems()) {
+            if (farmCropMask != 0 && hasOnlyFarmPlantingItems(inventory, farmCropMask) && canResumeWorkWithoutDepositing()) {
+                ValetDebug.record(control.villager(), "logistics retained_planting crops=" + farmCropMask);
+                control.setState(State.FIND_TARGET);
+                control.setDelayTicks(4);
+                return;
+            }
             if (movedItems <= 0 && canResumeWorkWithoutDepositing()) {
                 ValetDebug.record(control.villager(), "logistics resume_after_empty_deposit");
                 control.setState(State.FIND_TARGET);
@@ -225,7 +284,14 @@ public final class LogisticsRuntimeTask {
         });
     }
 
-    private BlockPos findBestContainer(ServerLevel world, BlockPos workOrigin) {
+    private BlockPos findBestContainer(ServerLevel world, BlockPos workOrigin, int requestedPlantingCropMask) {
+        if (requestedPlantingCropMask != 0) {
+            BlockPos plantingContainer = findBestPlantingContainer(world, workOrigin, requestedPlantingCropMask);
+            if (plantingContainer != null) {
+                return plantingContainer;
+            }
+        }
+
         BlockPos villagerPos = control.villager().blockPosition();
         BlockPos nearVillager = findNearestContainer(world, villagerPos);
         BlockPos nearWork = findNearestContainer(world, workOrigin);
@@ -236,6 +302,71 @@ public final class LogisticsRuntimeTask {
             return nearVillager;
         }
         return squaredDistance(villagerPos, nearVillager) <= squaredDistance(villagerPos, nearWork) ? nearVillager : nearWork;
+    }
+
+    private BlockPos findBestPlantingContainer(ServerLevel world, BlockPos workOrigin, int cropMask) {
+        BlockPos nearest = nearerToVillager(null, findNearestPlantingContainer(world, control.villager().blockPosition(), cropMask));
+        nearest = nearerToVillager(nearest, findNearestPlantingContainer(world, workOrigin, cropMask));
+        for (BlockPos farmOrigin : control.farmContainerOrigins(world)) {
+            nearest = nearerToVillager(nearest, findNearestPlantingContainer(world, farmOrigin, cropMask));
+        }
+        return nearest;
+    }
+
+    private BlockPos nearerToVillager(BlockPos current, BlockPos candidate) {
+        if (candidate == null) {
+            return current;
+        }
+        if (current == null) {
+            return candidate;
+        }
+        BlockPos villagerPos = control.villager().blockPosition();
+        return squaredDistance(villagerPos, candidate) < squaredDistance(villagerPos, current)
+                ? candidate
+                : current;
+    }
+
+    private BlockPos findNearestPlantingContainer(ServerLevel world, BlockPos origin, int cropMask) {
+        return findNearest(world, origin, control.chestRadius(), 4, pos -> {
+            BlockState state = world.getBlockState(pos);
+            if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) {
+                return false;
+            }
+            Container inventory = ValetInventoryTransfer.getContainerInventory(world, pos);
+            return inventory != null && containsFarmPlantingItem(inventory, cropMask);
+        });
+    }
+
+    private static boolean containsFarmPlantingItem(Container inventory, int cropMask) {
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (isFarmPlantingItem(inventory.getItem(slot), cropMask)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasOnlyFarmPlantingItems(Container inventory, int cropMask) {
+        boolean foundPlantingItem = false;
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty() || stack.is(Items.ARROW)) {
+                continue;
+            }
+            if (!isFarmPlantingItem(stack, cropMask)) {
+                return false;
+            }
+            foundPlantingItem = true;
+        }
+        return foundPlantingItem;
+    }
+
+    private static boolean isFarmPlantingItem(ItemStack stack, int cropMask) {
+        return !stack.isEmpty() && (ValetFarmCrop.WHEAT.isEnabled(cropMask) && stack.is(Items.WHEAT_SEEDS)
+                || ValetFarmCrop.CARROT.isEnabled(cropMask) && stack.is(Items.CARROT)
+                || ValetFarmCrop.POTATO.isEnabled(cropMask) && stack.is(Items.POTATO)
+                || ValetFarmCrop.BEETROOT.isEnabled(cropMask) && stack.is(Items.BEETROOT_SEEDS)
+                || ValetFarmCrop.NETHER_WART.isEnabled(cropMask) && stack.is(Items.NETHER_WART));
     }
 
     private BlockPos findNearest(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius, BlockPredicate predicate) {
@@ -294,6 +425,14 @@ public final class LogisticsRuntimeTask {
         boolean hasInventorySpace();
 
         boolean hasInventoryItems();
+
+        int requestedFarmPlantingCropMask();
+
+        void deferFarmPlantingRequest();
+
+        List<BlockPos> farmContainerOrigins(ServerLevel world);
+
+        int getUsableInventorySlots(Container inventory);
 
         boolean isNearWorkstation(ServerLevel world, BlockPos workOrigin);
 

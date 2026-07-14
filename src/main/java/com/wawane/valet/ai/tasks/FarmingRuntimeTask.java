@@ -17,6 +17,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -34,6 +35,7 @@ public final class FarmingRuntimeTask {
     private static final int FAILED_TARGET_MEMORY_TICKS = 300;
     private static final int FARM_RESERVATION_TICKS = 600;
     private static final int MAX_PATH_FAILURES_BEFORE_BACKOFF = 6;
+    private static final int PLANTING_REQUEST_RETRY_TICKS = 200;
 
     private final Control control;
     private final Map<BlockPos, Integer> failedTargets = new HashMap<>();
@@ -42,12 +44,17 @@ public final class FarmingRuntimeTask {
     private BlockState targetState;
     private TargetType targetType;
     private int pathFailures;
+    private int requestedPlantingCropMask;
+    private int plantingRequestCooldownTicks;
 
     public FarmingRuntimeTask(Control control) {
         this.control = control;
     }
 
     public void tickCooldown() {
+        if (plantingRequestCooldownTicks > 0) {
+            plantingRequestCooldownTicks--;
+        }
         Iterator<Map.Entry<BlockPos, Integer>> iterator = failedTargets.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<BlockPos, Integer> entry = iterator.next();
@@ -69,36 +76,53 @@ public final class FarmingRuntimeTask {
         }
 
         int cropMask = ValetOrders.getFarmCropMask(control.villager());
+        requestedPlantingCropMask = plantingRequestCooldownTicks == 0
+                ? findRequestedPlantingCropMask(world, workOrigin, cropMask)
+                : 0;
+        if (requestedPlantingCropMask != 0) {
+            releaseReservedTarget();
+            ValetDebug.record(control.villager(), "farm needs_planting_items crops=" + requestedPlantingCropMask + " -> RETURNING");
+            control.setState(State.RETURNING);
+            control.setDelayTicks(4);
+            return;
+        }
+
         boolean canHarvest = cropMask != 0 && control.hasInventorySpace();
+        boolean canPlant = cropMask != 0
+                && ValetOrders.shouldReplantFarm(control.villager())
+                && hasAnyPlantingItem(cropMask);
         boolean canTill = ValetOrders.shouldTillFarm(control.villager());
-        if (!canHarvest && !canTill) {
+        if (!canHarvest && !canPlant && !canTill) {
             releaseReservedTarget();
             ValetDebug.record(control.villager(), "farm inventory_full -> RETURNING");
             control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
             return;
         }
 
-        WorkTarget target = findNearestTarget(world, workOrigin, canHarvest, canTill, cropMask);
+        WorkTarget target = findNearestTarget(world, workOrigin, canHarvest, canPlant, canTill, cropMask);
         if (target == null) {
             releaseReservedTarget();
             ValetDebug.record(control.villager(), "farm no_target");
-            control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
+            boolean hasDepositableItems = control.hasInventoryItems() && !hasOnlyPlantingItems(cropMask);
+            control.setState(hasDepositableItems ? State.RETURNING : State.RETURNING_HOME);
             control.setDelayTicks(control.noTargetDelayTicks());
             return;
         }
 
+        requestedPlantingCropMask = 0;
         targetPos = target.pos();
         targetType = target.type();
         if (!claimTarget(world, targetPos)) {
             return;
         }
 
-        Set<BlockPos> goals = control.findStandGoals(world, targetPos, PathPurpose.CROP);
-        if (goals.contains(control.villager().blockPosition())) {
+        if (control.canReachTargetFromStand(targetPos, control.villager().blockPosition())) {
+            pathFailures = 0;
             beginHarvesting(world, targetPos);
             return;
         }
 
+        Set<BlockPos> goals = control.findStandGoals(world, targetPos, PathPurpose.CROP);
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CROP, targetPos, goals);
         if (path.isEmpty()) {
             pathFailures++;
@@ -132,6 +156,11 @@ public final class FarmingRuntimeTask {
             targetType = null;
             control.setState(control.interruptedWorkState());
         }
+    }
+
+    public boolean canWorkFromCurrentStand() {
+        return targetPos != null
+                && control.canReachTargetFromStand(targetPos, control.villager().blockPosition());
     }
 
     public void beginHarvesting(ServerLevel world, BlockPos pos) {
@@ -187,6 +216,10 @@ public final class FarmingRuntimeTask {
         releaseReservedTarget();
     }
 
+    public void rememberCurrentTargetFailure() {
+        rememberFailedTarget(targetPos);
+    }
+
     public void clearHarvestState() {
         targetPos = null;
         targetState = null;
@@ -199,12 +232,25 @@ public final class FarmingRuntimeTask {
         clearHarvestState();
         failedTargets.clear();
         pathFailures = 0;
+        requestedPlantingCropMask = 0;
+        plantingRequestCooldownTicks = 0;
+    }
+
+    public int requestedPlantingCropMask() {
+        return requestedPlantingCropMask;
+    }
+
+    public void deferPlantingRequest() {
+        requestedPlantingCropMask = 0;
+        plantingRequestCooldownTicks = PLANTING_REQUEST_RETRY_TICKS;
     }
 
     public String debugSummary() {
         return "farmTarget=" + shortPos(targetPos)
                 + " farmType=" + (targetType == null ? "-" : targetType)
-                + " failed=" + failedTargets.size();
+                + " failed=" + failedTargets.size()
+                + " seedRequest=" + requestedPlantingCropMask
+                + " seedRetry=" + plantingRequestCooldownTicks;
     }
 
     private void tickCropHarvesting(ServerLevel world) {
@@ -324,14 +370,15 @@ public final class FarmingRuntimeTask {
     }
 
     private void tickPlanting(ServerLevel world) {
-        if (targetPos == null || !isPlantableSoil(world, targetPos)) {
+        int cropMask = ValetOrders.getFarmCropMask(control.villager());
+        if (targetPos == null || !isPlantableSoil(world, targetPos, cropMask)) {
             ValetDebug.record(control.villager(), "farm plant_changed target=" + ValetDebug.shortPos(targetPos));
             control.setState(control.interruptedWorkState());
             clearHarvestState();
             return;
         }
 
-        Planting planting = choosePlanting(ValetOrders.getFarmCropMask(control.villager()));
+        Planting planting = choosePlanting(world, targetPos, cropMask);
         if (planting == null) {
             ValetDebug.record(control.villager(), "farm no_seed target=" + ValetDebug.shortPos(targetPos));
             control.setState(afterFarmActionState());
@@ -369,7 +416,8 @@ public final class FarmingRuntimeTask {
         }
         world.playSound(null, cropPos, SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 0.8F, 1.0F);
         ValetProgress.addXp(control.villager(), 2);
-        ValetDebug.record(control.villager(), "farm planted target=" + ValetDebug.shortPos(cropPos));
+        ValetDebug.record(control.villager(), "farm planted target=" + ValetDebug.shortPos(cropPos)
+                + " item=" + planting.item().getDescriptionId());
         control.setState(afterFarmActionState());
         clearHarvestState();
         control.setDelayTicks(control.actionDelayTicks());
@@ -382,31 +430,40 @@ public final class FarmingRuntimeTask {
         return control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME;
     }
 
-    private WorkTarget findNearestTarget(ServerLevel world, BlockPos workOrigin, boolean includeCrops, boolean includeSoil, int cropMask) {
+    private WorkTarget findNearestTarget(
+            ServerLevel world,
+            BlockPos workOrigin,
+            boolean includeCrops,
+            boolean includePlanting,
+            boolean includeSoil,
+            int cropMask
+    ) {
         ValetFarmArea area = control.getFarmArea(world, ValetOrders.getFarmAreaId(control.villager()));
+        WorkTarget nearest = null;
         if (includeCrops) {
-            BlockPos loot = findNearestLoot(world, workOrigin, area, cropMask);
-            if (loot != null) {
-                return new WorkTarget(loot, TargetType.LOOT);
-            }
-
-            BlockPos crop = findNearestCrop(world, workOrigin, area, cropMask);
-            if (crop != null) {
-                return new WorkTarget(crop, TargetType.CROP);
-            }
-
-            BlockPos plantSoil = findNearestPlantableSoil(world, workOrigin, area, cropMask);
-            if (plantSoil != null) {
-                return new WorkTarget(plantSoil, TargetType.PLANT);
-            }
+            nearest = nearerTarget(nearest, findNearestLoot(world, workOrigin, area, cropMask), TargetType.LOOT);
+            nearest = nearerTarget(nearest, findNearestCrop(world, workOrigin, area, cropMask), TargetType.CROP);
+        }
+        if (includePlanting) {
+            nearest = nearerTarget(nearest, findNearestPlantableSoil(world, workOrigin, area, cropMask), TargetType.PLANT);
         }
         if (includeSoil) {
-            BlockPos soil = findNearestSoil(world, workOrigin, area);
-            if (soil != null) {
-                return new WorkTarget(soil, TargetType.SOIL);
-            }
+            nearest = nearerTarget(nearest, findNearestSoil(world, workOrigin, area), TargetType.SOIL);
         }
-        return null;
+        return nearest;
+    }
+
+    private WorkTarget nearerTarget(WorkTarget current, BlockPos candidate, TargetType type) {
+        if (candidate == null) {
+            return current;
+        }
+        if (current == null) {
+            return new WorkTarget(candidate, type);
+        }
+        BlockPos villagerPos = control.villager().blockPosition();
+        return squaredDistance(villagerPos, candidate) < squaredDistance(villagerPos, current.pos())
+                ? new WorkTarget(candidate, type)
+                : current;
     }
 
     private BlockPos findNearestCrop(ServerLevel world, BlockPos workOrigin, ValetFarmArea area, int cropMask) {
@@ -484,7 +541,7 @@ public final class FarmingRuntimeTask {
     }
 
     private BlockPos findNearestPlantableSoil(ServerLevel world, BlockPos workOrigin, ValetFarmArea area, int cropMask) {
-        if (choosePlanting(cropMask) == null) {
+        if (!hasAnyPlantingItem(cropMask)) {
             return null;
         }
 
@@ -495,7 +552,7 @@ public final class FarmingRuntimeTask {
             BlockPos soilPos = area == null ? candidate : candidate.below();
             if (control.isBlockReservedByOther(world, soilPos)
                     || area != null && !area.contains(candidate)
-                    || !isPlantableSoil(world, soilPos)) {
+                    || choosePlanting(world, soilPos, cropMask) == null) {
                 continue;
             }
 
@@ -506,6 +563,46 @@ public final class FarmingRuntimeTask {
             }
         }
         return nearest;
+    }
+
+    private int findRequestedPlantingCropMask(ServerLevel world, BlockPos workOrigin, int cropMask) {
+        if (!ValetOrders.shouldReplantFarm(control.villager())) {
+            return 0;
+        }
+
+        ValetFarmArea area = control.getFarmArea(world, ValetOrders.getFarmAreaId(control.villager()));
+        for (BlockPos pos : candidates(workOrigin, area)) {
+            BlockPos candidate = pos.immutable();
+            BlockPos soilPos = area == null ? candidate : candidate.below();
+            if (isFailedTarget(soilPos)
+                    || control.isBlockReservedByOther(world, soilPos)
+                    || area != null && !area.contains(candidate)) {
+                continue;
+            }
+
+            int compatibleCropMask = plantingCropMaskForSoil(world, soilPos, cropMask);
+            if (compatibleCropMask != 0 && !hasAnyPlantingItem(compatibleCropMask)) {
+                return compatibleCropMask;
+            }
+        }
+        return 0;
+    }
+
+    private static int plantingCropMaskForSoil(ServerLevel world, BlockPos soilPos, int cropMask) {
+        if (soilPos == null || !isClearForFarmUse(world.getBlockState(soilPos.above()))) {
+            return 0;
+        }
+        if (world.getBlockState(soilPos).is(Blocks.SOUL_SAND)) {
+            return cropMask & ValetFarmCrop.NETHER_WART.mask();
+        }
+        if (!world.getBlockState(soilPos).is(Blocks.FARMLAND)) {
+            return 0;
+        }
+        int regularCropMask = ValetFarmCrop.WHEAT.mask()
+                | ValetFarmCrop.CARROT.mask()
+                | ValetFarmCrop.POTATO.mask()
+                | ValetFarmCrop.BEETROOT.mask();
+        return cropMask & regularCropMask;
     }
 
     private Iterable<BlockPos> candidates(BlockPos workOrigin, ValetFarmArea area) {
@@ -546,8 +643,10 @@ public final class FarmingRuntimeTask {
             return isTillableSoil(world, pos);
         }
         if (type == TargetType.PLANT) {
-            return isPlantableSoil(world, pos)
-                    && choosePlanting(ValetOrders.getFarmCropMask(control.villager())) != null;
+            int cropMask = ValetOrders.getFarmCropMask(control.villager());
+            return ValetOrders.shouldReplantFarm(control.villager())
+                    && isPlantableSoil(world, pos, cropMask)
+                    && choosePlanting(world, pos, cropMask) != null;
         }
         if (type == TargetType.LOOT) {
             return hasFarmLootNear(world, pos, ValetOrders.getFarmCropMask(control.villager()));
@@ -667,13 +766,62 @@ public final class FarmingRuntimeTask {
         }
     }
 
-    private static boolean isPlantableSoil(ServerLevel world, BlockPos pos) {
-        return pos != null
-                && world.getBlockState(pos).is(Blocks.FARMLAND)
-                && isClearForFarmUse(world.getBlockState(pos.above()));
+    private static boolean isPlantableSoil(ServerLevel world, BlockPos pos, int cropMask) {
+        if (pos == null || !isClearForFarmUse(world.getBlockState(pos.above()))) {
+            return false;
+        }
+        BlockState soil = world.getBlockState(pos);
+        boolean regularCropEnabled = ValetFarmCrop.WHEAT.isEnabled(cropMask)
+                || ValetFarmCrop.CARROT.isEnabled(cropMask)
+                || ValetFarmCrop.POTATO.isEnabled(cropMask)
+                || ValetFarmCrop.BEETROOT.isEnabled(cropMask);
+        return soil.is(Blocks.FARMLAND) && regularCropEnabled
+                || soil.is(Blocks.SOUL_SAND) && ValetFarmCrop.NETHER_WART.isEnabled(cropMask);
     }
 
-    private Planting choosePlanting(int cropMask) {
+    private boolean hasAnyPlantingItem(int cropMask) {
+        return ValetFarmCrop.WHEAT.isEnabled(cropMask) && control.hasItem(Items.WHEAT_SEEDS)
+                || ValetFarmCrop.CARROT.isEnabled(cropMask) && control.hasItem(Items.CARROT)
+                || ValetFarmCrop.POTATO.isEnabled(cropMask) && control.hasItem(Items.POTATO)
+                || ValetFarmCrop.BEETROOT.isEnabled(cropMask) && control.hasItem(Items.BEETROOT_SEEDS)
+                || ValetFarmCrop.NETHER_WART.isEnabled(cropMask) && control.hasItem(Items.NETHER_WART);
+    }
+
+    private boolean hasOnlyPlantingItems(int cropMask) {
+        Container inventory = control.villager().getInventory();
+        boolean foundPlantingItem = false;
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty() || stack.is(Items.ARROW)) {
+                continue;
+            }
+            if (!isPlantingItem(stack, cropMask)) {
+                return false;
+            }
+            foundPlantingItem = true;
+        }
+        return foundPlantingItem;
+    }
+
+    private static boolean isPlantingItem(ItemStack stack, int cropMask) {
+        return ValetFarmCrop.WHEAT.isEnabled(cropMask) && stack.is(Items.WHEAT_SEEDS)
+                || ValetFarmCrop.CARROT.isEnabled(cropMask) && stack.is(Items.CARROT)
+                || ValetFarmCrop.POTATO.isEnabled(cropMask) && stack.is(Items.POTATO)
+                || ValetFarmCrop.BEETROOT.isEnabled(cropMask) && stack.is(Items.BEETROOT_SEEDS)
+                || ValetFarmCrop.NETHER_WART.isEnabled(cropMask) && stack.is(Items.NETHER_WART);
+    }
+
+    private Planting choosePlanting(ServerLevel world, BlockPos soilPos, int cropMask) {
+        if (!isPlantableSoil(world, soilPos, cropMask)) {
+            return null;
+        }
+
+        if (world.getBlockState(soilPos).is(Blocks.SOUL_SAND)) {
+            return ValetFarmCrop.NETHER_WART.isEnabled(cropMask) && control.hasItem(Items.NETHER_WART)
+                    ? new Planting(Items.NETHER_WART, Blocks.NETHER_WART.defaultBlockState())
+                    : null;
+        }
+
         if (ValetFarmCrop.WHEAT.isEnabled(cropMask) && control.hasItem(Items.WHEAT_SEEDS)) {
             return new Planting(Items.WHEAT_SEEDS, Blocks.WHEAT.defaultBlockState());
         }

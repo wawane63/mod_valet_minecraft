@@ -29,6 +29,7 @@ import com.wawane.valet.progress.ValetProgress;
 import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
+import com.wawane.valet.network.packets.DeleteFarmAreaPayload;
 import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
@@ -103,6 +104,7 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(ChooseCombatPerkPayload.TYPE, ValetNetworking::chooseValetCombatPerk);
         ServerPlayNetworking.registerGlobalReceiver(RenameValetPayload.TYPE, ValetNetworking::renameValet);
         ServerPlayNetworking.registerGlobalReceiver(DeleteConstructionPayload.TYPE, ValetNetworking::deleteConstruction);
+        ServerPlayNetworking.registerGlobalReceiver(DeleteFarmAreaPayload.TYPE, ValetNetworking::deleteFarmArea);
         ServerPlayNetworking.registerGlobalReceiver(SortContainerPayload.TYPE, ValetNetworking::sortOpenContainer);
         ServerPlayNetworking.registerGlobalReceiver(SetBehaviorPayload.TYPE, ValetNetworking::setBehavior);
         ServerPlayNetworking.registerGlobalReceiver(ManageMapGroupPayload.TYPE, ValetGroupInteractions::handleMapManagement);
@@ -128,6 +130,7 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(ChooseCombatPerkPayload.TYPE, ChooseCombatPerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RenameValetPayload.TYPE, RenameValetPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DeleteConstructionPayload.TYPE, DeleteConstructionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(DeleteFarmAreaPayload.TYPE, DeleteFarmAreaPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SortContainerPayload.TYPE, SortContainerPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetBehaviorPayload.TYPE, SetBehaviorPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ManageMapGroupPayload.TYPE, ManageMapGroupPayload.CODEC);
@@ -651,6 +654,42 @@ public final class ValetNetworking {
             }
             removeBlueprintItems(player, constructionId);
             player.sendOverlayMessage(Component.translatable("message.valet.construction_deleted"));
+            sendValetState(player, villager);
+        });
+    }
+
+    private static void deleteFarmArea(DeleteFarmAreaPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
+        server.execute(() -> {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager) || !isValidValetInteraction(player, villager)) {
+                return;
+            }
+
+            if (ValetRole.get(player.level(), villager) != ValetRole.FARMER) {
+                return;
+            }
+
+            int farmAreaId = payload.farmAreaId();
+            if (farmAreaId <= 0 || !ValetFarmStorage.get(player.level()).removeArea(farmAreaId)) {
+                player.sendOverlayMessage(Component.translatable("message.valet.no_farm_area"));
+                sendValetState(player, villager);
+                return;
+            }
+
+            for (Entity loadedEntity : player.level().getAllEntities()) {
+                if (loadedEntity instanceof Villager candidate
+                        && ValetMod.isValet(candidate)
+                        && ValetOrders.get(candidate) == ValetOrder.HARVEST_CROPS
+                        && ValetOrders.getFarmAreaId(candidate) == farmAreaId) {
+                    ValetOrders.set(candidate, ValetOrder.NONE);
+                    ValetWorkGoal.requestRestart(candidate);
+                }
+            }
+
+            ValetMod.LOGGER.info("Farm area {} deleted by {}", farmAreaId, player.getGameProfile().name());
+            player.sendOverlayMessage(Component.translatable("message.valet.farm_area_deleted"));
             sendValetState(player, villager);
         });
     }

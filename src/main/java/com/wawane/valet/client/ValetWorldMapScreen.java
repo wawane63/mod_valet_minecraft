@@ -1,8 +1,10 @@
 package com.wawane.valet.client;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.group.ValetGroupViewData;
 import com.wawane.valet.network.packets.ManageMapGroupPayload;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,8 +15,11 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -30,6 +35,9 @@ public final class ValetWorldMapScreen extends Screen {
     private static final int MAP_TOP = 58;
     private static final int MAP_BOTTOM_MARGIN = 28;
     private static final int CELL_SIZE = 6;
+    private static final long TERRAIN_REFRESH_NANOS = 50_000_000L;
+    private static final int MAX_CACHED_TERRAIN_CELLS = 131_072;
+    private static final int CACHE_MISS = 0;
     private static final int[] ZOOM_LEVELS = {1, 2, 4, 8, 16};
     private static final int UNKNOWN_COLOR = 0xFF11181B;
     private static final int PLAYER_COLOR = 0xFFFFD34E;
@@ -52,6 +60,12 @@ public final class ValetWorldMapScreen extends Screen {
     private int columns;
     private int rows;
     private int[] terrainColors = new int[0];
+    private final Long2IntOpenHashMap terrainColorCache = new Long2IntOpenHashMap();
+    private ResourceKey<Level> terrainCacheDimension;
+    private DynamicTexture terrainTexture;
+    private Identifier terrainTextureId;
+    private boolean terrainDirty;
+    private long nextTerrainRebuildNanos;
     private boolean dragging;
     private final List<ValetGroupViewData.GroupEntry> groups = new ArrayList<>();
     private final List<ValetGroupViewData.ValetEntry> valets = new ArrayList<>();
@@ -67,6 +81,7 @@ public final class ValetWorldMapScreen extends Screen {
             centerX = client.player.getX();
             centerZ = client.player.getZ();
         }
+        terrainColorCache.defaultReturnValue(CACHE_MISS);
     }
 
     @Override
@@ -113,6 +128,7 @@ public final class ValetWorldMapScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        rebuildTerrainIfDue();
         graphics.fill(0, 0, width, height, 0xF20A0E12);
         graphics.text(font, title, MAP_MARGIN, 40, 0xFFFFFFFF, false);
         drawHeaderInfo(graphics, mouseX, mouseY);
@@ -125,15 +141,48 @@ public final class ValetWorldMapScreen extends Screen {
     private void drawTerrain(GuiGraphicsExtractor graphics) {
         graphics.fill(mapLeft - 2, mapTop - 2, mapLeft + mapWidth + 2, mapTop + mapHeight + 2, 0xFF5E6B70);
         graphics.enableScissor(mapLeft, mapTop, mapLeft + mapWidth, mapTop + mapHeight);
-        for (int row = 0; row < rows; row++) {
-            int y = mapTop + row * CELL_SIZE;
-            for (int column = 0; column < columns; column++) {
-                int x = mapLeft + column * CELL_SIZE;
-                graphics.fill(x, y, x + CELL_SIZE, y + CELL_SIZE, terrainColors[row * columns + column]);
-            }
+        if (terrainTextureId != null) {
+            graphics.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    terrainTextureId,
+                    mapLeft,
+                    mapTop,
+                    0.0F,
+                    0.0F,
+                    mapWidth,
+                    mapHeight,
+                    columns,
+                    rows,
+                    columns,
+                    rows
+            );
+        } else {
+            drawTerrainFallback(graphics);
         }
         drawGrid(graphics);
         graphics.disableScissor();
+    }
+
+    private void drawTerrainFallback(GuiGraphicsExtractor graphics) {
+        for (int row = 0; row < rows; row++) {
+            int y = mapTop + row * CELL_SIZE;
+            int runStart = 0;
+            int runColor = terrainColors[row * columns];
+            for (int column = 1; column <= columns; column++) {
+                int color = column < columns ? terrainColors[row * columns + column] : runColor ^ 1;
+                if (color != runColor) {
+                    graphics.fill(
+                            mapLeft + runStart * CELL_SIZE,
+                            y,
+                            mapLeft + column * CELL_SIZE,
+                            y + CELL_SIZE,
+                            runColor
+                    );
+                    runStart = column;
+                    runColor = color;
+                }
+            }
+        }
     }
 
     private void drawGrid(GuiGraphicsExtractor graphics) {
@@ -260,7 +309,7 @@ public final class ValetWorldMapScreen extends Screen {
         if (dragging && event.button() == 0) {
             centerX -= deltaX * blocksPerCell() / CELL_SIZE;
             centerZ -= deltaY * blocksPerCell() / CELL_SIZE;
-            rebuildTerrain();
+            terrainDirty = true;
             return true;
         }
         return super.mouseDragged(event, deltaX, deltaY);
@@ -270,6 +319,7 @@ public final class ValetWorldMapScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent event) {
         if (event.button() == 0 && dragging) {
             dragging = false;
+            rebuildTerrain();
             return true;
         }
         return super.mouseReleased(event);
@@ -299,6 +349,12 @@ public final class ValetWorldMapScreen extends Screen {
         if (minecraft != null) {
             minecraft.setScreenAndShow(parent);
         }
+    }
+
+    @Override
+    public void removed() {
+        releaseTerrainTexture();
+        super.removed();
     }
 
     @Override
@@ -423,7 +479,13 @@ public final class ValetWorldMapScreen extends Screen {
         ClientLevel world = Minecraft.getInstance().level;
         if (world == null) {
             java.util.Arrays.fill(terrainColors, UNKNOWN_COLOR);
+            uploadTerrainTexture();
+            terrainDirty = false;
             return;
+        }
+        if (!world.dimension().equals(terrainCacheDimension)) {
+            terrainColorCache.clear();
+            terrainCacheDimension = world.dimension();
         }
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int row = 0; row < rows; row++) {
@@ -433,23 +495,84 @@ public final class ValetWorldMapScreen extends Screen {
                 terrainColors[row * columns + column] = sampleColor(world, cursor, worldX, worldZ);
             }
         }
+        uploadTerrainTexture();
+        terrainDirty = false;
+        nextTerrainRebuildNanos = System.nanoTime() + TERRAIN_REFRESH_NANOS;
     }
 
     private int sampleColor(ClientLevel world, BlockPos.MutableBlockPos cursor, int worldX, int worldZ) {
         if (!world.hasChunk(worldX >> 4, worldZ >> 4)) {
             return UNKNOWN_COLOR;
         }
+        long cacheKey = ((long) worldX << 32) ^ (worldZ & 0xFFFFFFFFL);
+        int cachedColor = terrainColorCache.get(cacheKey);
+        if (cachedColor != CACHE_MISS) {
+            return cachedColor;
+        }
         int height = world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ);
         cursor.set(worldX, height - 1, worldZ);
         BlockState state = world.getBlockState(cursor);
         MapColor color = state.getMapColor(world, cursor);
         if (color == MapColor.NONE) {
-            return 0xFF283035;
+            return cacheTerrainColor(cacheKey, 0xFF283035);
         }
         MapColor.Brightness brightness = height > world.getSeaLevel() + 32
                 ? MapColor.Brightness.HIGH
                 : height < world.getSeaLevel() - 8 ? MapColor.Brightness.LOW : MapColor.Brightness.NORMAL;
-        return color.calculateARGBColor(brightness) | 0xFF000000;
+        return cacheTerrainColor(cacheKey, color.calculateARGBColor(brightness) | 0xFF000000);
+    }
+
+    private int cacheTerrainColor(long cacheKey, int color) {
+        if (terrainColorCache.size() >= MAX_CACHED_TERRAIN_CELLS) {
+            terrainColorCache.clear();
+        }
+        terrainColorCache.put(cacheKey, color);
+        return color;
+    }
+
+    private void rebuildTerrainIfDue() {
+        if (terrainDirty && System.nanoTime() >= nextTerrainRebuildNanos) {
+            rebuildTerrain();
+        }
+    }
+
+    private void uploadTerrainTexture() {
+        ensureTerrainTexture();
+        if (terrainTexture == null) {
+            return;
+        }
+        NativeImage pixels = terrainTexture.getPixels();
+        if (pixels == null) {
+            return;
+        }
+        for (int row = 0; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                pixels.setPixel(column, row, terrainColors[row * columns + column]);
+            }
+        }
+        terrainTexture.upload();
+    }
+
+    private void ensureTerrainTexture() {
+        if (terrainTexture != null) {
+            NativeImage pixels = terrainTexture.getPixels();
+            if (pixels != null && pixels.getWidth() == columns && pixels.getHeight() == rows) {
+                return;
+            }
+            releaseTerrainTexture();
+        }
+        Minecraft client = Minecraft.getInstance();
+        terrainTextureId = ValetMod.id("dynamic/world_map_" + Integer.toUnsignedString(System.identityHashCode(this)));
+        terrainTexture = new DynamicTexture("Valet tactical map", columns, rows, false);
+        client.getTextureManager().register(terrainTextureId, terrainTexture);
+    }
+
+    private void releaseTerrainTexture() {
+        if (terrainTextureId != null) {
+            Minecraft.getInstance().getTextureManager().release(terrainTextureId);
+        }
+        terrainTexture = null;
+        terrainTextureId = null;
     }
 
     private int blocksPerCell() {

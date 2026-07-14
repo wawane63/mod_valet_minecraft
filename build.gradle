@@ -47,6 +47,25 @@ tasks.withType(JavaCompile).configureEach {
     it.options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:unchecked'])
 }
 
+tasks.register('verifyNoValetTeleport') {
+    group = 'verification'
+    description = 'Refuse toute reintroduction de teleportTo dans le runtime Java Valet.'
+    inputs.files(fileTree('src/main/java') {
+        include '**/*.java'
+    })
+
+    doLast {
+        def offenders = inputs.files.files.findAll { it.text.contains('.teleportTo(') }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("teleportTo interdit dans le runtime Valet: ${offenders*.path.join(', ')}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyNoValetTeleport')
+}
+
 java {
     sourceCompatibility = JavaVersion.toVersion(javaRelease)
     targetCompatibility = JavaVersion.toVersion(javaRelease)

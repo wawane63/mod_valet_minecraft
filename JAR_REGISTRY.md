@@ -32,6 +32,7 @@ Regles obligatoires :
 | 0.3.9 | Gestion centralisee des groupes | `v0.3.9` | `build/libs/valet-0.3.9.jar` | `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06` |
 | 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
 | 0.4.1 | Maire, quetes et raccourcis | `v0.4.1` | `build/libs/valet-0.4.1.jar` | `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156` |
+| 0.4.2 | Navigation vanilla, fermier et ameliorations generales | `v0.4.2` | `build/libs/valet-0.4.2.jar` | `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -46,6 +47,46 @@ Le jar `0.3.8` regroupe l'audit exhaustif et la carte tactique avec missions de 
 Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anciens objets/blocs de commande.
 La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
 La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J` / `K`.
+La version `0.4.2` publie l'ensemble de la branche `0.4.x` avec le maire et ses quetes, puis remplace les teleportations de deplacement par la navigation vanilla sous garde-fous Valet et fiabilise le fermier.
+
+## 0.4.2 - Navigation vanilla, fermier et ameliorations generales
+
+Objectif : faire marcher physiquement les valets tout en conservant une enveloppe de securite deterministe.
+
+Fonctionnalite :
+
+- Suppression de tous les `teleportTo` du runtime Valet.
+- `PathNavigation` pour les trajets metier, l'excavation et la sortie d'eau.
+- Validation anti-chute, anti-fluide, anti-danger et anti-detour anormal avant lancement.
+- Surveillance de progression, timeout et replanification apres interruption.
+- Planificateur d'excavation conserve pour choisir et ouvrir un passage sur les missions longues.
+- Nage vanilla de groupe vers la rive opposee ou par points d'eau locaux, sans excavation sous-marine.
+- Carte tactique fluidifiee par cache de terrain borne, reconstruction limitee a 20 Hz et texture dynamique unique.
+- Nage pilotee par les controles vanilla apres approche terrestre de la rive; pas de pathfinding terrestre vers un bloc d'eau.
+- Cible de nage stabilisee, recuperation automatique apres 40 ticks sans progres et espacement anti-collision des suiveurs.
+- Pas de galerie securisee parcourus par mouvement adjacent vanilla pour supprimer les refus A* et les a-coups par bloc.
+- Normalisation du premier noeud vanilla sur les supports partiels, notamment la terre labouree, pour restaurer les trajets du fermier.
+- Memorisation temporaire des cibles de ferme dont la navigation echoue afin d'eviter les relances en boucle.
+- Le fermier utilise une cible continue `WALK_TARGET` comme `HarvestFarmland`; `MoveToTargetSink` execute le trajet complet et `InteractWithDoor` gere les portes en bois.
+- L'approche agricole cible une case sure adjacente, maintient sa `WALK_TARGET` si elle est effacee et reste bornee sans mouvement bloc par bloc.
+- Les actions agricoles sont choisies par proximite; la demande de plantation precede les autres cibles et cherche les coffres aux quatre coins du champ.
+- Une demande de plantation sans stock est differee de 200 ticks au lieu de bloquer les recoltes et le labour restants.
+- Le premier noeud peut quitter un lit ou un mobilier non dangereux sans viser la porte comme destination intermediaire.
+- La replantation est active par defaut sur les nouveaux ordres de ferme; les pommes de terre sont replantees depuis leur drop collecte lorsque l'option est active.
+- Si le fermier est deja debout sur un sol de culture vide, il plante directement l'item compatible au lieu d'echouer sur `farm no_path`.
+- La plantation automatique couvre ble, carottes, pommes de terre et betteraves sur terre labouree, ainsi que les verrues du Nether sur sable des ames.
+- Le bouton `Suppr. champ` retire la zone persistante selectionnee et annule les ordres encore lies a cette zone.
+- La logistique conserve une pile par item de plantation actif et le fermier peut retirer d'un coffre proche une pile compatible lorsqu'un sol vide doit etre replante.
+
+Verification :
+
+- Compilation Java : OK.
+- Build complet et installation locale : OK.
+- Jar actuel : `valet-0.4.2.jar`.
+- SHA-256 : `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5`.
+- Dossier mods : un seul jar Valet, hash identique au build.
+- Bootstrap serveur : Minecraft, Fabric et Valet 0.4.2 charges; arret EULA attendu.
+- Publication GitHub : preparee pour le tag `v0.4.2` avec ce jar.
 
 ## 0.4.1 - Maire et quetes
 

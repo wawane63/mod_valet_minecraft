@@ -13,6 +13,7 @@ import com.wawane.valet.ai.core.ValetOrderKey;
 import com.wawane.valet.ai.core.ValetWorkSettings;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
 import com.wawane.valet.ai.path.ValetPathPlanner;
+import com.wawane.valet.ai.path.ValetSafeNavigation;
 import com.wawane.valet.ai.tasks.BreedingRuntimeTask;
 import com.wawane.valet.ai.tasks.ConstructionRuntimeTask;
 import com.wawane.valet.ai.tasks.CookingRuntimeTask;
@@ -56,8 +57,10 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Monster;
@@ -73,6 +76,7 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -84,6 +88,13 @@ public class ValetWorkGoal extends Goal {
     private static final int FENCE_GATE_CLOSE_TICKS = 6;
     private static final int FLEE_PATH_REFRESH_TICKS = 10;
     private static final int FLEE_THREAT_SCAN_INTERVAL_TICKS = 10;
+    private static final int NAVIGATION_NO_PROGRESS_TICKS = 40;
+    private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 120;
+    private static final int FARMER_NAVIGATION_TIMEOUT_TICKS = 400;
+    private static final int FARMER_WALK_TARGET_RETRY_TICKS = 10;
+    private static final int WATER_ESCAPE_NO_PROGRESS_TICKS = 60;
+    private static final int WATER_ESCAPE_RETRY_TICKS = 20;
+    private static final double NAVIGATION_PROGRESS_EPSILON = 0.04D;
     private static final Direction[] DIRECTIONS = Direction.values();
 
     private static final Set<TagKey<Block>> ORE_TAGS = Set.of(
@@ -159,6 +170,14 @@ public class ValetWorkGoal extends Goal {
     private LivingEntity cachedFleeThreat;
     private int fleePathRefreshTicks;
     private int fleeThreatScanCooldownTicks;
+    private BlockPos activeNavigationStep;
+    private int navigationStepTicks;
+    private int navigationNoProgressTicks;
+    private double navigationBestDistanceSquared = Double.MAX_VALUE;
+    private BlockPos waterEscapeTarget;
+    private int waterEscapeNoProgressTicks;
+    private int waterEscapeRetryTicks;
+    private double waterEscapeBestDistanceSquared = Double.MAX_VALUE;
 
     public ValetWorkGoal(Villager villager) {
         this.villager = villager;
@@ -221,6 +240,8 @@ public class ValetWorkGoal extends Goal {
         cachedFleeThreat = null;
         fleePathRefreshTicks = 0;
         fleeThreatScanCooldownTicks = 0;
+        clearWaterEscapeState(true);
+        waterEscapeRetryTicks = 0;
         villager.getNavigation().stop();
         if (villager.level() instanceof ServerLevel world && ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
             villager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
@@ -245,6 +266,9 @@ public class ValetWorkGoal extends Goal {
         if (fleeThreatScanCooldownTicks > 0) {
             fleeThreatScanCooldownTicks--;
         }
+        if (waterEscapeRetryTicks > 0) {
+            waterEscapeRetryTicks--;
+        }
         sanitizeOrderForRole(world);
         String currentOrderKey = currentOrderKey();
         if (RESTART_REQUESTS.remove(villager.getUUID()) || !currentOrderKey.equals(activeOrderKey)) {
@@ -259,16 +283,22 @@ public class ValetWorkGoal extends Goal {
         }
 
         if (shouldClaimMovement(world)) {
-            suppressVanillaMovementTargets();
+            if (isVanillaFarmerWalkActive()) {
+                suppressVanillaDestinationTargets();
+            } else {
+                suppressVanillaMovementTargets();
+            }
         }
 
         if (ValetGroupRuntime.hasControllingCommand(world, villager)
                 && ValetGroupRuntime.tickSelfDefense(world, villager, settings.combatMoveSpeed())) {
+            abandonWorkPathForExternalMovement("group_defense");
             return;
         }
 
         if (ValetGroupRuntime.isTravelCommand(world, villager)
                 && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
+            abandonWorkPathForExternalMovement("group_travel");
             return;
         }
 
@@ -277,6 +307,7 @@ public class ValetWorkGoal extends Goal {
         }
 
         if (combatTask.tick(world)) {
+            abandonWorkPathForExternalMovement("combat");
             return;
         }
 
@@ -286,6 +317,7 @@ public class ValetWorkGoal extends Goal {
 
         if (!ValetGroupRuntime.isTravelCommand(world, villager)
                 && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
+            abandonWorkPathForExternalMovement("group_command");
             return;
         }
 
@@ -448,11 +480,16 @@ public class ValetWorkGoal extends Goal {
     private void sanitizeOrderForRole(ServerLevel world) {
         ValetOrder order = ValetOrders.get(villager);
         ValetRole role = ValetRole.get(world, villager);
-        if (role.allows(order)) {
+        int farmAreaId = ValetOrders.getFarmAreaId(villager);
+        boolean missingFarmArea = order == ValetOrder.HARVEST_CROPS
+                && farmAreaId >= 0
+                && ValetFarmStorage.get(world).getArea(farmAreaId) == null;
+        if (role.allows(order) && !missingFarmArea) {
             return;
         }
 
-        ValetDebug.record(villager, "order_cleared role=" + role.name().toLowerCase() + " order=" + order.name().toLowerCase());
+        String reason = missingFarmArea ? " missing_farm_area=" + farmAreaId : "";
+        ValetDebug.record(villager, "order_cleared role=" + role.name().toLowerCase() + " order=" + order.name().toLowerCase() + reason);
         ValetOrders.set(villager, ValetOrder.NONE);
         clearPathState();
         miningTask.clearAll();
@@ -633,7 +670,10 @@ public class ValetWorkGoal extends Goal {
         if (state == State.IDLE || state == State.RETURNING_HOME || isExecuting(PathPurpose.HOME)) {
             return true;
         }
-        if (!hasInventoryItems() && hasInventorySpace() && (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST))) {
+        if (farmingTask.requestedPlantingCropMask() == 0
+                && !hasInventoryItems()
+                && hasInventorySpace()
+                && (state == State.RETURNING || state == State.DEPOSITING || isExecuting(PathPurpose.CHEST))) {
             return true;
         }
         return false;
@@ -726,37 +766,56 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        BlockPos current = currentStandPos(world);
+        if (pathPurpose == PathPurpose.CROP) {
+            executeVanillaFarmerPath(world);
+            return;
+        }
+
         BlockPos next = path.get(pathIndex);
-        if (hasReachedPathStep(current, next)) {
+        if (hasReachedPathStep(next)) {
+            ValetDebug.record(villager, "path step purpose=" + pathPurpose + " step=" + ValetDebug.shortPos(next));
             clearNavigationStep();
             pathIndex++;
             delayTicks = pathStepDelayTicks();
             return;
         }
 
-        BlockPos obstruction = findMovementObstruction(world, next);
-        if (obstruction != null) {
-            miningTask.beginMining(world, obstruction, false);
-            return;
-        }
-
-        if (!canTraverseStep(world, current, next)) {
-            ValetDebug.record(villager, "path blocked purpose=" + pathPurpose
-                    + " from=" + ValetDebug.shortPos(current)
-                    + " next=" + ValetDebug.shortPos(next)
-                    + " blocked=" + describeBlockedStep(world, current, next));
-            if (pathPurpose == PathPurpose.ORE) {
-                miningTask.rememberCurrentTarget();
+        if (activeNavigationStep == null || !activeNavigationStep.equals(next)) {
+            BlockPos current = currentStandPos(world);
+            BlockPos obstruction = findMovementObstruction(world, next);
+            if (obstruction != null) {
+                clearNavigationStep();
+                miningTask.beginMining(world, obstruction, false);
+                return;
             }
-            state = interruptedPathState();
-            clearPathState();
-            delayTicks = 10;
+
+            if (!canTraverseStep(world, current, next)) {
+                failNavigationStep(current, next, describeBlockedStep(world, current, next));
+                return;
+            }
+
+            openDoorsForStep(world, next);
+        }
+
+        if (!moveToPathStep(world, next)) {
+            failNavigationStep(currentStandPos(world), next, "vanilla_navigation");
+        }
+    }
+
+    private void executeVanillaFarmerPath(ServerLevel world) {
+        BlockPos destination = path.get(path.size() - 1);
+
+        if (farmingTask.canWorkFromCurrentStand()) {
+            ValetDebug.record(villager, "path destination purpose=CROP step=" + ValetDebug.shortPos(destination));
+            clearNavigationStep();
+            pathIndex = path.size();
+            delayTicks = pathStepDelayTicks();
             return;
         }
 
-        openDoorsForStep(world, next);
-        moveToPathStep(next);
+        if (!moveToVanillaFarmerTarget(world, destination)) {
+            failNavigationStep(currentStandPos(world), destination, "vanilla_farmer_navigation");
+        }
     }
 
     private List<BlockPos> planPathToAdjacent(ServerLevel world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals) {
@@ -792,19 +851,116 @@ public class ValetWorkGoal extends Goal {
         ValetDebug.record(villager, "path start purpose=" + purpose + " len=" + nextPath.size());
     }
 
-    private boolean hasReachedPathStep(BlockPos current, BlockPos step) {
-        return current.equals(step);
+    private boolean hasReachedPathStep(BlockPos step) {
+        return ValetSafeNavigation.hasReached(villager, step);
     }
 
-    private void moveToPathStep(BlockPos step) {
+    private boolean moveToPathStep(ServerLevel world, BlockPos step) {
         suppressVanillaMovementTargets();
         double targetX = step.getX() + 0.5D;
         double targetZ = step.getZ() + 0.5D;
         faceTarget(targetX, targetZ);
         villager.getLookControl().setLookAt(targetX, step.getY() + 1.0D, targetZ);
-        villager.teleportTo(targetX, step.getY(), targetZ);
-        villager.setDeltaMovement(0.0D, villager.getDeltaMovement().y, 0.0D);
-        ValetDebug.record(villager, "path step purpose=" + pathPurpose + " step=" + ValetDebug.shortPos(step));
+
+        double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, step);
+        if (!ValetSafeNavigation.isSafeStand(world, step, PASSAGE_HEIGHT)) {
+            return false;
+        }
+        if (activeNavigationStep == null || !activeNavigationStep.equals(step)) {
+            Path vanillaPath = ValetSafeNavigation.createSafeLocalPath(world, villager, step, PASSAGE_HEIGHT, false);
+            if (vanillaPath == null || !villager.getNavigation().moveTo(vanillaPath, settings.workMoveSpeed())) {
+                ValetDebug.record(villager, "path navigation_rejected purpose=" + pathPurpose
+                        + " step=" + ValetDebug.shortPos(step));
+                return false;
+            }
+            activeNavigationStep = step.immutable();
+            navigationStepTicks = 0;
+            navigationNoProgressTicks = 0;
+            navigationBestDistanceSquared = distanceSquared;
+            ValetDebug.record(villager, "path navigation_start purpose=" + pathPurpose
+                    + " step=" + ValetDebug.shortPos(step));
+            return true;
+        }
+
+        navigationStepTicks++;
+        if (distanceSquared + NAVIGATION_PROGRESS_EPSILON < navigationBestDistanceSquared) {
+            navigationBestDistanceSquared = distanceSquared;
+            navigationNoProgressTicks = 0;
+        } else {
+            navigationNoProgressTicks++;
+        }
+
+        if (navigationStepTicks >= NAVIGATION_STEP_TIMEOUT_TICKS
+                || navigationNoProgressTicks >= NAVIGATION_NO_PROGRESS_TICKS
+                || villager.getNavigation().isStuck()) {
+            ValetDebug.record(villager, "path navigation_stuck purpose=" + pathPurpose
+                    + " step=" + ValetDebug.shortPos(step)
+                    + " ticks=" + navigationStepTicks
+                    + " idle=" + navigationNoProgressTicks);
+            return false;
+        }
+
+        if (villager.getNavigation().isDone()) {
+            Path vanillaPath = ValetSafeNavigation.createSafeLocalPath(world, villager, step, PASSAGE_HEIGHT, false);
+            if (vanillaPath == null || !villager.getNavigation().moveTo(vanillaPath, settings.workMoveSpeed())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean moveToVanillaFarmerTarget(ServerLevel world, BlockPos destination) {
+        double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, destination);
+        if (!ValetSafeNavigation.isSafeStand(world, destination, PASSAGE_HEIGHT)) {
+            return false;
+        }
+
+        if (activeNavigationStep == null || !activeNavigationStep.equals(destination)) {
+            setVanillaFarmerWalkTarget(destination);
+            activeNavigationStep = destination.immutable();
+            navigationStepTicks = 0;
+            navigationNoProgressTicks = 0;
+            navigationBestDistanceSquared = distanceSquared;
+            ValetDebug.record(villager, "path navigation_start purpose=CROP step="
+                    + ValetDebug.shortPos(destination) + " mode=vanilla_farmer");
+            return true;
+        }
+
+        navigationStepTicks++;
+        if (distanceSquared + NAVIGATION_PROGRESS_EPSILON < navigationBestDistanceSquared) {
+            navigationBestDistanceSquared = distanceSquared;
+            navigationNoProgressTicks = 0;
+        } else {
+            navigationNoProgressTicks++;
+        }
+
+        boolean hasExpectedWalkTarget = villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
+                .map(walkTarget -> walkTarget.getTarget().currentBlockPosition().equals(destination))
+                .orElse(false);
+        if (!hasExpectedWalkTarget && navigationStepTicks % FARMER_WALK_TARGET_RETRY_TICKS == 0) {
+            setVanillaFarmerWalkTarget(destination);
+            ValetDebug.record(villager, "path navigation_retry purpose=CROP step="
+                    + ValetDebug.shortPos(destination) + " mode=vanilla_farmer");
+        }
+
+        if (navigationStepTicks >= FARMER_NAVIGATION_TIMEOUT_TICKS) {
+            ValetDebug.record(villager, "path navigation_stuck purpose=CROP step="
+                    + ValetDebug.shortPos(destination)
+                    + " ticks=" + navigationStepTicks
+                    + " idle=" + navigationNoProgressTicks
+                    + " mode=vanilla_farmer");
+            return false;
+        }
+        return true;
+    }
+
+    private void setVanillaFarmerWalkTarget(BlockPos destination) {
+        BlockPosTracker tracker = new BlockPosTracker(destination);
+        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, tracker);
+        villager.getBrain().setMemory(
+                MemoryModuleType.WALK_TARGET,
+                new WalkTarget(tracker, (float) settings.workMoveSpeed(), 0)
+        );
     }
 
     private void faceTarget(double targetX, double targetZ) {
@@ -820,7 +976,31 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void clearNavigationStep() {
+        resetNavigationProgress();
         villager.getNavigation().stop();
+        clearVanillaMovementTargets();
+    }
+
+    private void resetNavigationProgress() {
+        activeNavigationStep = null;
+        navigationStepTicks = 0;
+        navigationNoProgressTicks = 0;
+        navigationBestDistanceSquared = Double.MAX_VALUE;
+    }
+
+    private void failNavigationStep(BlockPos current, BlockPos next, String reason) {
+        ValetDebug.record(villager, "path blocked purpose=" + pathPurpose
+                + " from=" + ValetDebug.shortPos(current)
+                + " next=" + ValetDebug.shortPos(next)
+                + " blocked=" + reason);
+        if (pathPurpose == PathPurpose.ORE) {
+            miningTask.rememberCurrentTarget();
+        } else if (pathPurpose == PathPurpose.CROP) {
+            farmingTask.rememberCurrentTargetFailure();
+        }
+        state = interruptedPathState();
+        clearPathState();
+        delayTicks = 10;
     }
 
     private Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose) {
@@ -1020,46 +1200,101 @@ public class ValetWorkGoal extends Goal {
 
     private boolean escapeFluidIfNeeded(ServerLevel world) {
         BlockPos current = villager.blockPosition();
-        if (world.getBlockState(current).getFluidState().isEmpty()
-                && world.getBlockState(current.above()).getFluidState().isEmpty()) {
+        boolean inFluid = !world.getBlockState(current).getFluidState().isEmpty()
+                || !world.getBlockState(current.above()).getFluidState().isEmpty();
+        if (!inFluid) {
+            if (waterEscapeTarget != null) {
+                ValetDebug.record(villager, "water_escape reached=" + ValetDebug.shortPos(waterEscapeTarget)
+                        + " state=" + state);
+                clearWaterEscapeState(false);
+            }
             return false;
         }
 
-        BlockPos safeStand = findNearestSafeStand(world, current, 5, 4);
-        if (safeStand == null) {
-            ValetDebug.record(villager, "water_stuck pos=" + ValetDebug.shortPos(current));
-            state = State.RETURNING;
-            delayTicks = 10;
-            return false;
+        if (waterEscapeRetryTicks > 0) {
+            villager.getJumpControl().jump();
+            return true;
         }
 
-        clearPathState();
-        clearMiningState();
-        villager.getNavigation().stop();
-        villager.teleportTo(safeStand.getX() + 0.5D, safeStand.getY(), safeStand.getZ() + 0.5D);
-        villager.setDeltaMovement(0.0D, 0.0D, 0.0D);
-        state = hasStewardWork() ? State.FIND_TARGET : hasConstructionOrder() && !hasInventoryItems() ? State.RETURNING_HOME : State.RETURNING;
-        delayTicks = 2;
-        ValetDebug.record(villager, "water_escape to=" + ValetDebug.shortPos(safeStand) + " state=" + state);
+        if (waterEscapeTarget == null || !ValetSafeNavigation.isSafeStand(world, waterEscapeTarget, PASSAGE_HEIGHT)) {
+            clearPathState();
+            clearMiningState();
+            state = hasStewardWork()
+                    ? State.FIND_TARGET
+                    : hasConstructionOrder() && !hasInventoryItems() ? State.RETURNING_HOME : State.RETURNING;
+            SafeNavigationTarget target = findNearestSafeStand(world, current, 5, 4);
+            if (target == null || !villager.getNavigation().moveTo(target.path(), settings.workMoveSpeed())) {
+                clearWaterEscapeState(true);
+                waterEscapeRetryTicks = WATER_ESCAPE_RETRY_TICKS;
+                villager.getJumpControl().jump();
+                ValetDebug.record(villager, "water_stuck pos=" + ValetDebug.shortPos(current));
+                return true;
+            }
+            waterEscapeTarget = target.pos();
+            waterEscapeNoProgressTicks = 0;
+            waterEscapeBestDistanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, target.pos());
+            ValetDebug.record(villager, "water_escape start=" + ValetDebug.shortPos(target.pos()) + " state=" + state);
+        } else {
+            double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, waterEscapeTarget);
+            if (distanceSquared + NAVIGATION_PROGRESS_EPSILON < waterEscapeBestDistanceSquared) {
+                waterEscapeBestDistanceSquared = distanceSquared;
+                waterEscapeNoProgressTicks = 0;
+            } else {
+                waterEscapeNoProgressTicks++;
+            }
+
+            if (waterEscapeNoProgressTicks >= WATER_ESCAPE_NO_PROGRESS_TICKS || villager.getNavigation().isStuck()) {
+                ValetDebug.record(villager, "water_escape stuck=" + ValetDebug.shortPos(waterEscapeTarget));
+                clearWaterEscapeState(true);
+                waterEscapeRetryTicks = WATER_ESCAPE_RETRY_TICKS;
+                villager.getJumpControl().jump();
+                return true;
+            }
+
+            if (villager.getNavigation().isDone()) {
+                Path safePath = ValetSafeNavigation.createSafeLocalPath(world, villager, waterEscapeTarget, PASSAGE_HEIGHT, true, 32);
+                if (safePath == null || !villager.getNavigation().moveTo(safePath, settings.workMoveSpeed())) {
+                    clearWaterEscapeState(true);
+                    waterEscapeRetryTicks = WATER_ESCAPE_RETRY_TICKS;
+                    villager.getJumpControl().jump();
+                    return true;
+                }
+            }
+        }
+
+        villager.getJumpControl().jump();
         return true;
     }
 
-    private BlockPos findNearestSafeStand(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius) {
-        BlockPos nearest = null;
+    private SafeNavigationTarget findNearestSafeStand(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius) {
+        SafeNavigationTarget nearest = null;
         double nearestDistance = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
             BlockPos stand = pos.immutable();
-            if (!isSafeStand(world, stand)) {
+            if (!ValetSafeNavigation.isSafeStand(world, stand, PASSAGE_HEIGHT)) {
                 continue;
             }
 
             double distance = squaredDistance(origin, stand);
-            if (distance < nearestDistance) {
-                nearest = stand;
+            if (distance >= nearestDistance) {
+                continue;
+            }
+            Path path = ValetSafeNavigation.createSafeLocalPath(world, villager, stand, PASSAGE_HEIGHT, true, 32);
+            if (path != null) {
+                nearest = new SafeNavigationTarget(stand, path);
                 nearestDistance = distance;
             }
         }
         return nearest;
+    }
+
+    private void clearWaterEscapeState(boolean stopNavigation) {
+        waterEscapeTarget = null;
+        waterEscapeNoProgressTicks = 0;
+        waterEscapeBestDistanceSquared = Double.MAX_VALUE;
+        if (stopNavigation) {
+            villager.getNavigation().stop();
+        }
     }
 
     private boolean isPassableTunnelSpace(ServerLevel world, BlockPos pos) {
@@ -1178,7 +1413,6 @@ public class ValetWorkGoal extends Goal {
         }
         return !isPassableTunnelSpace(world, pos)
                 && blockState.getFluidState().isEmpty()
-                && blockState.getDestroySpeed(world, pos) >= 0.0F
                 && blockState.isFaceSturdy(world, pos, Direction.UP);
     }
 
@@ -1652,6 +1886,10 @@ public class ValetWorkGoal extends Goal {
         return hasWorkOrigin() || hasActiveOrder() || hasInventoryItems() || state != State.IDLE;
     }
 
+    private boolean isVanillaFarmerWalkActive() {
+        return state == State.EXECUTING_PATH && pathPurpose == PathPurpose.CROP && !path.isEmpty();
+    }
+
     private boolean fleeFromMonsterIfNeeded(ServerLevel world) {
         ValetRole role = ValetRole.get(world, villager);
         if (role != ValetRole.ARTISAN && role != ValetRole.FARMER && role != ValetRole.BREEDER && role != ValetRole.COOK && role != ValetRole.STEWARD) {
@@ -1662,6 +1900,8 @@ public class ValetWorkGoal extends Goal {
         if (threat == null) {
             return false;
         }
+
+        abandonWorkPathForExternalMovement("flee");
 
         Vec3 away = villager.position().subtract(threat.position());
         if (away.lengthSqr() < 1.0E-4D) {
@@ -1716,11 +1956,20 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void suppressVanillaMovementTargets() {
+        suppressVanillaDestinationTargets();
+        clearVanillaMovementTargets();
+    }
+
+    private void suppressVanillaDestinationTargets() {
         villager.getBrain().eraseMemory(MemoryModuleType.MEETING_POINT);
         villager.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
         villager.getBrain().eraseMemory(MemoryModuleType.SECONDARY_JOB_SITE);
+    }
+
+    private void clearVanillaMovementTargets() {
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
     }
 
     private boolean hasInventorySpace() {
@@ -1751,7 +2000,23 @@ public class ValetWorkGoal extends Goal {
         path = List.of();
         pathIndex = 0;
         clearNavigationStep();
-        villager.getNavigation().stop();
+        clearPathTargets();
+    }
+
+    private void abandonWorkPathForExternalMovement(String reason) {
+        if (state != State.EXECUTING_PATH && path.isEmpty() && activeNavigationStep == null) {
+            return;
+        }
+        State resumeState = interruptedPathState();
+        path = List.of();
+        pathIndex = 0;
+        resetNavigationProgress();
+        clearPathTargets();
+        state = resumeState;
+        ValetDebug.record(villager, "path interrupted by=" + reason + " resume=" + resumeState);
+    }
+
+    private void clearPathTargets() {
         miningTask.clearTarget();
         farmingTask.clearTarget();
         breedingTask.clearTarget();
@@ -1968,6 +2233,38 @@ public class ValetWorkGoal extends Goal {
         @Override
         public boolean hasInventoryItems() {
             return ValetWorkGoal.this.hasInventoryItems();
+        }
+
+        @Override
+        public int requestedFarmPlantingCropMask() {
+            return farmingTask.requestedPlantingCropMask();
+        }
+
+        @Override
+        public void deferFarmPlantingRequest() {
+            farmingTask.deferPlantingRequest();
+        }
+
+        @Override
+        public List<BlockPos> farmContainerOrigins(ServerLevel world) {
+            if (!hasFarmOrder()) {
+                return List.of();
+            }
+            ValetFarmArea area = ValetFarmStorage.get(world).getArea(ValetOrders.getFarmAreaId(villager));
+            if (area == null) {
+                return List.of();
+            }
+            return List.of(
+                    new BlockPos(area.minX(), area.minY(), area.minZ()),
+                    new BlockPos(area.minX(), area.minY(), area.maxZ()),
+                    new BlockPos(area.maxX(), area.minY(), area.minZ()),
+                    new BlockPos(area.maxX(), area.minY(), area.maxZ())
+            );
+        }
+
+        @Override
+        public int getUsableInventorySlots(Container inventory) {
+            return ValetWorkGoal.this.getUsableInventorySlots(inventory);
         }
 
         @Override
@@ -2847,6 +3144,9 @@ public class ValetWorkGoal extends Goal {
         int dy = first.getY() - second.getY();
         int dz = first.getZ() - second.getZ();
         return dx * dx + dy * dy + dz * dz;
+    }
+
+    private record SafeNavigationTarget(BlockPos pos, Path path) {
     }
 
 }

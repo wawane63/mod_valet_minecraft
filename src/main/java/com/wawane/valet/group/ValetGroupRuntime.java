@@ -2,6 +2,8 @@ package com.wawane.valet.group;
 
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
+import com.wawane.valet.ValetDebug;
+import com.wawane.valet.ai.path.ValetSafeNavigation;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +11,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
@@ -17,6 +20,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.pathfinder.Path;
 
 public final class ValetGroupRuntime {
     private static final double FOLLOW_DISTANCE = 4.0D;
@@ -25,10 +29,18 @@ public final class ValetGroupRuntime {
     private static final double MOVE_STEP_DISTANCE = 24.0D;
     private static final int MOVE_REFRESH_TICKS = 20;
     private static final int FOLLOW_REFRESH_TICKS = 10;
+    private static final int SWIM_PROBE_DISTANCE = 32;
+    private static final int SWIM_MAX_NODES = 96;
+    private static final int SWIM_NO_PROGRESS_TICKS = 40;
+    private static final double SWIM_PROGRESS_EPSILON = 0.16D;
+    private static final double SWIM_TARGET_REACHED_DISTANCE_SQUARED = 2.25D;
+    private static final double SWIM_FOLLOW_STOP_DISTANCE_SQUARED = 6.25D;
     private static final Map<UUID, Long> NEXT_MOVE_REFRESH = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> NEXT_FOLLOW_REFRESH = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> MOVE_FAILURES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> NEXT_DEFENSE_HIT = new ConcurrentHashMap<>();
+    private static final Map<UUID, BlockPos> ACTIVE_SWIM_TARGETS = new ConcurrentHashMap<>();
+    private static final Map<UUID, SwimProgress> SWIM_PROGRESS = new ConcurrentHashMap<>();
     private static final Map<Integer, UUID> TRAVEL_LEADERS = new ConcurrentHashMap<>();
 
     private ValetGroupRuntime() {
@@ -162,8 +174,25 @@ public final class ValetGroupRuntime {
         Villager leader = stableTravelLeader(world, villager);
         if (leader != villager) {
             double distanceSquared = villager.distanceToSqr(leader);
-            if (distanceSquared <= 9.0D) {
+            boolean swimming = villager.isInWater() || leader.isInWater();
+            if (distanceSquared <= 9.0D && !swimming) {
                 villager.getNavigation().stop();
+                return true;
+            }
+            if (swimming) {
+                villager.getNavigation().stop();
+                if (distanceSquared <= SWIM_FOLLOW_STOP_DISTANCE_SQUARED) {
+                    villager.getMoveControl().setWantedPosition(
+                            villager.getX(), villager.getY() + 0.2D, villager.getZ(), speed * 0.35D
+                    );
+                } else {
+                    villager.getMoveControl().setWantedPosition(
+                            leader.getX(), leader.getY() + 0.35D, leader.getZ(), speed * 1.15D
+                    );
+                }
+                if (villager.isInWater()) {
+                    villager.getJumpControl().jump();
+                }
                 return true;
             }
             long gameTime = world.getGameTime();
@@ -179,16 +208,25 @@ public final class ValetGroupRuntime {
         double dx = targetX - villager.getX();
         double dz = targetZ - villager.getZ();
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-        if (horizontalDistance <= 3.0D) {
+        if (horizontalDistance <= 3.0D && !villager.isInWater()) {
             villager.getNavigation().stop();
             NEXT_MOVE_REFRESH.remove(villager.getUUID());
             MOVE_FAILURES.remove(villager.getUUID());
+            ACTIVE_SWIM_TARGETS.remove(villager.getUUID());
+            SWIM_PROGRESS.remove(villager.getUUID());
+            return true;
+        }
+
+        if (tickWaterTraversal(world, villager, dx, dz, horizontalDistance, speed)) {
             return true;
         }
 
         boolean stuck = ValetGroupExcavation.observeAndIsStuck(villager);
-        if (ValetGroupExcavation.hasActivePath(villager) || stuck) {
-            villager.getNavigation().stop();
+        boolean excavationActive = ValetGroupExcavation.hasActivePath(villager);
+        if (excavationActive || stuck) {
+            if (!excavationActive) {
+                villager.getNavigation().stop();
+            }
             if (ValetGroupExcavation.tick(world, villager, destination)) {
                 return true;
             }
@@ -214,12 +252,14 @@ public final class ValetGroupRuntime {
         if (!world.getFluidState(villager.blockPosition()).isEmpty()) {
             BlockPos landing = findLanding(world, villager, dx, dz);
             if (landing != null) {
-                villager.getNavigation().moveTo(landing.getX() + 0.5D, landing.getY(), landing.getZ() + 0.5D, speed * 1.2D);
-                if (villager.distanceToSqr(landing.getX() + 0.5D, landing.getY(), landing.getZ() + 0.5D) < 6.0D
-                        && landing.getY() > villager.getY()) {
-                    villager.getJumpControl().jump();
+                Path landingPath = ValetSafeNavigation.createSafeLocalPath(world, villager, landing, 2, true, 32);
+                if (landingPath != null && villager.getNavigation().moveTo(landingPath, speed * 1.2D)) {
+                    if (villager.distanceToSqr(landing.getX() + 0.5D, landing.getY(), landing.getZ() + 0.5D) < 6.0D
+                            && landing.getY() > villager.getY()) {
+                        villager.getJumpControl().jump();
+                    }
+                    return true;
                 }
-                return true;
             }
         }
         if (Math.abs(stepY - currentY) > 3) {
@@ -228,7 +268,9 @@ public final class ValetGroupRuntime {
                 return true;
             }
         }
-        boolean moving = villager.getNavigation().moveTo(stepX + 0.5D, stepY, stepZ + 0.5D, speed);
+        BlockPos stepTarget = new BlockPos(stepX, stepY, stepZ);
+        Path safePath = ValetSafeNavigation.createSafeLocalPath(world, villager, stepTarget, 2, false, 64);
+        boolean moving = safePath != null && villager.getNavigation().moveTo(safePath, speed);
         NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
         if (moving) {
             MOVE_FAILURES.put(villager.getUUID(), Math.max(0, failures - 1));
@@ -236,6 +278,231 @@ public final class ValetGroupRuntime {
             MOVE_FAILURES.put(villager.getUUID(), Math.min(6, failures + 1));
         }
         return true;
+    }
+
+    private static boolean tickWaterTraversal(
+            ServerLevel world,
+            Villager villager,
+            double dx,
+            double dz,
+            double horizontalDistance,
+            double speed
+    ) {
+        UUID uuid = villager.getUUID();
+        SwimProgress progress = villager.isInWater() ? SWIM_PROGRESS.get(uuid) : null;
+        boolean keepTarget = progress != null
+                && isValidSwimTarget(world, progress.target())
+                && !hasReachedSwimTarget(villager, progress.target());
+        SwimRoute route = keepTarget ? null : findSwimRoute(world, villager, dx, dz, horizontalDistance, 0.0D);
+        if (!keepTarget && route == null) {
+            ACTIVE_SWIM_TARGETS.remove(villager.getUUID());
+            SWIM_PROGRESS.remove(uuid);
+            return false;
+        }
+
+        long gameTime = world.getGameTime();
+        long nextRefresh = NEXT_MOVE_REFRESH.getOrDefault(villager.getUUID(), 0L);
+        if (!villager.isInWater() && route != null && route.approach() != null
+                && !isCloseTo(villager, route.approach(), 2.25D)) {
+            SWIM_PROGRESS.remove(uuid);
+            if (!villager.getNavigation().isDone() && gameTime < nextRefresh) {
+                return true;
+            }
+            Path approachPath = ValetSafeNavigation.createSafeLocalPath(
+                    world,
+                    villager,
+                    route.approach(),
+                    2,
+                    false,
+                    SWIM_MAX_NODES
+            );
+            boolean approaching = approachPath != null && villager.getNavigation().moveTo(approachPath, speed);
+            NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
+            if (approaching) {
+                ValetGroupExcavation.clear(villager.getUUID());
+                recordSwimTarget(villager, route.approach(), "group swim_approach target=");
+                return true;
+            }
+            ACTIVE_SWIM_TARGETS.remove(villager.getUUID());
+            return false;
+        }
+
+        if (!villager.isInWater() && route != null && route.firstWater() != null
+                && villager.distanceToSqr(route.firstWater().getX() + 0.5D, villager.getY(), route.firstWater().getZ() + 0.5D) > 6.25D) {
+            ACTIVE_SWIM_TARGETS.remove(villager.getUUID());
+            SWIM_PROGRESS.remove(uuid);
+            return false;
+        }
+
+        ValetGroupExcavation.clear(villager.getUUID());
+        villager.getNavigation().stop();
+        BlockPos swimTarget;
+        if (keepTarget) {
+            progress = updateSwimProgress(villager, progress);
+            if (progress.noProgressTicks() >= SWIM_NO_PROGRESS_TICKS) {
+                int recoveryAttempt = progress.recoveryAttempt() + 1;
+                SwimRoute recoveryRoute = findSwimRoute(
+                        world,
+                        villager,
+                        dx,
+                        dz,
+                        horizontalDistance,
+                        swimRecoveryAngle(recoveryAttempt)
+                );
+                if (recoveryRoute != null && !recoveryRoute.target().equals(progress.target())) {
+                    swimTarget = recoveryRoute.target();
+                    progress = new SwimProgress(
+                            swimTarget.immutable(),
+                            swimDistanceSquared(villager, swimTarget),
+                            0,
+                            recoveryAttempt
+                    );
+                    ValetDebug.record(villager, "group swim_recovery retry=" + recoveryAttempt
+                            + " target=" + ValetDebug.shortPos(swimTarget));
+                    ACTIVE_SWIM_TARGETS.put(uuid, swimTarget.immutable());
+                } else {
+                    swimTarget = progress.target();
+                    progress = new SwimProgress(
+                            swimTarget,
+                            swimDistanceSquared(villager, swimTarget),
+                            0,
+                            recoveryAttempt
+                    );
+                    ValetDebug.record(villager, "group swim_recovery retry=" + recoveryAttempt
+                            + " target_unchanged=" + ValetDebug.shortPos(swimTarget));
+                }
+            } else {
+                swimTarget = progress.target();
+            }
+        } else {
+            swimTarget = route.target();
+            progress = new SwimProgress(
+                    swimTarget.immutable(),
+                    swimDistanceSquared(villager, swimTarget),
+                    0,
+                    0
+            );
+        }
+        SWIM_PROGRESS.put(uuid, progress);
+        boolean waterTarget = world.getFluidState(swimTarget).is(FluidTags.WATER);
+        double targetY = swimTarget.getY() + (waterTarget ? 0.8D : 0.2D);
+        villager.getMoveControl().setWantedPosition(
+                swimTarget.getX() + 0.5D,
+                targetY,
+                swimTarget.getZ() + 0.5D,
+                speed * 1.2D
+        );
+        if (villager.isInWater()) {
+            villager.getJumpControl().jump();
+        }
+        MOVE_FAILURES.put(villager.getUUID(), 0);
+        recordSwimTarget(villager, swimTarget, "group swim_start target=");
+        return true;
+    }
+
+    private static SwimRoute findSwimRoute(
+            ServerLevel world,
+            Villager villager,
+            double dx,
+            double dz,
+            double horizontalDistance,
+            double angleOffset
+    ) {
+        double length = Math.max(0.001D, horizontalDistance);
+        double directionX = dx / length;
+        double directionZ = dz / length;
+        double cos = Math.cos(angleOffset);
+        double sin = Math.sin(angleOffset);
+        double probeX = directionX * cos - directionZ * sin;
+        double probeZ = directionX * sin + directionZ * cos;
+        int probeDistance = Math.min(SWIM_PROBE_DISTANCE, Math.max(1, (int) Math.ceil(horizontalDistance)));
+        boolean foundWater = villager.isInWater();
+        BlockPos approach = foundWater ? null : ValetSafeNavigation.isSafeStand(world, villager.blockPosition(), 2)
+                ? villager.blockPosition().immutable()
+                : null;
+        BlockPos firstWater = null;
+        BlockPos farthestWater = null;
+        for (int distance = 1; distance <= probeDistance; distance++) {
+            int x = (int) Math.floor(villager.getX() + probeX * distance);
+            int z = (int) Math.floor(villager.getZ() + probeZ * distance);
+            if (!world.hasChunk(x >> 4, z >> 4)) {
+                break;
+            }
+
+            int surface = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            BlockPos surfaceBlock = new BlockPos(x, surface - 1, z);
+            if (world.getFluidState(surfaceBlock).is(FluidTags.WATER)
+                    && ValetSafeNavigation.isSafeWaterColumn(world, surfaceBlock, 2)) {
+                foundWater = true;
+                if (firstWater == null) {
+                    firstWater = surfaceBlock;
+                }
+                farthestWater = surfaceBlock;
+                continue;
+            }
+
+            BlockPos shore = new BlockPos(x, surface, z);
+            if (foundWater && ValetSafeNavigation.isSafeStand(world, shore, 2)) {
+                return new SwimRoute(approach, firstWater, shore);
+            }
+            if (foundWater) {
+                break;
+            }
+            if (ValetSafeNavigation.isSafeStand(world, shore, 2)) {
+                approach = shore;
+            }
+        }
+        return farthestWater == null ? null : new SwimRoute(approach, firstWater, farthestWater);
+    }
+
+    private static SwimProgress updateSwimProgress(Villager villager, SwimProgress progress) {
+        double distanceSquared = swimDistanceSquared(villager, progress.target());
+        if (distanceSquared + SWIM_PROGRESS_EPSILON < progress.bestDistanceSquared()) {
+            return new SwimProgress(progress.target(), distanceSquared, 0, progress.recoveryAttempt());
+        }
+        return new SwimProgress(
+                progress.target(),
+                progress.bestDistanceSquared(),
+                progress.noProgressTicks() + 1,
+                progress.recoveryAttempt()
+        );
+    }
+
+    private static boolean isValidSwimTarget(ServerLevel world, BlockPos target) {
+        return world.getFluidState(target).is(FluidTags.WATER)
+                ? ValetSafeNavigation.isSafeWaterColumn(world, target, 2)
+                : ValetSafeNavigation.isSafeStand(world, target, 2);
+    }
+
+    private static boolean hasReachedSwimTarget(Villager villager, BlockPos target) {
+        double dx = target.getX() + 0.5D - villager.getX();
+        double dz = target.getZ() + 0.5D - villager.getZ();
+        return dx * dx + dz * dz <= SWIM_TARGET_REACHED_DISTANCE_SQUARED
+                && Math.abs(target.getY() + 0.5D - villager.getY()) <= 2.5D;
+    }
+
+    private static double swimDistanceSquared(Villager villager, BlockPos target) {
+        double dx = target.getX() + 0.5D - villager.getX();
+        double dz = target.getZ() + 0.5D - villager.getZ();
+        return dx * dx + dz * dz;
+    }
+
+    private static double swimRecoveryAngle(int recoveryAttempt) {
+        int attempt = Math.floorMod(recoveryAttempt - 1, 6) + 1;
+        return detourAngle(attempt);
+    }
+
+    private static void recordSwimTarget(Villager villager, BlockPos target, String prefix) {
+        BlockPos previous = ACTIVE_SWIM_TARGETS.put(villager.getUUID(), target.immutable());
+        if (!target.equals(previous)) {
+            ValetDebug.record(villager, prefix + ValetDebug.shortPos(target));
+        }
+    }
+
+    private static boolean isCloseTo(Villager villager, BlockPos target, double horizontalDistanceSquared) {
+        double dx = target.getX() + 0.5D - villager.getX();
+        double dz = target.getZ() + 0.5D - villager.getZ();
+        return dx * dx + dz * dz <= horizontalDistanceSquared && Math.abs(target.getY() - villager.getY()) <= 1.5D;
     }
 
     private static Villager stableTravelLeader(ServerLevel world, Villager villager) {
@@ -276,11 +543,7 @@ public final class ValetGroupRuntime {
             int z = (int) Math.floor(villager.getZ() + dz / length * distance);
             int surface = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             BlockPos stand = new BlockPos(x, surface, z);
-            if (world.getFluidState(stand).isEmpty()
-                    && world.getFluidState(stand.below()).isEmpty()
-                    && world.getBlockState(stand).getCollisionShape(world, stand).isEmpty()
-                    && world.getBlockState(stand.above()).getCollisionShape(world, stand.above()).isEmpty()
-                    && !world.getBlockState(stand.below()).getCollisionShape(world, stand.below()).isEmpty()) {
+            if (ValetSafeNavigation.isSafeStand(world, stand, 2)) {
                 return stand;
             }
         }
@@ -304,6 +567,8 @@ public final class ValetGroupRuntime {
         NEXT_FOLLOW_REFRESH.remove(valetUuid);
         MOVE_FAILURES.remove(valetUuid);
         NEXT_DEFENSE_HIT.remove(valetUuid);
+        ACTIVE_SWIM_TARGETS.remove(valetUuid);
+        SWIM_PROGRESS.remove(valetUuid);
         TRAVEL_LEADERS.entrySet().removeIf(entry -> entry.getValue().equals(valetUuid));
         ValetGroupExcavation.clear(valetUuid);
     }
@@ -313,6 +578,8 @@ public final class ValetGroupRuntime {
         NEXT_FOLLOW_REFRESH.clear();
         MOVE_FAILURES.clear();
         NEXT_DEFENSE_HIT.clear();
+        ACTIVE_SWIM_TARGETS.clear();
+        SWIM_PROGRESS.clear();
         TRAVEL_LEADERS.clear();
         ValetGroupExcavation.clearAll();
     }
@@ -395,5 +662,16 @@ public final class ValetGroupRuntime {
     private static boolean canUseCombatGroupCommand(ServerLevel world, Villager villager) {
         ValetRole role = ValetRole.get(world, villager);
         return role == ValetRole.COMBATANT || role == ValetRole.MAGICIAN;
+    }
+
+    private record SwimRoute(BlockPos approach, BlockPos firstWater, BlockPos target) {
+    }
+
+    private record SwimProgress(
+            BlockPos target,
+            double bestDistanceSquared,
+            int noProgressTicks,
+            int recoveryAttempt
+    ) {
     }
 }

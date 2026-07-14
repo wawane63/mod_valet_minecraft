@@ -10,6 +10,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 public final class ValetOrders {
     public static final int DATA_VERSION = 7;
     public static final int DEFAULT_MAX_ANIMALS = 8;
+    public static final boolean DEFAULT_FARM_REPLANT = true;
 
     private static final String DATA_VERSION_KEY = "ValetOrdersDataVersion";
     private static final String ORDER_KEY = "ValetOrder";
@@ -151,7 +152,7 @@ public final class ValetOrders {
     }
 
     public static boolean shouldReplantFarm(Villager villager) {
-        return FARM_REPLANT.getOrDefault(villager.getUUID(), false);
+        return FARM_REPLANT.getOrDefault(villager.getUUID(), DEFAULT_FARM_REPLANT);
     }
 
     public static boolean shouldTillFarm(Villager villager) {
@@ -347,7 +348,7 @@ public final class ValetOrders {
                         villager,
                         input.getIntOr(FARM_AREA_KEY, -1),
                         input.getIntOr(FARM_CROP_MASK_KEY, ValetFarmCrop.defaultMask()),
-                        input.getBooleanOr(FARM_REPLANT_KEY, false),
+                        input.getBooleanOr(FARM_REPLANT_KEY, DEFAULT_FARM_REPLANT),
                         input.getBooleanOr(FARM_TILL_SOIL_KEY, false)
                 );
             } else if (order == ValetOrder.BREED_ANIMALS) {

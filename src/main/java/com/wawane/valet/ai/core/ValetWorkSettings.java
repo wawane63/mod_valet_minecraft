@@ -33,6 +33,8 @@ public final class ValetWorkSettings {
     private static final int FAST_ACTION_DELAY_TICKS = 0;
     private static final int BASE_PATH_STEP_DELAY_TICKS = 1;
     private static final int FAST_PATH_STEP_DELAY_TICKS = 0;
+    private static final double BASE_WORK_MOVE_SPEED = 0.5D;
+    private static final double FAST_WORK_MOVE_SPEED = 0.6D;
     private static final int BUILD_MATERIAL_RADIUS_BONUS = 16;
     private static final double COMBAT_SEARCH_RADIUS = 8.0D;
     private static final double COMBAT_SEARCH_RADIUS_BONUS = 4.0D;
@@ -72,6 +74,10 @@ public final class ValetWorkSettings {
 
     public int pathStepDelayTicks() {
         return hasRolePerk(ValetPerk.MOVEMENT) ? FAST_PATH_STEP_DELAY_TICKS : BASE_PATH_STEP_DELAY_TICKS;
+    }
+
+    public double workMoveSpeed() {
+        return hasRolePerk(ValetPerk.MOVEMENT) ? FAST_WORK_MOVE_SPEED : BASE_WORK_MOVE_SPEED;
     }
 
     public int chestRadius() {

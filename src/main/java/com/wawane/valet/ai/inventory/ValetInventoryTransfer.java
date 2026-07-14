@@ -1,7 +1,10 @@
 package com.wawane.valet.ai.inventory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
@@ -41,9 +44,30 @@ public final class ValetInventoryTransfer {
     }
 
     public static int depositInventory(ServerLevel world, BlockPos pos, Container sourceInventory) {
+        return depositInventory(world, pos, sourceInventory, stack -> false, 0);
+    }
+
+    public static int depositInventory(
+            ServerLevel world,
+            BlockPos pos,
+            Container sourceInventory,
+            Predicate<ItemStack> retainPredicate,
+            int retainPerItem
+    ) {
         Container targetInventory = getContainerInventory(world, pos);
         if (targetInventory == null) {
             return 0;
+        }
+
+        Map<Item, Integer> remainingRetained = new HashMap<>();
+        if (retainPerItem > 0) {
+            for (int slot = 0; slot < sourceInventory.getContainerSize(); slot++) {
+                ItemStack stack = sourceInventory.getItem(slot);
+                if (!stack.isEmpty() && retainPredicate.test(stack)) {
+                    remainingRetained.merge(stack.getItem(), stack.getCount(), Integer::sum);
+                }
+            }
+            remainingRetained.replaceAll((item, count) -> Math.min(retainPerItem, count));
         }
 
         int movedTotal = 0;
@@ -56,9 +80,18 @@ public final class ValetInventoryTransfer {
                 continue;
             }
 
+            int retained = Math.min(sourceStack.getCount(), remainingRetained.getOrDefault(sourceStack.getItem(), 0));
+            if (retained > 0) {
+                remainingRetained.put(sourceStack.getItem(), remainingRetained.get(sourceStack.getItem()) - retained);
+            }
             ItemStack remaining = sourceStack.copy();
+            remaining.setCount(sourceStack.getCount() - retained);
+            if (remaining.isEmpty()) {
+                continue;
+            }
+            int transferable = remaining.getCount();
             insertStack(targetInventory, remaining);
-            int moved = sourceStack.getCount() - remaining.getCount();
+            int moved = transferable - remaining.getCount();
             if (moved > 0) {
                 movedTotal += moved;
                 sourceStack.shrink(moved);
@@ -66,6 +99,49 @@ public final class ValetInventoryTransfer {
                     sourceInventory.setItem(slot, ItemStack.EMPTY);
                 }
             }
+        }
+
+        if (movedTotal > 0) {
+            sourceInventory.setChanged();
+            targetInventory.setChanged();
+        }
+        return movedTotal;
+    }
+
+    public static int withdrawMatching(
+            ServerLevel world,
+            BlockPos pos,
+            Container targetInventory,
+            int targetSlots,
+            Predicate<ItemStack> predicate,
+            int maxItems
+    ) {
+        Container sourceInventory = getContainerInventory(world, pos);
+        if (sourceInventory == null || maxItems <= 0) {
+            return 0;
+        }
+
+        int movedTotal = 0;
+        for (int slot = 0; slot < sourceInventory.getContainerSize() && movedTotal < maxItems; slot++) {
+            ItemStack sourceStack = sourceInventory.getItem(slot);
+            if (sourceStack.isEmpty() || !predicate.test(sourceStack)) {
+                continue;
+            }
+
+            ItemStack moving = sourceStack.copy();
+            moving.setCount(Math.min(sourceStack.getCount(), maxItems - movedTotal));
+            int requested = moving.getCount();
+            insertStack(targetInventory, moving, targetSlots);
+            int moved = requested - moving.getCount();
+            if (moved <= 0) {
+                continue;
+            }
+
+            sourceStack.shrink(moved);
+            if (sourceStack.isEmpty()) {
+                sourceInventory.setItem(slot, ItemStack.EMPTY);
+            }
+            movedTotal += moved;
         }
 
         if (movedTotal > 0) {
