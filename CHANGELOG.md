@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1 - Maire et quetes
+
+### Added
+
+- Apparition d'un maire pres de la cloche lorsqu'un village possede au moins un chat et un golem.
+- Trois quetes de livraison persistantes : pain, torches et fer, avec recompenses en emeraudes.
+- Menu des quetes ouvert par la touche `J`.
+
+### Changed
+
+- La carte tactique s'ouvre directement avec `K`; le bouton du menu Echap est retire.
+
 ## 0.4.0 - Tag Valet
 
 ### Added

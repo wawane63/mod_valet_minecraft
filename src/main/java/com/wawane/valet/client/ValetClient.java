@@ -7,17 +7,19 @@ import com.wawane.valet.gui.ValetOrdersScreen;
 import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import com.wawane.valet.network.packets.ValetGroupStatePayload;
 import com.wawane.valet.network.packets.ValetStatePayload;
+import com.wawane.valet.network.packets.ValetQuestStatePayload;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.Screens;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.screens.MenuScreens;
-import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.world.entity.EntityTypes;
+import org.lwjgl.glfw.GLFW;
 
 public class ValetClient implements ClientModInitializer {
     @Override
@@ -26,13 +28,15 @@ public class ValetClient implements ClientModInitializer {
         EntityRenderers.register(EntityTypes.VILLAGER, ValetConditionalVillagerRenderer::new);
         ConstructionBlueprintPlacementPreview.register();
         MenuScreens.register(ValetMod.VALET_ORDERS_SCREEN_HANDLER, ValetOrdersScreen::new);
-        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            if (screen instanceof PauseScreen pauseScreen && pauseScreen.showsPauseMenu() && client.level != null) {
-                Screens.getWidgets(screen).add(Button.builder(
-                                Component.translatable("screen.valet_map.open"),
-                                ignored -> client.setScreenAndShow(new ValetWorldMapScreen(screen)))
-                        .bounds(scaledWidth - 164, 8, 156, 20)
-                        .build());
+        KeyMapping.Category category = KeyMapping.Category.register(ValetMod.id("controls"));
+        KeyMapping questKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.valet.quests", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, category));
+        KeyMapping mapKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.valet.map", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, category));
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (questKey.consumeClick()) {
+                if (client.level != null && client.gui.screen() == null) client.setScreenAndShow(new ValetQuestScreen());
+            }
+            while (mapKey.consumeClick()) {
+                if (client.level != null && client.gui.screen() == null) client.setScreenAndShow(new ValetWorldMapScreen(null));
             }
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -56,6 +60,13 @@ public class ValetClient implements ClientModInitializer {
                     mapScreen.applyServerState(payload.selectedGroupId(), payload.groups(), payload.valets());
                 } else if (context.client().gui.screen() instanceof ValetGroupsScreen screen) {
                     screen.applyServerState(payload.selectedGroupId(), payload.groups(), payload.valets());
+                }
+            });
+        });
+        ClientPlayNetworking.registerGlobalReceiver(ValetQuestStatePayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                if (context.client().gui.screen() instanceof ValetQuestScreen screen) {
+                    screen.applyState(payload.mayorNearby(), payload.states(), payload.counts());
                 }
             });
         });

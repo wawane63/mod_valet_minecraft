@@ -19,6 +19,7 @@ import com.wawane.valet.farm.FarmBeaconBlock;
 import com.wawane.valet.farm.ValetFarmMarkers;
 import com.wawane.valet.group.ValetGroupRuntime;
 import com.wawane.valet.group.ValetGroupTravelTickets;
+import com.wawane.valet.quest.ValetMayorManager;
 import com.wawane.valet.gui.ValetOrdersScreenHandler;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.state.ValetBehavior;
@@ -366,6 +367,7 @@ public class ValetMod implements ModInitializer {
             ValetGroupTravelTickets.tick(world);
             ValetWorkDriver.tick(world);
             ValetDebug.tick(world);
+            ValetMayorManager.tick(world);
         });
         ValetDebug.registerCommands();
         ValetNetworking.registerServerReceivers();

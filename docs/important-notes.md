@@ -7,8 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Version locale en cours : `0.4.0` (tag Valet et missions de groupe stabilisees)
-- Derniere release publiee : `v0.4.0`
+- Version locale en cours : `0.4.1` (maire, quetes et raccourcis clavier)
+- Derniere release publiee : `v0.4.1`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur

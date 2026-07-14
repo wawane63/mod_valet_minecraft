@@ -28,7 +28,8 @@
 - `construction/`, `farm/`, `breeding/`, `cooking/`, `combat/`, `group/` : modules fonctionnels dedies.
 - `client/` et `mixin/` : rendu, previews, animations et integrations Minecraft/Fabric.
 - `client/ValetWorldMapScreen`, `client/ValetGroupsScreen`, `group/ValetGroupRuntime`, `group/ValetGroupExcavation` et `group/ValetGroupTravelTickets` : onglets carte/groupes, ordres longue distance, excavation 3D locale et tickets temporaires de mission.
-- La gestion des groupes est centralisee dans le menu Echap; aucun bloc ou item de groupe n'est enregistre en 0.3.9.
+- `quest/`, `client/ValetQuestScreen` et les payloads de quete : apparition du maire, quetes joueur persistantes et livraisons validees par le serveur.
+- La gestion des groupes reste centralisee dans les onglets de la carte, ouverte directement avec `K`; aucun bloc ou item de groupe n'est enregistre.
 - A partir de 0.4.0, `state/ValetIdentity` porte l'identite persistante du valet; les postes ne doivent plus pouvoir retirer cette identite.
 - L'`Insigne de valet` est l'unique point d'entree joueur; le rôle est choisi dans l'interface du valet.
 - Les postes restent des points de travail et ne créent, ne restaurent ni ne suppriment l'identité Valet.

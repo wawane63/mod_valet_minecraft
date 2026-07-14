@@ -4,9 +4,9 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version locale actuelle : 0.4.0 - tag Valet et missions de groupe stabilisees.
+Version locale actuelle : 0.4.1 - maire, quetes et raccourcis clavier.
 
-Derniere version publiee : 0.4.0 (`v0.4.0`).
+Derniere version publiee : 0.4.1 (`v0.4.1`).
 
 ## Guides
 
@@ -14,6 +14,7 @@ Derniere version publiee : 0.4.0 (`v0.4.0`).
 - [Notes 0.3.8](docs/releases/v0.3.8.md)
 - [Notes 0.3.9](docs/releases/v0.3.9.md)
 - [Notes 0.4.0](docs/releases/v0.4.0.md)
+- [Notes 0.4.1](docs/releases/v0.4.1.md)
 
 ## Versions disponibles
 
@@ -36,6 +37,7 @@ Derniere version publiee : 0.4.0 (`v0.4.0`).
 | 0.3.8 | Audit, carte tactique et missions de groupe | [`v0.3.8`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.8) |
 | 0.3.9 | Gestion centralisee des groupes | [`v0.3.9`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.3.9) |
 | 0.4.0 | Tag Valet independant du poste | [`v0.4.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.0) |
+| 0.4.1 | Maire, quetes et raccourcis | [`v0.4.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.1) |
 
 ## Depart
 
@@ -55,7 +57,8 @@ Derniere version publiee : 0.4.0 (`v0.4.0`).
 - Filtres intendant : les 9 premiers slots d'un coffre/baril cible declarent les items acceptes; le filtre le plus a gauche et le coffre le plus proche du poste sont prioritaires.
 - Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
-- Carte des valets : depuis le menu Echap, propose les onglets `Carte` et `Groupes de valets`.
+- Carte des valets : touche `K`, avec les onglets `Carte` et `Groupes de valets`.
+- Quetes du maire : touche `J`; le maire apparait pres d'une cloche si le village possede un chat et un golem.
 - Groupes de valets : cree ou supprime les groupes et affecte les valets disponibles depuis un menu unique.
 - Carte tactique : affiche le terrain charge et permet d'envoyer ou rappeler le groupe selectionne.
 

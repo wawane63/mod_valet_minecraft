@@ -8,6 +8,12 @@
 
 ## Etat courant
 
+- [x] Ajouter un maire de village conditionne par une cloche, un chat et un golem.
+- [x] Ajouter des quetes de livraison persistantes avec recompenses.
+- [x] Ouvrir les quetes avec J et la carte tactique avec K, sans passer par Echap.
+- [x] Finaliser la 0.4.1 avec notes completes, jar et hash synchronises.
+- [x] Publier la 0.4.1 sur GitHub avec tag, release et jar.
+
 - [x] Initialiser `plan.md` a la racine du projet.
 - [x] Initialiser `task.md` a la racine du projet.
 - [x] Integrer les regles du repo : francais, court, source de verite locale, pas de push sans demande.
@@ -40,6 +46,10 @@
 - [x] Finaliser et publier la 0.4.0 avec commit, tag, notes completes et jar GitHub.
 
 ## Derniere action
+
+- Version locale `0.4.1` ajoutee : maire persistant, trois quetes de livraison et menus sur `J` / `K`.
+- Build complet valide et `valet-0.4.1.jar` installe seul avec le SHA-256 `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156`.
+- 0.4.1 finalisee pour publication GitHub avec le jar `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156`.
 
 - 0.3.9 publiee sur GitHub avec son jar et ses notes.
 - 0.4.0 locale initialisee avec `ValetIdentity` et l'Insigne de valet.

@@ -31,6 +31,7 @@ Regles obligatoires :
 | 0.3.8 | Audit, carte tactique et missions de groupe | `v0.3.8` | `build/libs/valet-0.3.8.jar` | `B51AE5685B80EFCC8022D3141127D08D3BD99671DCB75BC146E5BD4E623071FB` |
 | 0.3.9 | Gestion centralisee des groupes | `v0.3.9` | `build/libs/valet-0.3.9.jar` | `3C41471973EEB2F60C9873337A6C75349436263809B9E93109AD50C70EEFAF06` |
 | 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
+| 0.4.1 | Maire, quetes et raccourcis | `v0.4.1` | `build/libs/valet-0.4.1.jar` | `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -44,6 +45,25 @@ Le jar `0.3.7` ajoute l'intendant et les transferts filtres entre coffres.
 Le jar `0.3.8` regroupe l'audit exhaustif et la carte tactique avec missions de groupe.
 Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anciens objets/blocs de commande.
 La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
+La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J` / `K`.
+
+## 0.4.1 - Maire et quetes
+
+Fonctionnalite :
+
+- Maire persistant genere pres d'une cloche si un chat et un golem sont presents.
+- Trois quetes de livraison persistantes, controlees cote serveur et recompensees en emeraudes.
+- Menu des quetes sur `J` et carte tactique sur `K`, touches reconfigurables.
+- Retrait du bouton de carte dans le menu Echap.
+
+Verification :
+
+- Compilation Java : OK.
+- Build complet et installation locale : OK.
+- Jar actuel : `valet-0.4.1.jar`.
+- SHA-256 : `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156`.
+- Dossier mods : un seul jar Valet, hash identique au build.
+- Publication GitHub : `v0.4.1`.
 
 ## 0.4.0 - Tag Valet
 

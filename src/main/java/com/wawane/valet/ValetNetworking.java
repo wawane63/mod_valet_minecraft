@@ -40,6 +40,10 @@ import com.wawane.valet.network.packets.SortContainerPayload;
 import com.wawane.valet.network.packets.ValetGroupStatePayload;
 import com.wawane.valet.network.packets.ValetMagicCastPayload;
 import com.wawane.valet.network.packets.ValetStatePayload;
+import com.wawane.valet.network.packets.ManageQuestPayload;
+import com.wawane.valet.network.packets.ValetQuestStatePayload;
+import com.wawane.valet.quest.ValetMayorManager;
+import com.wawane.valet.quest.ValetQuest;
 import com.wawane.valet.state.ValetBehavior;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -102,6 +106,13 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(SortContainerPayload.TYPE, ValetNetworking::sortOpenContainer);
         ServerPlayNetworking.registerGlobalReceiver(SetBehaviorPayload.TYPE, ValetNetworking::setBehavior);
         ServerPlayNetworking.registerGlobalReceiver(ManageMapGroupPayload.TYPE, ValetGroupInteractions::handleMapManagement);
+        ServerPlayNetworking.registerGlobalReceiver(ManageQuestPayload.TYPE, (payload, context) -> {
+            if (payload.questIndex() < 0) {
+                ValetMayorManager.sendState(context.player());
+            } else {
+                ValetMayorManager.act(context.player(), ValetQuest.fromIndex(payload.questIndex()));
+            }
+        });
     }
 
     public static void registerPayloadTypes() {
@@ -120,9 +131,11 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(SortContainerPayload.TYPE, SortContainerPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SetBehaviorPayload.TYPE, SetBehaviorPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ManageMapGroupPayload.TYPE, ManageMapGroupPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ManageQuestPayload.TYPE, ManageQuestPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetMagicCastPayload.TYPE, ValetMagicCastPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetStatePayload.TYPE, ValetStatePayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ValetGroupStatePayload.TYPE, ValetGroupStatePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ValetQuestStatePayload.TYPE, ValetQuestStatePayload.CODEC);
     }
 
     public static InteractionResult openValetOrders(Player player, Level world, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
