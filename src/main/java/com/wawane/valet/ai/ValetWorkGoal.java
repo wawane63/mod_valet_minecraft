@@ -1301,15 +1301,11 @@ public class ValetWorkGoal extends Goal {
         BlockState blockState = world.getBlockState(pos);
         return blockState.isAir()
                 || blockState.is(Blocks.SNOW)
-                || isDoorPassage(blockState)
+                || ValetSafeNavigation.isDoorPassage(blockState)
                 || isFenceGatePassage(blockState)
                 || blockState.is(Blocks.TORCH)
                 || blockState.is(Blocks.WALL_TORCH)
                 || blockState.getFluidState().isEmpty() && blockState.getCollisionShape(world, pos).isEmpty();
-    }
-
-    private boolean isDoorPassage(BlockState blockState) {
-        return blockState.getBlock() instanceof DoorBlock && blockState.getFluidState().isEmpty();
     }
 
     private boolean isFenceGatePassage(BlockState blockState) {
@@ -1326,7 +1322,7 @@ public class ValetWorkGoal extends Goal {
 
     private void openDoorAt(ServerLevel world, BlockPos pos) {
         BlockState state = world.getBlockState(pos);
-        if (!(state.getBlock() instanceof DoorBlock) || !state.hasProperty(DoorBlock.OPEN)) {
+        if (!ValetSafeNavigation.canOpenDoor(state) || !state.hasProperty(DoorBlock.OPEN)) {
             return;
         }
 
@@ -1334,10 +1330,10 @@ public class ValetWorkGoal extends Goal {
         BlockState lowerState = world.getBlockState(lowerPos);
         BlockState upperState = world.getBlockState(lowerPos.above());
         boolean opened = false;
-        if (lowerState.getBlock() instanceof DoorBlock && lowerState.hasProperty(DoorBlock.OPEN) && !lowerState.getValue(DoorBlock.OPEN)) {
+        if (ValetSafeNavigation.canOpenDoor(lowerState) && lowerState.hasProperty(DoorBlock.OPEN) && !lowerState.getValue(DoorBlock.OPEN)) {
             opened |= world.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true), Block.UPDATE_ALL);
         }
-        if (upperState.getBlock() instanceof DoorBlock && upperState.hasProperty(DoorBlock.OPEN) && !upperState.getValue(DoorBlock.OPEN)) {
+        if (ValetSafeNavigation.canOpenDoor(upperState) && upperState.hasProperty(DoorBlock.OPEN) && !upperState.getValue(DoorBlock.OPEN)) {
             opened |= world.setBlock(lowerPos.above(), upperState.setValue(DoorBlock.OPEN, true), Block.UPDATE_ALL);
         }
         if (opened) {

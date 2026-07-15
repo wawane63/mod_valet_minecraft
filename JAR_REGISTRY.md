@@ -33,6 +33,7 @@ Regles obligatoires :
 | 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
 | 0.4.1 | Maire, quetes et raccourcis | `v0.4.1` | `build/libs/valet-0.4.1.jar` | `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156` |
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | `v0.4.2` | `build/libs/valet-0.4.2.jar` | `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5` |
+| 0.4.3 | Navigation de surface et maire unique interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -48,6 +49,34 @@ Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anc
 La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
 La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J` / `K`.
 La version `0.4.2` publie l'ensemble de la branche `0.4.x` avec le maire et ses quetes, puis remplace les teleportations de deplacement par la navigation vanilla sous garde-fous Valet et fiabilise le fermier.
+La version `0.4.3` donne la priorite aux petits trajets de surface, empeche les galeries peu profondes et rend le maire unique directement interactif.
+
+## 0.4.3 - Navigation de surface et maire unique interactif
+
+Objectif : conserver l'excavation comme dernier recours lorsqu'un trajet de surface existe.
+
+Fonctionnalite :
+
+- Validation de support partagee avec `ValetSafeNavigation`, y compris chemins en terre, terres labourees et escaliers.
+- Essais de surface bornes a 12, 8, 4 puis 24 blocs avec detours alternes.
+- Quatre echecs de surface requis avant le lancement d'une galerie.
+- Refus d'un chemin d'excavation si une surface sure se trouve de un a quatre blocs au-dessus.
+- Comptage et retrait des livraisons de quetes sans conteneur nul en Minecraft 26.2.
+- UUID de maire persistant par dimension et suppression automatique des doublons charges.
+- Maire immobilise pres de sa cloche, equipe d'un trident visible et ouvrant les quetes au clic droit.
+- UI de quetes lisible avec textes opaques, icones d'objets, progression d'inventaire et bilan apres livraison.
+- Portes metalliques fermees traitees comme obstacles; ouverture reservee aux portes en bois.
+- Signatures de debug `surface_path`, `surface_failed` et `surface_exhausted`.
+
+Verification :
+
+- Compilation Java : OK.
+- Build complet et installation locale : OK.
+- Jar actuel : `valet-0.4.3.jar`.
+- SHA-256 : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
+- Dossier mods : un seul jar Valet, hash identique au build.
+- Bootstrap serveur : Minecraft 26.2, Fabric Loader 0.19.3 et Valet 0.4.3 charges; arret EULA attendu.
+- Publication GitHub : `v0.4.3`.
 
 ## 0.4.2 - Navigation vanilla, fermier et ameliorations generales
 

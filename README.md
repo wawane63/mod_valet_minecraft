@@ -4,9 +4,9 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version locale actuelle : 0.4.2 - navigation vanilla, fermier et ameliorations generales.
+Version actuelle : 0.4.3 - navigation de surface et maire unique interactif.
 
-Derniere version publiee : 0.4.2 (`v0.4.2`).
+Derniere version publiee : 0.4.3 (`v0.4.3`).
 
 ## Guides
 
@@ -16,6 +16,7 @@ Derniere version publiee : 0.4.2 (`v0.4.2`).
 - [Notes 0.4.0](docs/releases/v0.4.0.md)
 - [Notes 0.4.1](docs/releases/v0.4.1.md)
 - [Notes 0.4.2](docs/releases/v0.4.2.md)
+- [Notes 0.4.3](docs/releases/v0.4.3.md)
 
 ## Versions disponibles
 
@@ -40,6 +41,7 @@ Derniere version publiee : 0.4.2 (`v0.4.2`).
 | 0.4.0 | Tag Valet independant du poste | [`v0.4.0`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.0) |
 | 0.4.1 | Maire, quetes et raccourcis | [`v0.4.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.1) |
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | [`v0.4.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.2) |
+| 0.4.3 | Navigation de surface et maire unique interactif | [`v0.4.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.3) |
 
 ## Depart
 
@@ -60,9 +62,10 @@ Derniere version publiee : 0.4.2 (`v0.4.2`).
 - Construction : les blueprints se tournent selon le regard, se posent en miroir accroupi, et signalent les materiaux manquants avant depart.
 - Coffres/barils : bouton `Tri` directement dans l'interface du conteneur.
 - Carte des valets : touche `K`, avec les onglets `Carte` et `Groupes de valets`.
-- Quetes du maire : touche `J`; le maire apparait pres d'une cloche si le village possede un chat et un golem.
+- Quetes du maire : clic droit sur le maire ou touche `J`; la meme UI montre l'objet demande, la progression et les livraisons terminees. Un seul maire par dimension apparait pres d'une cloche si le village possede un chat et un golem.
 - Groupes de valets : cree ou supprime les groupes et affecte les valets disponibles depuis un menu unique.
 - Carte tactique : affiche le terrain charge et permet d'envoyer ou rappeler le groupe selectionne.
+- Portes : les valets ouvrent les portes en bois, mais n'actionnent jamais une porte en fer ou en cuivre fermee.
 
 ## Build
 

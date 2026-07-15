@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -28,6 +27,7 @@ final class ValetGroupExcavation {
     private static final int STUCK_TICKS_BEFORE_EXCAVATION = 40;
     private static final int MAX_PATH_NODES = 2_500;
     private static final int MAX_PATH_LENGTH = 32;
+    private static final int MAX_SHALLOW_SURFACE_OFFSET = 4;
     private static final int ACTION_INTERVAL_TICKS = 4;
     private static final int NAVIGATION_NO_PROGRESS_TICKS = 50;
     private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 140;
@@ -274,7 +274,7 @@ final class ValetGroupExcavation {
     }
 
     private static boolean canPrepareStand(ServerLevel world, BlockPos stand) {
-        if (!canStandOn(world, stand.below())) {
+        if (!canStandOn(world, stand.below()) || hasWalkableSurfaceAbove(world, stand)) {
             return false;
         }
         for (int y = 0; y < PASSAGE_HEIGHT; y++) {
@@ -290,7 +290,8 @@ final class ValetGroupExcavation {
         int dx = Math.abs(to.getX() - from.getX());
         int dy = to.getY() - from.getY();
         int dz = Math.abs(to.getZ() - from.getZ());
-        if (dx + dz != 1 || dy < -1 || dy > 1 || !canStandOn(world, to.below())) {
+        if (dx + dz != 1 || dy < -1 || dy > 1
+                || !canStandOn(world, to.below()) || hasWalkableSurfaceAbove(world, to)) {
             return false;
         }
         for (int y = 0; y < PASSAGE_HEIGHT; y++) {
@@ -337,10 +338,16 @@ final class ValetGroupExcavation {
     }
 
     private static boolean canStandOn(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        return !isPassable(world, pos)
-                && state.getFluidState().isEmpty()
-                && state.isFaceSturdy(world, pos, Direction.UP);
+        return ValetSafeNavigation.isSafeSupport(world, pos);
+    }
+
+    private static boolean hasWalkableSurfaceAbove(ServerLevel world, BlockPos stand) {
+        for (int offset = 1; offset <= MAX_SHALLOW_SURFACE_OFFSET; offset++) {
+            if (ValetSafeNavigation.isSafeStand(world, stand.above(offset), PASSAGE_HEIGHT)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean canMineNaturalBlock(ServerLevel world, BlockPos pos, BlockState state) {

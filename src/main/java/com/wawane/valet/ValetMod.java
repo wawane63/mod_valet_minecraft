@@ -353,6 +353,7 @@ public class ValetMod implements ModInitializer {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> entries.accept(VALET_TAG_ITEM));
         UseEntityCallback.EVENT.register(ValetMod::tagVillagerAsValet);
         UseEntityCallback.EVENT.register(ValetNetworking::openValetOrders);
+        UseEntityCallback.EVENT.register(ValetMayorManager::openQuestScreen);
         UseBlockCallback.EVENT.register(ValetMod::recallValetAtWorkstation);
         ServerEntityEvents.ENTITY_UNLOAD.register(ValetMod::clearEntityRuntimeState);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearAllRuntimeState());

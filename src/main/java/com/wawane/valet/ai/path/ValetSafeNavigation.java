@@ -73,7 +73,7 @@ public final class ValetSafeNavigation {
     }
 
     public static boolean isSafeStand(ServerLevel world, BlockPos stand, int passageHeight) {
-        if (stand == null || !hasSafeSupport(world, stand.below())) {
+        if (stand == null || !isSafeSupport(world, stand.below())) {
             return false;
         }
         for (int y = 0; y < passageHeight; y++) {
@@ -154,7 +154,7 @@ public final class ValetSafeNavigation {
         return foundWater;
     }
 
-    private static boolean hasSafeSupport(ServerLevel world, BlockPos pos) {
+    public static boolean isSafeSupport(ServerLevel world, BlockPos pos) {
         BlockState state = world.getBlockState(pos);
         if (state.is(Blocks.DIRT_PATH) || state.is(Blocks.FARMLAND) || state.getBlock() instanceof StairBlock) {
             return !isHazardous(state) && state.getFluidState().isEmpty();
@@ -165,9 +165,20 @@ public final class ValetSafeNavigation {
                 && state.isFaceSturdy(world, pos, Direction.UP);
     }
 
+    /** Comme un villageois vanilla : ouvre le bois, mais jamais une porte metallique fermee. */
+    public static boolean isDoorPassage(BlockState state) {
+        return state.getBlock() instanceof DoorBlock
+                && state.hasProperty(DoorBlock.OPEN)
+                && (state.getValue(DoorBlock.OPEN) || canOpenDoor(state));
+    }
+
+    public static boolean canOpenDoor(BlockState state) {
+        return state.getBlock() instanceof DoorBlock && state.is(BlockTags.WOODEN_DOORS);
+    }
+
     private static boolean isOpenPassage(ServerLevel world, BlockPos pos, BlockState state) {
         if (state.getBlock() instanceof DoorBlock && state.hasProperty(DoorBlock.OPEN)) {
-            return state.getValue(DoorBlock.OPEN) || state.is(BlockTags.WOODEN_DOORS);
+            return isDoorPassage(state);
         }
         if (state.getBlock() instanceof FenceGateBlock && state.hasProperty(FenceGateBlock.OPEN)) {
             return state.getValue(FenceGateBlock.OPEN);

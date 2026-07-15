@@ -7,8 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Version locale en cours : `0.4.2` (navigation vanilla, fermier et ameliorations generales)
-- Derniere release publiee : `v0.4.2`
+- Version actuelle : `0.4.3` (navigation de surface et maire unique interactif)
+- Derniere release publiee : `v0.4.3`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur
@@ -93,6 +93,8 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
   - `breeding no_target`
   - `cap_reached`
 - Si le valet ne bouge pas, ne pas s'arreter a l'UI : verifier le chemin runtime et le comportement visible.
+- L'UI de quetes ouverte par `J` et par clic droit sur le maire est la meme; elle doit afficher les objets, les quantites et les livraisons terminees avec des couleurs ARGB opaques.
+- La navigation Valet suit la regle villageois pour les portes : bois ouvrable, fer et cuivre fermes non actionnes.
 - La boucle fermier `navigation_rejected purpose=CROP` depuis une terre labouree a ete corrigee en 0.4.2 en normalisant le premier noeud vanilla sur les supports partiels.
 - Le fermier 0.4.2 vise une case sure adjacente pendant l'approche longue, maintient sa `WALK_TARGET`, puis agit localement a portee; `MoveToTargetSink` calcule le trajet et `InteractWithDoor` ouvre les portes.
 - Un nouvel ordre de ferme active `Replanter` par defaut. Dans les logs, `replanted=false` reste normal si l'ordre affiche `replant=false`.
@@ -102,6 +104,9 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 - Pour planter depuis un stockage, placer un coffre/baril pres du valet, du poste ou d'un coin du champ; les quatre coins sauvegardes sont recherches meme si les balises ont ete retirees.
 - Quand ces stockages sont epuises, le fermier continue la recolte et le labour puis retente la demande de plantation apres 10 secondes.
 - Pour une traversee, `swim_approach` doit preceder `swim_start`; toute nouvelle occurrence de l'ancienne signature `swim_rejected` indiquerait qu'un ancien jar est encore charge.
+- En 0.4.3, `group surface_path` doit preceder toute excavation; `group surface_exhausted` ne doit apparaitre qu'apres quatre echecs bornes. Une galerie est refusee si une surface praticable existe de un a quatre blocs au-dessus.
+- Les quetes parcourent directement les slots de l'inventaire joueur : ne pas reutiliser `clearOrCountMatchingItems` avec un conteneur nul en 26.2.
+- Le maire est unique par dimension via `ValetMayorState`; tout doublon charge est supprime, le maire porte un trident et son clic droit ouvre les quetes.
 - `swim_recovery` doit apparaitre environ deux secondes apres une immobilite aquatique et indiquer le nouveau detour choisi.
 - La carte tactique utilise une texture dynamique liberee a la fermeture de l'ecran et un cache de 131 072 cellules; verifier ces deux points avant d'ajouter un nouveau rendu par cellule.
 

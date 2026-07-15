@@ -65,9 +65,14 @@ public class ValetClient implements ClientModInitializer {
         });
         ClientPlayNetworking.registerGlobalReceiver(ValetQuestStatePayload.TYPE, (payload, context) -> {
             context.client().execute(() -> {
-                if (context.client().gui.screen() instanceof ValetQuestScreen screen) {
-                    screen.applyState(payload.mayorNearby(), payload.states(), payload.counts());
+                ValetQuestScreen screen;
+                if (context.client().gui.screen() instanceof ValetQuestScreen currentScreen) {
+                    screen = currentScreen;
+                } else {
+                    screen = new ValetQuestScreen();
+                    context.client().setScreenAndShow(screen);
                 }
+                screen.applyState(payload.mayorNearby(), payload.states(), payload.counts());
             });
         });
     }

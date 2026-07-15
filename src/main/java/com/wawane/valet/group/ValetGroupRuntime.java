@@ -27,6 +27,9 @@ public final class ValetGroupRuntime {
     private static final double GUARD_CLOSE_DISTANCE = 6.0D;
     private static final double GUARD_WIDE_DISTANCE = 10.0D;
     private static final double MOVE_STEP_DISTANCE = 24.0D;
+    private static final double[] SURFACE_STEP_DISTANCES = {12.0D, 8.0D, 4.0D, MOVE_STEP_DISTANCE};
+    private static final int SURFACE_FAILURES_BEFORE_EXCAVATION = 4;
+    private static final int MAX_SURFACE_PATH_NODES = 64;
     private static final int MOVE_REFRESH_TICKS = 20;
     private static final int FOLLOW_REFRESH_TICKS = 10;
     private static final int SWIM_PROBE_DISTANCE = 32;
@@ -221,34 +224,21 @@ public final class ValetGroupRuntime {
             return true;
         }
 
+        long gameTime = world.getGameTime();
+        long nextRefresh = NEXT_MOVE_REFRESH.getOrDefault(villager.getUUID(), 0L);
         boolean stuck = ValetGroupExcavation.observeAndIsStuck(villager);
         boolean excavationActive = ValetGroupExcavation.hasActivePath(villager);
-        if (excavationActive || stuck) {
-            if (!excavationActive) {
-                villager.getNavigation().stop();
-            }
+        if (excavationActive) {
             if (ValetGroupExcavation.tick(world, villager, destination)) {
                 return true;
             }
         }
 
-        long gameTime = world.getGameTime();
-        long nextRefresh = NEXT_MOVE_REFRESH.getOrDefault(villager.getUUID(), 0L);
-        if (!villager.getNavigation().isDone() && gameTime < nextRefresh) {
+        if (gameTime < nextRefresh && (stuck || !villager.getNavigation().isDone())) {
             return true;
         }
 
         int failures = MOVE_FAILURES.getOrDefault(villager.getUUID(), 0);
-        double step = Math.min(MOVE_STEP_DISTANCE, horizontalDistance);
-        double angle = Math.atan2(dz, dx) + detourAngle(failures);
-        int stepX = (int) Math.floor(villager.getX() + Math.cos(angle) * step);
-        int stepZ = (int) Math.floor(villager.getZ() + Math.sin(angle) * step);
-        if (!world.hasChunk(stepX >> 4, stepZ >> 4)) {
-            NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + 5L);
-            return true;
-        }
-        int stepY = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, stepX, stepZ);
-        int currentY = villager.blockPosition().getY();
         if (!world.getFluidState(villager.blockPosition()).isEmpty()) {
             BlockPos landing = findLanding(world, villager, dx, dz);
             if (landing != null) {
@@ -262,22 +252,85 @@ public final class ValetGroupRuntime {
                 }
             }
         }
-        if (Math.abs(stepY - currentY) > 3) {
+
+        int surfaceAttempt = stuck ? Math.min(6, failures + 1) : failures;
+        if (stuck) {
             villager.getNavigation().stop();
+        }
+
+        boolean moving = tryStartSurfaceNavigation(
+                world, villager, dx, dz, horizontalDistance, speed, surfaceAttempt
+        );
+        NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
+        if (moving) {
+            MOVE_FAILURES.put(villager.getUUID(), stuck ? surfaceAttempt : Math.max(0, failures - 1));
+            return true;
+        }
+
+        int nextFailures = Math.min(6, failures + 1);
+        MOVE_FAILURES.put(villager.getUUID(), nextFailures);
+        ValetDebug.record(villager, "group surface_failed attempts=" + nextFailures);
+        if (nextFailures >= SURFACE_FAILURES_BEFORE_EXCAVATION) {
+            villager.getNavigation().stop();
+            ValetDebug.record(villager, "group surface_exhausted -> excavation");
             if (ValetGroupExcavation.tick(world, villager, destination)) {
                 return true;
             }
         }
-        BlockPos stepTarget = new BlockPos(stepX, stepY, stepZ);
-        Path safePath = ValetSafeNavigation.createSafeLocalPath(world, villager, stepTarget, 2, false, 64);
-        boolean moving = safePath != null && villager.getNavigation().moveTo(safePath, speed);
-        NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
-        if (moving) {
-            MOVE_FAILURES.put(villager.getUUID(), Math.max(0, failures - 1));
-        } else {
-            MOVE_FAILURES.put(villager.getUUID(), Math.min(6, failures + 1));
-        }
         return true;
+    }
+
+    private static boolean tryStartSurfaceNavigation(
+            ServerLevel world,
+            Villager villager,
+            double dx,
+            double dz,
+            double horizontalDistance,
+            double speed,
+            int attempt
+    ) {
+        double baseAngle = Math.atan2(dz, dx);
+        double detour = detourAngle(attempt);
+        if (trySurfaceAngle(world, villager, horizontalDistance, speed, attempt, baseAngle + detour)) {
+            return true;
+        }
+        return detour != 0.0D
+                && trySurfaceAngle(world, villager, horizontalDistance, speed, attempt, baseAngle);
+    }
+
+    private static boolean trySurfaceAngle(
+            ServerLevel world,
+            Villager villager,
+            double horizontalDistance,
+            double speed,
+            int attempt,
+            double angle
+    ) {
+        BlockPos previousTarget = null;
+        for (double requestedDistance : SURFACE_STEP_DISTANCES) {
+            double distance = Math.min(requestedDistance, horizontalDistance);
+            int targetX = (int) Math.floor(villager.getX() + Math.cos(angle) * distance);
+            int targetZ = (int) Math.floor(villager.getZ() + Math.sin(angle) * distance);
+            if (!world.hasChunk(targetX >> 4, targetZ >> 4)) {
+                continue;
+            }
+            int targetY = world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ);
+            BlockPos target = new BlockPos(targetX, targetY, targetZ);
+            if (target.equals(previousTarget)) {
+                continue;
+            }
+            previousTarget = target;
+            Path path = ValetSafeNavigation.createSafeLocalPath(
+                    world, villager, target, 2, false, MAX_SURFACE_PATH_NODES
+            );
+            if (path != null && villager.getNavigation().moveTo(path, speed)) {
+                ValetDebug.record(villager, "group surface_path attempt=" + attempt
+                        + " distance=" + Math.round(distance)
+                        + " target=" + ValetDebug.shortPos(target));
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean tickWaterTraversal(

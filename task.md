@@ -8,6 +8,21 @@
 
 ## Etat courant
 
+- [x] Diagnostiquer dans `latest.log` le tunnel creuse sous un chemin en terre encore intact.
+- [x] Partager la validation des supports entre navigation sure et excavation de groupe.
+- [x] Essayer plusieurs petits trajets de surface avant de permettre le minage.
+- [x] Refuser les galeries placees de un a quatre blocs sous une surface praticable.
+- [x] Corriger le plantage du menu de quetes cause par un conteneur nul en Minecraft 26.2.
+- [x] Garantir un seul maire charge par dimension et supprimer les doublons existants.
+- [x] Equiper le maire d'un trident visible et l'immobiliser pres de sa cloche.
+- [x] Ouvrir l'interface des quetes au clic droit sur le maire.
+- [x] Rendre visibles les textes de quete et afficher objets, progression et bilan de livraison dans l'UI partagee `J`/maire.
+- [x] Empecher les valets d'ouvrir les portes metalliques et limiter leur action aux portes en bois comme les villageois.
+- [x] Compiler le correctif Java 0.4.3.
+- [x] Construire et installer le jar local 0.4.3.
+- [x] Verifier le jar unique, le hash et le bootstrap serveur.
+- [x] Publier la 0.4.3 sur GitHub avec commit, tag, notes, jar et verification du hash distant.
+
 - [x] Ajouter un maire de village conditionne par une cloche, un chat et un golem.
 - [x] Ajouter des quetes de livraison persistantes avec recompenses.
 - [x] Ouvrir les quetes avec J et la carte tactique avec K, sans passer par Echap.
@@ -69,6 +84,30 @@
 - [x] Finaliser et publier la 0.4.0 avec commit, tag, notes completes et jar GitHub.
 
 ## Derniere action
+
+- Publication 0.4.3 preparee : auth GitHub validee, tag/release absents, notes et registre alignes sur `v0.4.3`.
+- Log `04:42:15` analyse : `path door_open` confirme que le runtime ouvrait directement une porte en fer pendant un trajet vers un coffre.
+- Correction 0.4.3 codee : la regle de passage est partagee, seules les portes en bois peuvent etre ouvertes et une porte metallique fermee reste un obstacle.
+- Compilation Java validee pour l'interdiction des portes metalliques.
+- Build complet valide; le jar 0.4.3 est installe seul et contient la regle de porte partagee.
+- SHA-256 build/installation : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
+- Log de la session et jar installe verifies : Valet 0.4.3 est bien charge, sans exception de quete.
+- Cause de l'UI vide identifiee : les couleurs texte sans canal alpha sont transparentes avec le rendu Minecraft 26.2.
+- Correction codee : couleurs ARGB opaques, cartes de quete, icones d'objets, quantites possedees et bilan de livraison conserve apres remise.
+- Compilation Java validee pour la nouvelle presentation des quetes.
+- Build complet valide; le nouveau jar 0.4.3 est installe seul et contient les traductions corrigees.
+- Le hash de ce build UI est remplace par le build porte metallique plus recent ci-dessus.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
+- Nouveau log de `01:36` analyse : le valet a creuse a `Y=65` sous un chemin en terre reste intact a `Y=68`.
+- Cause confirmee : `ValetGroupExcavation` refusait encore les chemins en terre comme supports et pouvait minier apres un denivele de troncon sans epuiser les options de surface.
+- Correction 0.4.3 codee : supports partages, essais de surface 12/8/4/24 blocs, quatre echecs avant excavation et refus des tunnels peu profonds sous une surface praticable.
+- Le comptage et le retrait des livraisons de quetes parcourent directement les slots de l'inventaire joueur, sans conteneur nul.
+- Le log a confirme deux apparitions du maire a la meme cloche; `ValetMayorState` conserve maintenant son UUID et le gestionnaire supprime les doublons charges.
+- Le maire reste pres de la cloche avec un trident visible; son clic droit envoie l'etat serveur et ouvre l'UI des quetes cote client.
+- Compilation Java 0.4.3 validee.
+- Build complet 0.4.3 initial valide et jar installe seul; SHA-256 remplace par le build UI plus recent ci-dessus.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
 
 - Publication GitHub 0.4.2 preparee : notes completes, README et registre synchronises avant gel du jar, du commit et du tag.
 - Correctif de recolte apres epuisement du coffre construit et installe en 0.4.2 : un seul jar identique au build, SHA-256 `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5`.

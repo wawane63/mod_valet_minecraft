@@ -33,6 +33,8 @@
 - `client/ValetWorldMapScreen`, `client/ValetGroupsScreen`, `group/ValetGroupRuntime`, `group/ValetGroupExcavation` et `group/ValetGroupTravelTickets` : onglets carte/groupes, ordres longue distance, excavation 3D locale et tickets temporaires de mission.
 - La carte tactique garde un cache client borne des couleurs de terrain et rend une texture dynamique unique; le glisser ne doit jamais relire le monde ni soumettre une commande par cellule a chaque evenement souris.
 - `quest/`, `client/ValetQuestScreen` et les payloads de quete : apparition du maire, quetes joueur persistantes et livraisons validees par le serveur.
+- L'UI de quetes partagee par `J` et le maire affiche des textes ARGB opaques, l'icone de chaque objet et un bilan conserve apres livraison.
+- `quest/ValetMayorState` conserve l'UUID du maire unique de chaque dimension; le gestionnaire supprime les doublons charges, equipe le maire et ouvre les quetes par interaction directe.
 - La gestion des groupes reste centralisee dans les onglets de la carte, ouverte directement avec `K`; aucun bloc ou item de groupe n'est enregistre.
 - A partir de 0.4.0, `state/ValetIdentity` porte l'identite persistante du valet; les postes ne doivent plus pouvoir retirer cette identite.
 - L'`Insigne de valet` est l'unique point d'entree joueur; le rôle est choisi dans l'interface du valet.
@@ -62,6 +64,10 @@
 - L'eau de surface peut etre traversee pour une mission de groupe : rive opposee ou point de nage local, noeuds d'eau uniquement et aucune excavation sous-marine.
 - Pour l'eau et les pas adjacents d'une galerie deja validee, `MoveControl` et `JumpControl` vanilla executent le mouvement physique; `PathNavigation` reste reserve aux parcours terrestres ou il peut construire un vrai chemin.
 - Une cible de nage valide reste stable jusqu'a ce qu'elle soit atteinte; apres 40 ticks sans progres, le meneur choisit un detour aquatique borne et les suiveurs conservent une distance anti-collision.
+- Les missions de groupe sont `surface-first` : elles essaient plusieurs petits troncons vanilla et detours bornes avant toute excavation.
+- La validation des supports est partagee entre navigation et excavation; chemins en terre, terres labourees et escaliers sont praticables partout.
+- La regle de porte est partagee par `ValetSafeNavigation` : une porte en bois fermee peut etre ouverte, une porte metallique fermee reste un obstacle et n'est jamais actionnee par un valet.
+- Une galerie ne peut pas passer de un a quatre blocs sous une surface sure deja praticable.
 - Un futur modele peut classer des cibles ou detours locaux deja declares legaux, mais ne doit jamais contourner ces garde-fous.
 - Les evenements `navigation_start`, `navigation_stuck`, `navigation_rejected` et leur resultat servent de base a une future telemetrie structuree `observation -> action -> resultat`.
 

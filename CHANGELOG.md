@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.3 - Navigation de surface et maire unique
+
+### Added
+
+- Le maire porte un trident visible pour etre identifiable immediatement.
+- Un clic droit sur le maire ouvre directement l'interface des quetes.
+- L'interface affiche l'icone de l'objet demande, la quantite presente dans l'inventaire et le bilan conserve apres livraison.
+
+### Changed
+
+- Les missions longue distance essaient des troncons de surface de 12, 8, 4 puis 24 blocs avant d'autoriser une excavation.
+- Quatre echecs de surface bornes sont requis avant le passage au planificateur de galerie.
+- Les detours de surface restent alternes et les nouvelles signatures `surface_path`, `surface_failed` et `surface_exhausted` rendent la decision visible dans le log.
+
+### Fixed
+
+- Les chemins en terre, terres labourees et escaliers utilisent maintenant la meme validation de support dans la navigation et l'excavation de groupe.
+- Le planificateur de galerie refuse de creuser entre un et quatre blocs sous une surface deja praticable.
+- Un fort denivele mesure au bout d'un troncon de 24 blocs ne declenche plus immediatement le minage si une montee plus courte est atteignable.
+- Le menu des quetes ne transmet plus de conteneur nul a Minecraft 26.2 lors du comptage ou du retrait des livraisons.
+- Les titres, descriptions, quantites et recompenses des quetes ne sont plus transparents en Minecraft 26.2.
+- Les valets n'ouvrent plus les portes en fer ou en cuivre; seules les portes en bois fermees peuvent etre actionnees, comme pour les villageois.
+- Un UUID de maire est conserve par dimension; les doublons deja charges sont automatiquement supprimes et le maire reste pres de sa cloche.
+
 ## 0.4.2 - Navigation vanilla, fermier et ameliorations generales
 
 ### Added
