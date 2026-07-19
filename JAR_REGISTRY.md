@@ -33,7 +33,8 @@ Regles obligatoires :
 | 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
 | 0.4.1 | Maire, quetes et raccourcis | `v0.4.1` | `build/libs/valet-0.4.1.jar` | `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156` |
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | `v0.4.2` | `build/libs/valet-0.4.2.jar` | `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5` |
-| 0.4.3 | Brain/POI borne, zones supprimables et inventaire interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C` (build local corrige) |
+| 0.4.3 | Navigation de surface et maire unique interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27` |
+| 0.4.4 | Brain borne, valets sans poste et residence explicite | `v0.4.4` | `build/libs/valet-0.4.4.jar` | `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -49,10 +50,10 @@ Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anc
 La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
 La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J` / `K`.
 La version `0.4.2` publie l'ensemble de la branche `0.4.x` avec le maire et ses quetes, puis remplace les teleportations de deplacement par la navigation vanilla sous garde-fous Valet et fiabilise le fermier.
-La branche `main`, en avance sur le tag `v0.4.3`, remplace le deplacement parallele par un Brain/POI borne, retire tout creusage de trajet et rend le maire unique directement interactif.
-L'asset GitHub `v0.4.3` publie auparavant conserve le hash `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`; le build corrige de `main` porte le hash `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`. Aucun nouveau tag ni asset de release n'a ete cree pour cette refonte.
+La version `0.4.3` publie la navigation de surface, le maire unique interactif et les quetes corrigees.
+La version `0.4.4` remplace le deplacement parallele par un Brain borne, supprime les postes de metier et tout creusage de trajet, puis ajoute la residence explicite, l'inventaire interactif et le kit visuel Artisan.
 
-## 0.4.3 - Navigation de surface et maire unique interactif
+## 0.4.4 - Brain borne, valets sans poste et residence explicite
 
 Objectif : confier tout deplacement autonome au Brain/POI vanilla borne et supprimer l'excavation de trajet.
 
@@ -84,11 +85,28 @@ Verification :
 
 - Compilation Java : OK.
 - Build complet et installation locale : OK.
-- Jar actuel : `valet-0.4.3.jar`.
-- SHA-256 local corrige : `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`.
-- SHA-256 asset GitHub publie : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
+- Jar actuel : `valet-0.4.4.jar`.
+- SHA-256 : `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68`.
 - Dossier mods : un seul jar Valet, hash identique au build.
-- Bootstrap serveur : Minecraft 26.2, Fabric Loader 0.19.3 et Valet 0.4.3 charges; arret EULA attendu.
+- Bootstrap serveur : Minecraft 26.2, Fabric Loader 0.19.3 et Valet 0.4.4 charges; arret EULA attendu.
+- Publication GitHub : `v0.4.4`.
+
+## 0.4.3 - Navigation de surface et maire unique interactif
+
+Objectif : prioriser les trajets de surface, stabiliser le maire unique et rendre les quetes directement accessibles.
+
+Fonctionnalite :
+
+- Plusieurs essais de surface sont effectues avant toute strategie de creusage encore presente dans cette version historique.
+- Les portes en bois sont ouvrables comme pour les villageois; les portes metalliques fermees restent des obstacles.
+- Le maire est unique par dimension, porte un trident et ouvre les quetes au clic droit.
+- Les quetes affichent les objets, la progression et le bilan avec des couleurs opaques.
+- Le comptage des livraisons ne transmet plus de conteneur nul a Minecraft 26.2.
+
+Verification :
+
+- Jar publie : `valet-0.4.3.jar`.
+- SHA-256 : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
 - Publication GitHub : `v0.4.3`.
 
 ## 0.4.2 - Navigation vanilla, fermier et ameliorations generales

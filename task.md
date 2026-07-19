@@ -8,6 +8,10 @@
 
 ## Etat courant
 
+- [x] Attribuer a la refonte le nouveau numero `0.4.4`, distinct de l'asset historique `v0.4.3`.
+- [x] Creer les notes `docs/releases/v0.4.4.md` et synchroniser README, changelog, registre, notes importantes et rapport de reconstruction.
+- [x] Corriger la description Fabric obsolete qui parlait encore de postes de travail.
+- [x] Construire et installer le jar 0.4.4 unique; build et installation identiques, SHA-256 `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68`.
 - [x] Tester les acces Spaleforce, Media.io, PicFixer et SuperMaker sans transmettre les identifiants utilisateur.
 - [x] Generer sur SuperMaker une nouvelle direction artistique pour l'insigne, l'icone Artisan, l'icone du mod et la tenue Artisan.
 - [x] Reconstruire les quatre PNG sans filigrane ni faux damier, avec dimensions et UV Minecraft valides.

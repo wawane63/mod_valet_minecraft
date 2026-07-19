@@ -2,7 +2,7 @@
 
 Date : 15 juillet 2026
 
-## Mise en oeuvre 0.4.3
+## Mise en oeuvre 0.4.4
 
 - Le Brain du villageois est l'unique ordonnanceur : `CORE`, `WORK`, `REST` et `IDLE`; aucun `Goal` custom ni driver de tick parallele ne pilote encore le mouvement.
 - Tous les trajets autonomes utilisent `WALK_TARGET`, `MoveToTargetSink` et `PathNavigation`; l'A* Valet et l'excavation de groupe sont supprimes.
@@ -32,7 +32,7 @@ Date : 15 juillet 2026
 
 ## Conclusion
 
-- Le principal ecart etait la concurrence entre Brain vanilla, driver Valet et A* bloc par bloc; il est supprime en 0.4.3.
+- Le principal ecart etait la concurrence entre Brain vanilla, driver Valet et A* bloc par bloc; il est supprime en 0.4.4.
 - Les missions de groupe utilisent `PathNavigation` sur terrain praticable; sans chemin de surface elles attendent et replanifient, sans tunnelage.
 - L'intendant double une grande partie du comportement vanilla du golem de cuivre 26.2 (`TransportItemsBetweenContainers`). Les filtres Valet restent custom.
 - Le craft et la cuisine codent des recettes en Java alors que `RecipeManager` est la source vanilla.
@@ -42,7 +42,7 @@ Date : 15 juillet 2026
 
 | Fonction Valet | Etat actuel | Vanilla 26.2 | Decision |
 | --- | --- | --- | --- |
-| Deplacement local vers minerai, culture, animal, coffre, chantier, craft, cuisine et intendant | `WALK_TARGET`, `ValetBoundedMoveToTargetSink` et chemin vanilla complet | `PathNavigation`, `MoveToTargetSink`, memoires `WALK_TARGET` / `PATH` | `VANILLA BORNE`, termine en 0.4.3; Valet choisit seulement la cible legale. |
+| Deplacement local vers minerai, culture, animal, coffre, chantier, craft, cuisine et intendant | `WALK_TARGET`, `ValetBoundedMoveToTargetSink` et chemin vanilla complet | `PathNavigation`, `MoveToTargetSink`, memoires `WALK_TARGET` / `PATH` | `VANILLA BORNE`, termine en 0.4.4; Valet choisit seulement la cible legale. |
 | Ouverture et fermeture des portes | `InteractWithDoor`; portes metalliques fermees refusees | `InteractWithDoor` gere le chemin, l'ouverture, la fermeture et les autres mobs dans le passage | `VANILLA`, termine pour les portes normales. |
 | Fuite locale et sortie de fluide sans excavation | Cible Valet bornee, chemin/navigation vanilla, aucune teleportation | Navigation, comportements de panique du cerveau villageois et pathfinding eau/terre | `HYBRIDE` : priorite Valet, mouvement vanilla et territoire strict. |
 | Ramassage d'items au sol | Scan, trajet puis insertion/discard directs | `GoToWantedItem`, `WANTED_ITEM` et ramassage natif du villageois | `VANILLA` : reutiliser le trajet et le ramassage vanilla; conserver seulement le filtre d'items et la zone Valet. |
@@ -113,7 +113,7 @@ Date : 15 juillet 2026
 
 ## Ordre de correction recommande
 
-1. Termine en 0.4.3 : Brain unique, territoire, POI locaux, pathfinding vanilla et suppression de toute excavation de mouvement.
+1. Termine en 0.4.4 : Brain unique, territoire, POI locaux, pathfinding vanilla et suppression de toute excavation de mouvement.
 2. Termine pour l'eleveur : stand adjacent, coffre atteint physiquement, nourrissage individuel et accouplement animal vanilla.
 3. Restant : rapprocher le ramassage d'items et l'intendant de leurs comportements vanilla dedies.
 4. Restant : remplacer les recettes Java par `RecipeManager`.

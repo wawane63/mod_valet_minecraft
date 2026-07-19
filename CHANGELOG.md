@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.3 - Brain/POI, navigation de surface et maire unique
+## 0.4.4 - Brain borne, valets sans poste et residence explicite
 
 ### Added
 
@@ -55,6 +55,25 @@
 - Les valets n'ouvrent plus les portes en fer ou en cuivre; seules les portes en bois fermees peuvent etre actionnees, comme pour les villageois.
 - L'eleveur traverse physiquement un portillon ouvert sans demander un chemin vanilla vers son bloc; le portillon reste ouvert jusqu'a son passage puis se referme.
 - Un UUID de maire est conserve par dimension; les doublons deja charges sont automatiquement supprimes et le maire reste pres de sa cloche.
+
+## 0.4.3 - Navigation de surface et maire unique interactif
+
+### Added
+
+- Le maire porte un trident visible et ouvre directement les quetes au clic droit.
+- L'interface des quetes affiche les objets demandes, la progression et le bilan des livraisons.
+
+### Changed
+
+- Les trajets essaient plusieurs chemins de surface avant toute autre strategie.
+- Les portes en bois suivent le comportement villageois; les portes metalliques fermees ne sont pas actionnees.
+
+### Fixed
+
+- Le menu des quetes ne transmet plus de conteneur nul a Minecraft 26.2.
+- Un seul maire est conserve par dimension et les doublons charges sont retires.
+- Les textes de quete utilisent des couleurs opaques et restent lisibles.
+- Les trajets refusent les tunnels peu profonds sous une surface praticable.
 
 ## 0.4.2 - Navigation vanilla, fermier et ameliorations generales
 

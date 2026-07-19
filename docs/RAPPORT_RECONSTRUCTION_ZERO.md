@@ -8,6 +8,8 @@ Il ne contient volontairement aucun extrait de code, aucun pseudo-code et aucune
 
 Le dépôt courant reste la source de vérité factuelle. Les conversations et les logs servent à expliquer pourquoi certaines règles existent et à distinguer une correction réellement validée d’une hypothèse seulement compilée.
 
+Mise à jour du 19 juillet 2026 : la refonte décrite dans l’état local du 17 juillet est désormais publiée séparément sous `v0.4.4`. Son jar porte le SHA-256 `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68`. Les références à `v0.4.3` dans l’état daté ci-dessous restent volontairement conservées comme historique de la situation qui a motivé ce rapport.
+
 ## 1. Résumé exécutif
 
 Valet est un mod Fabric pour Minecraft 26.2. Il transforme un villageois adulte en assistant spécialisé au moyen d’une Insigne de valet. L’identité du valet est persistante et ne dépend plus d’un poste de métier. Le joueur choisit ensuite un métier dans une interface unique.
@@ -983,12 +985,12 @@ Choix final : utiliser les services en ligne sous contrôle du joueur pour la di
 - Le maire n’a pas encore une identité visuelle complète dédiée.
 - Les assets promotionnels publics restent à produire.
 
-### 13.4 Incohérences documentaires
+### 13.4 Incohérences documentaires résolues par la publication 0.4.4
 
-- La description publique du manifeste parle encore de postes alors qu’ils sont supprimés.
-- Certaines sections historiques de la cartographie vanilla mentionnent encore le poste comme point de travail.
-- La version porte toujours le numéro 0.4.3 alors que le jar local diffère fortement de la release 0.4.3.
-- La documentation de `main` décrit la refonte; le tag et l’asset de release v0.4.3 restent antérieurs à cette refonte.
+- La description publique du manifeste ne parle plus de postes de travail.
+- La cartographie vanilla attribue maintenant la refonte à la version 0.4.4.
+- La refonte possède son propre numéro, son propre jar et son propre tag `v0.4.4`.
+- Le tag et l’asset `v0.4.3` restent inchangés comme référence historique.
 
 ## 14. Stratégie de reconstruction depuis zéro
 
@@ -1245,15 +1247,12 @@ Ne pas pousser GitHub sans demande explicite. Lorsqu’une publication est deman
 
 ## 18. Priorités recommandées après reprise
 
-1. Conserver l’état actuel dans un commit Git dédié, sans le mélanger à une nouvelle feature.
-2. Donner un nouveau numéro à la refonte locale pour ne plus avoir deux jars 0.4.3 différents.
-3. Corriger la description du manifeste et les notes encore liées aux postes.
-4. Exécuter la matrice de gameplay sur le jar local 21705B.
-5. Stabiliser Éleveur, HOME et rappel avant toute nouvelle profession.
-6. Remplacer craft et cuisine fixes par les recettes chargées.
-7. Rapprocher Intendant et ramassage du vanilla.
-8. Ajouter une télémétrie structurée avant toute expérimentation ML.
-9. Produire les six autres identités visuelles de métier sous contrôle du joueur.
+1. Exécuter la matrice de gameplay sur le jar publié 0.4.4, hash `8C32B294…`.
+2. Stabiliser Éleveur, HOME et rappel avant toute nouvelle profession.
+3. Remplacer craft et cuisine fixes par les recettes chargées.
+4. Rapprocher Intendant et ramassage du vanilla.
+5. Ajouter une télémétrie structurée avant toute expérimentation ML.
+6. Produire les six autres identités visuelles de métier sous contrôle du joueur.
 
 ## 19. Sources internes utilisées pour ce rapport
 

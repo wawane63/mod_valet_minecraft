@@ -7,8 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Version actuelle : `0.4.3` (Brain/POI borne, navigation de surface et maire unique interactif)
-- Derniere release publiee : `v0.4.3`
+- Version actuelle : `0.4.4` (Brain borne, valets sans poste et residence explicite)
+- Derniere release publiee : `v0.4.4`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur
@@ -60,7 +60,7 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 
 - La tache Gradle `installClientJar` installe le jar dans `%APPDATA%/.minecraft/mods` (Windows), `~/Library/Application Support/minecraft/mods` (macOS) ou `~/.minecraft/mods` (Linux).
 - Verifier qu'un seul `valet-*.jar` est present dans le dossier mods.
-- Le build 0.4.3 corrige de `main` porte le SHA-256 `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`; la release GitHub 0.4.3 reste l'asset publie anterieur.
+- Le build 0.4.4 publie porte le SHA-256 `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68`.
 
 ## Fichiers de trace
 
@@ -112,7 +112,7 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 - Pour planter depuis un stockage, placer un coffre/baril pres du valet, de son ancre ou d'un coin du champ; les quatre coins sauvegardes sont recherches meme si les balises ont ete retirees.
 - Quand ces stockages sont epuises, le fermier continue la recolte et le labour puis retente la demande de plantation apres 10 secondes.
 - Pour une traversee, `swim_approach` doit preceder `swim_start`; toute nouvelle occurrence de l'ancienne signature `swim_rejected` indiquerait qu'un ancien jar est encore charge.
-- En 0.4.3 local, aucune mission de groupe ne creuse pour se deplacer; un echec de surface provoque attente et replanification.
+- En 0.4.4, aucune mission de groupe ne creuse pour se deplacer; un echec de surface provoque attente et replanification.
 - Le HOME d'un valet se choisit avec l'`Insigne lit` demande dans son UI, puis utilise sur un lit dans un rayon de 32 blocs autour de l'ancre. L'objet est lie a l'UUID exact, produit `brain home_assigned mode=explicit` et n'est consomme qu'en cas de succes.
 - Pour un fermier ou un eleveur, la zone selectionnee devient son ancre mobile. Un centre non praticable est remplace par la case sure la plus proche; le rayon residentiel ne doit jamais elargir les cibles ou coffres de travail.
 - Les sept anciens postes sont completement absents du jar; ne pas recreer leurs registres, POI, assets ou recettes.

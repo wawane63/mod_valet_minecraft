@@ -3,7 +3,7 @@
   "id": "valet",
   "version": "${version}",
   "name": "Valet",
-  "description": "Ajoute des valets specialises et leurs postes de travail aux villageois.",
+  "description": "Ajoute des valets specialises, des metiers configurables et des zones de travail persistantes aux villageois.",
   "authors": [
     "Wawane"
   ],

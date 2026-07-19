@@ -4,9 +4,9 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version actuelle : 0.4.3 - Brain/POI borne, navigation de surface et maire unique interactif.
+Version actuelle : 0.4.4 - Brain borne, valets sans poste et residence explicite.
 
-Derniere version publiee : 0.4.3 (`v0.4.3`).
+Derniere version publiee : 0.4.4 (`v0.4.4`).
 
 ## Guides
 
@@ -17,6 +17,7 @@ Derniere version publiee : 0.4.3 (`v0.4.3`).
 - [Notes 0.4.1](docs/releases/v0.4.1.md)
 - [Notes 0.4.2](docs/releases/v0.4.2.md)
 - [Notes 0.4.3](docs/releases/v0.4.3.md)
+- [Notes 0.4.4](docs/releases/v0.4.4.md)
 - [Pipeline visuel IA](docs/visual-asset-pipeline.md)
 
 ## Versions disponibles
@@ -43,6 +44,7 @@ Derniere version publiee : 0.4.3 (`v0.4.3`).
 | 0.4.1 | Maire, quetes et raccourcis | [`v0.4.1`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.1) |
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | [`v0.4.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.2) |
 | 0.4.3 | Navigation de surface et maire unique interactif | [`v0.4.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.3) |
+| 0.4.4 | Brain borne, valets sans poste et residence explicite | [`v0.4.4`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.4) |
 
 ## Depart
 
@@ -57,7 +59,7 @@ Derniere version publiee : 0.4.3 (`v0.4.3`).
 - Les champs et les enclos enregistres peuvent etre supprimes depuis l'UI du valet correspondant.
 - Le bouton `Inventaire` ouvre un conteneur vanilla interactif pour prendre ou deposer directement les objets du valet.
 - Sans lit ou chemin valide, il abandonne la tentative sans explorer les maisons, casser un bloc ni creuser.
-- La branche `main`, en avance sur le tag `v0.4.3`, inclut le kit visuel refait depuis des concepts IA en ligne : Insigne original, icone Artisan, skin Valet 64x64 fidele au modele SuperMaker valide et icone du mod, tous reconstruits sans filigrane.
+- La version 0.4.4 inclut le kit visuel refait depuis des concepts IA en ligne : Insigne original, icone Artisan, skin Valet 64x64 fidele au modele SuperMaker valide et icone du mod, tous reconstruits sans filigrane.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
 - Fermier : recolte et plantation du ble, carottes, pommes de terre, betteraves et verrues du Nether; reserve les items a replanter, peut en prendre dans un coffre proche, zones supprimables depuis l'UI et deplacement continu vanilla.
