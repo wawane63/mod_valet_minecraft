@@ -33,7 +33,7 @@ Regles obligatoires :
 | 0.4.0 | Tag Valet independant du poste | `v0.4.0` | `build/libs/valet-0.4.0.jar` | `01A717BF93DB703F698D3BEC9D7BEE2675A6D480CFCAB2EB311A98195CB61688` |
 | 0.4.1 | Maire, quetes et raccourcis | `v0.4.1` | `build/libs/valet-0.4.1.jar` | `757312C85636AC36C772722961A23EAC5194BB1ECBD6888CBFAE1D151DD60156` |
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | `v0.4.2` | `build/libs/valet-0.4.2.jar` | `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5` |
-| 0.4.3 | Navigation de surface et maire unique interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27` |
+| 0.4.3 | Brain/POI borne, zones supprimables et inventaire interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C` (build local corrige) |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -49,31 +49,44 @@ Le jar `0.3.9` centralise la gestion des groupes sous la carte et retire les anc
 La version `0.4.0` commence la migration vers une identite Valet marquee directement sur le villageois.
 La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J` / `K`.
 La version `0.4.2` publie l'ensemble de la branche `0.4.x` avec le maire et ses quetes, puis remplace les teleportations de deplacement par la navigation vanilla sous garde-fous Valet et fiabilise le fermier.
-La version `0.4.3` donne la priorite aux petits trajets de surface, empeche les galeries peu profondes et rend le maire unique directement interactif.
+La branche `main`, en avance sur le tag `v0.4.3`, remplace le deplacement parallele par un Brain/POI borne, retire tout creusage de trajet et rend le maire unique directement interactif.
+L'asset GitHub `v0.4.3` publie auparavant conserve le hash `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`; le build corrige de `main` porte le hash `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`. Aucun nouveau tag ni asset de release n'a ete cree pour cette refonte.
 
 ## 0.4.3 - Navigation de surface et maire unique interactif
 
-Objectif : conserver l'excavation comme dernier recours lorsqu'un trajet de surface existe.
+Objectif : confier tout deplacement autonome au Brain/POI vanilla borne et supprimer l'excavation de trajet.
 
 Fonctionnalite :
 
 - Validation de support partagee avec `ValetSafeNavigation`, y compris chemins en terre, terres labourees et escaliers.
-- Essais de surface bornes a 12, 8, 4 puis 24 blocs avec detours alternes.
-- Quatre echecs de surface requis avant le lancement d'une galerie.
-- Refus d'un chemin d'excavation si une surface sure se trouve de un a quatre blocs au-dessus.
+- Activites Brain `WORK`, `REST`, `IDLE`, `WALK_TARGET` et `MoveToTargetSink` borne au territoire.
+- Identite persistante creee par l'Insigne, sans bloc de metier ni `JOB_SITE`; le champ ou l'enclos selectionne devient l'ancre mobile du metier.
+- Lit `HOME` choisi avec un Insigne de lit gratuit demande dans l'UI, lie a l'UUID exact du valet, consomme apres succes et borne a 32 blocs autour de l'ancre.
+- Suppression complete des sept anciens postes : registres, POI, ressources, modeles, traductions, recettes et loot tables.
+- Suppression du driver parallele, de l'A* Valet, du minage d'obstacles et de l'excavation de groupe.
+- Portillon confirme par un chemin partiel, chemin vanilla recalcule apres ouverture, rollback sans trajet et fermeture des que le valet a change de cote.
+- Nourrissage individuel prioritaire, enclos sauvegarde obligatoire et visible dans l'UI, trajet reel vers l'animal et son stockage, plafond avec naissances en attente, accouplement laisse au `BreedGoal` vanilla.
+- Balises de ferme et d'enclos utilisees uniquement pour enregistrer les coordonnees; elles sont supprimables ensuite sans perdre les zones.
+- Stockages d'elevage acceptes dans une marge de deux blocs et diagnostic `breeding no_feed_source` lorsque la nourriture manque.
 - Comptage et retrait des livraisons de quetes sans conteneur nul en Minecraft 26.2.
 - UUID de maire persistant par dimension et suppression automatique des doublons charges.
 - Maire immobilise pres de sa cloche, equipe d'un trident visible et ouvrant les quetes au clic droit.
 - UI de quetes lisible avec textes opaques, icones d'objets, progression d'inventaire et bilan apres livraison.
 - Portes metalliques fermees traitees comme obstacles; ouverture reservee aux portes en bois.
-- Signatures de debug `surface_path`, `surface_failed` et `surface_exhausted`.
+- Tous les coffres metier et les cibles autonomes sont refuses hors `ValetWorkZone`.
+- Le rappel de groupe passe du trajet de surface a l'ancre locale 3D puis rend la main au metier, y compris entre deux niveaux verticaux.
+- Kit visuel redessine depuis des concepts IA en ligne puis reconstruit sans filigrane : Insigne 16x16, icone de role 16x16, skin wide 64x64 et icone Fabric 128x128.
+- L'Insigne de lit accepte le lit libre et atteignable dans le rayon residentiel, charge son POI exact et journalise chaque motif de refus.
+- Une ancre geometrique non praticable est remplacee par la case sure la plus proche; HOME peut viser cette case directement sans boucle `logistics no_home_path`.
+- Signatures de debug `brain home_assigned`, `brain gate_open`, `brain gate_close`, `breeding restocked`, `breeding fed` et `mode=brain_vanilla`.
 
 Verification :
 
 - Compilation Java : OK.
 - Build complet et installation locale : OK.
 - Jar actuel : `valet-0.4.3.jar`.
-- SHA-256 : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
+- SHA-256 local corrige : `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`.
+- SHA-256 asset GitHub publie : `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
 - Dossier mods : un seul jar Valet, hash identique au build.
 - Bootstrap serveur : Minecraft 26.2, Fabric Loader 0.19.3 et Valet 0.4.3 charges; arret EULA attendu.
 - Publication GitHub : `v0.4.3`.

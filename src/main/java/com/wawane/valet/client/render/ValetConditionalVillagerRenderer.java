@@ -117,7 +117,7 @@ public final class ValetConditionalVillagerRenderer extends EntityRenderer<Villa
     }
 
     private static final class ValetAvatarRenderer extends LivingEntityRenderer<Villager, AvatarRenderState, ValetPlayerModel> {
-        private static final Identifier STEVE_TEXTURE = Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+        private static final Identifier DEFAULT_VALET_TEXTURE = ValetMod.id("textures/entity/valet/artisan.png");
 
         private ValetAvatarRenderer(EntityRendererProvider.Context context) {
             super(context, new ValetPlayerModel(context.bakeLayer(ModelLayers.PLAYER), false), 0.5F);
@@ -131,7 +131,7 @@ public final class ValetConditionalVillagerRenderer extends EntityRenderer<Villa
 
         @Override
         public Identifier getTextureLocation(AvatarRenderState state) {
-            return STEVE_TEXTURE;
+            return DEFAULT_VALET_TEXTURE;
         }
 
         @Override

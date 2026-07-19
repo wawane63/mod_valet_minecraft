@@ -79,7 +79,7 @@ public final class LogisticsRuntimeTask {
         control.startPath(PathPurpose.CHEST, path);
     }
 
-    public void returnToWorkstation(ServerLevel world) {
+    public void returnToAnchor(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
             ValetDebug.record(control.villager(), "logistics no_work_origin_home");
@@ -87,13 +87,24 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (control.isNearWorkstation(world, workOrigin)) {
+        if (control.isNearAnchor(world, workOrigin)) {
             ValetDebug.record(control.villager(), "logistics at_home");
             ValetBehavior.markRecallArrived(world, control.villager());
             control.clearPathState();
             control.clearMiningState();
+            if (control.isRecallActive(world)) {
+                control.villager().getNavigation().stop();
+                control.villager().getLookControl().setLookAt(
+                        workOrigin.getX() + 0.5D,
+                        workOrigin.getY() + 0.5D,
+                        workOrigin.getZ() + 0.5D
+                );
+                control.setState(State.RETURNING_HOME);
+                control.setDelayTicks(20);
+                return;
+            }
             control.setState(State.IDLE);
-            idleAtWorkstation(world);
+            idleAtAnchor(world);
             return;
         }
 
@@ -108,7 +119,7 @@ public final class LogisticsRuntimeTask {
         control.startPath(PathPurpose.HOME, path);
     }
 
-    public void idleAtWorkstation(ServerLevel world) {
+    public void idleAtAnchor(ServerLevel world) {
         if (control.hasConstructionOrder()) {
             control.setState(State.FIND_TARGET);
             return;
@@ -150,7 +161,7 @@ public final class LogisticsRuntimeTask {
             return;
         }
 
-        if (!control.isNearWorkstation(world, workOrigin)) {
+        if (!control.isNearAnchor(world, workOrigin)) {
             control.setState(State.RETURNING_HOME);
             return;
         }
@@ -375,7 +386,7 @@ public final class LogisticsRuntimeTask {
 
         for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
             BlockPos immutable = pos.immutable();
-            if (predicate.test(immutable)) {
+            if (control.isWithinWorkZone(world, immutable) && predicate.test(immutable)) {
                 double distance = squaredDistance(origin, immutable);
                 if (distance < nearestDistance) {
                     nearest = immutable;
@@ -426,6 +437,8 @@ public final class LogisticsRuntimeTask {
 
         boolean hasInventoryItems();
 
+        boolean isRecallActive(ServerLevel world);
+
         int requestedFarmPlantingCropMask();
 
         void deferFarmPlantingRequest();
@@ -434,7 +447,7 @@ public final class LogisticsRuntimeTask {
 
         int getUsableInventorySlots(Container inventory);
 
-        boolean isNearWorkstation(ServerLevel world, BlockPos workOrigin);
+        boolean isNearAnchor(ServerLevel world, BlockPos workOrigin);
 
         Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose);
 
@@ -447,6 +460,8 @@ public final class LogisticsRuntimeTask {
         void clearMiningState();
 
         int chestRadius();
+
+        boolean isWithinWorkZone(ServerLevel world, BlockPos pos);
 
         void animateChestUse(ServerLevel world, BlockPos pos);
 

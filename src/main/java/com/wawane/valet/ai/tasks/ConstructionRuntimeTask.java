@@ -73,8 +73,8 @@ public final class ConstructionRuntimeTask {
     public void findTarget(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
-            ValetDebug.record(control.villager(), "build no_workstation");
-            reportConstructionIssue(world, "message.valet.construction_no_workstation");
+            ValetDebug.record(control.villager(), "build no_anchor");
+            reportConstructionIssue(world, "message.valet.construction_no_anchor");
             control.setDelayTicks(40);
             return;
         }
@@ -208,8 +208,8 @@ public final class ConstructionRuntimeTask {
 
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
-            ValetDebug.record(control.villager(), "build no_workstation");
-            reportConstructionIssue(world, "message.valet.construction_no_workstation");
+            ValetDebug.record(control.villager(), "build no_anchor");
+            reportConstructionIssue(world, "message.valet.construction_no_anchor");
             control.setState(State.RETURNING_HOME);
             control.setDelayTicks(40);
             return;
@@ -531,7 +531,7 @@ public final class ConstructionRuntimeTask {
             }
 
             BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, immutable);
-            if (!scannedContainers.add(canonical)) {
+            if (!control.isWithinWorkZone(world, canonical) || !scannedContainers.add(canonical)) {
                 continue;
             }
 
@@ -675,7 +675,7 @@ public final class ConstructionRuntimeTask {
 
         for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
             BlockPos immutable = pos.immutable();
-            if (predicate.test(immutable)) {
+            if (control.isWithinWorkZone(world, immutable) && predicate.test(immutable)) {
                 double distance = squaredDistance(origin, immutable);
                 if (distance < nearestDistance) {
                     nearest = immutable;
@@ -770,6 +770,8 @@ public final class ConstructionRuntimeTask {
         boolean hasInventoryItems();
 
         int materialRadius();
+
+        boolean isWithinWorkZone(ServerLevel world, BlockPos pos);
 
         int getUsableInventorySlots(Container inventory);
 

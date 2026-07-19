@@ -64,6 +64,7 @@ public final class CombatRuntimeTask {
     private int arrowSearchCooldownTicks;
     private int magicIceShots;
     private int magicSupportCooldownTicks;
+    private boolean targetCommanded;
 
     public CombatRuntimeTask(Control control) {
         this.control = control;
@@ -95,6 +96,7 @@ public final class CombatRuntimeTask {
         }
 
         LivingEntity nextTarget = control.chooseCommandedTarget(world, target);
+        boolean commanded = nextTarget != null;
         if (nextTarget == null) {
             nextTarget = ValetCombatTargeting.chooseTarget(
                     world,
@@ -103,6 +105,9 @@ public final class CombatRuntimeTask {
                     control.combatSearchRadius(),
                     control.combatChaseRadius()
             );
+        }
+        if (!commanded && nextTarget != null && !control.isWithinWorkZone(world, nextTarget.blockPosition())) {
+            nextTarget = null;
         }
         if (nextTarget == null) {
             if (target != null) {
@@ -123,6 +128,7 @@ public final class CombatRuntimeTask {
             pathRefreshTicks = 0;
             control.onCombatStarted(target);
         }
+        targetCommanded = commanded;
 
         applyDefensePerk();
         fight(world, target);
@@ -181,7 +187,7 @@ public final class CombatRuntimeTask {
                     if (hasAllyAwareness(villager) && hasAllyInArrowPath(world, villager, target)) {
                         ValetDebug.record(villager, "combat arrow_blocked ally_in_line target=" + ValetDebug.shortPos(target.blockPosition()));
                         ensureWoodenSword();
-                        chaseTarget(target);
+                        chaseTarget(world, target);
                         return;
                     }
                     shootArrow(world, target);
@@ -195,7 +201,7 @@ public final class CombatRuntimeTask {
         }
 
         ensureWoodenSword();
-        chaseTarget(target);
+        chaseTarget(world, target);
     }
 
     private void fightWithMagic(ServerLevel world, LivingEntity target, double distanceSquared) {
@@ -213,7 +219,7 @@ public final class CombatRuntimeTask {
             return;
         }
 
-        chaseTarget(target);
+        chaseTarget(world, target);
     }
 
     private void castFangs(ServerLevel world, LivingEntity target) {
@@ -400,10 +406,10 @@ public final class CombatRuntimeTask {
         }
     }
 
-    private void chaseTarget(LivingEntity target) {
+    private void chaseTarget(ServerLevel world, LivingEntity target) {
         Villager villager = control.villager();
         if (pathRefreshTicks <= 0 || villager.getNavigation().isDone()) {
-            villager.getNavigation().moveTo(target, control.combatMoveSpeed());
+            control.moveToward(world, target.blockPosition(), control.combatMoveSpeed(), targetCommanded);
             pathRefreshTicks = 8;
         }
     }
@@ -462,7 +468,9 @@ public final class CombatRuntimeTask {
             return false;
         }
 
-        if (arrowChestPos == null || !isArrowContainer(world, arrowChestPos)) {
+        if (arrowChestPos == null
+                || !control.isWithinWorkZone(world, arrowChestPos)
+                || !isArrowContainer(world, arrowChestPos)) {
             if (arrowSearchCooldownTicks > 0) {
                 return false;
             }
@@ -490,12 +498,7 @@ public final class CombatRuntimeTask {
         }
 
         if (pathRefreshTicks <= 0 || villager.getNavigation().isDone()) {
-            boolean moving = villager.getNavigation().moveTo(
-                    arrowChestPos.getX() + 0.5D,
-                    arrowChestPos.getY(),
-                    arrowChestPos.getZ() + 0.5D,
-                    control.combatMoveSpeed()
-            );
+            boolean moving = control.moveToward(world, arrowChestPos, control.combatMoveSpeed(), false);
             pathRefreshTicks = 8;
             if (!moving) {
                 ValetDebug.record(villager, "combat no_arrow_chest_path chest=" + ValetDebug.shortPos(arrowChestPos));
@@ -585,7 +588,7 @@ public final class CombatRuntimeTask {
         int radius = control.chestRadius();
         for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 4, radius)) {
             BlockPos immutable = pos.immutable();
-            if (!isArrowContainer(world, immutable)) {
+            if (!control.isWithinWorkZone(world, immutable) || !isArrowContainer(world, immutable)) {
                 continue;
             }
 
@@ -613,6 +616,7 @@ public final class CombatRuntimeTask {
 
     private void clearTarget() {
         target = null;
+        targetCommanded = false;
         pathRefreshTicks = 0;
         clearArrowChestTarget();
     }
@@ -730,6 +734,10 @@ public final class CombatRuntimeTask {
         boolean combatCanRecycleArrow();
 
         int chestRadius();
+
+        boolean isWithinWorkZone(ServerLevel world, BlockPos pos);
+
+        boolean moveToward(ServerLevel world, BlockPos target, double speed, boolean allowOutsideWorkZone);
 
         int getUsableInventorySlots(Container inventory);
 

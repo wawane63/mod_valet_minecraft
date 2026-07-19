@@ -3,12 +3,14 @@ package com.wawane.valet.group;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.ValetDebug;
+import com.wawane.valet.ValetAnchor;
 import com.wawane.valet.ai.path.ValetSafeNavigation;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -27,8 +29,8 @@ public final class ValetGroupRuntime {
     private static final double GUARD_CLOSE_DISTANCE = 6.0D;
     private static final double GUARD_WIDE_DISTANCE = 10.0D;
     private static final double MOVE_STEP_DISTANCE = 24.0D;
+    private static final double RECALL_LOCAL_HANDOFF_DISTANCE = 12.0D;
     private static final double[] SURFACE_STEP_DISTANCES = {12.0D, 8.0D, 4.0D, MOVE_STEP_DISTANCE};
-    private static final int SURFACE_FAILURES_BEFORE_EXCAVATION = 4;
     private static final int MAX_SURFACE_PATH_NODES = 64;
     private static final int MOVE_REFRESH_TICKS = 20;
     private static final int FOLLOW_REFRESH_TICKS = 10;
@@ -40,11 +42,14 @@ public final class ValetGroupRuntime {
     private static final double SWIM_FOLLOW_STOP_DISTANCE_SQUARED = 6.25D;
     private static final Map<UUID, Long> NEXT_MOVE_REFRESH = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> NEXT_FOLLOW_REFRESH = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> NEXT_COMMAND_REFRESH = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> NEXT_DEFENSE_MOVE_REFRESH = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> MOVE_FAILURES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> NEXT_DEFENSE_HIT = new ConcurrentHashMap<>();
     private static final Map<UUID, BlockPos> ACTIVE_SWIM_TARGETS = new ConcurrentHashMap<>();
     private static final Map<UUID, SwimProgress> SWIM_PROGRESS = new ConcurrentHashMap<>();
     private static final Map<Integer, UUID> TRAVEL_LEADERS = new ConcurrentHashMap<>();
+    private static final Map<UUID, GlobalPos> LOCAL_RECALL_HANDOFFS = new ConcurrentHashMap<>();
 
     private ValetGroupRuntime() {
     }
@@ -64,12 +69,19 @@ public final class ValetGroupRuntime {
                     && (command.targetUuid() != null || command.pos() != null);
             case ATTACK_AREA -> canUseCombatGroupCommand(world, villager) && command.pos() != null;
             case MOVE_TO -> command.pos() != null;
-            case RECALL -> true;
+            case RECALL -> !isLocalRecallHandoff(world, villager);
         };
     }
 
     public static boolean isTravelCommand(ServerLevel world, Villager villager) {
-        return getCommand(world, villager).mode() == ValetGroupMode.MOVE_TO;
+        ValetGroupMode mode = getCommand(world, villager).mode();
+        return mode == ValetGroupMode.MOVE_TO || mode == ValetGroupMode.RECALL;
+    }
+
+    public static boolean isLocalRecallHandoff(ServerLevel world, Villager villager) {
+        BlockPos anchor = ValetAnchor.get(world, villager);
+        return anchor != null
+                && GlobalPos.of(world.dimension(), anchor).equals(LOCAL_RECALL_HANDOFFS.get(villager.getUUID()));
     }
 
     public static boolean tickSelfDefense(ServerLevel world, Villager villager, double speed) {
@@ -80,9 +92,16 @@ public final class ValetGroupRuntime {
         villager.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_SWORD));
         villager.getLookControl().setLookAt(target, 30.0F, 30.0F);
         if (villager.distanceToSqr(target) > 6.25D) {
-            villager.getNavigation().moveTo(target, speed);
+            long now = world.getGameTime();
+            UUID uuid = villager.getUUID();
+            if (now >= NEXT_DEFENSE_MOVE_REFRESH.getOrDefault(uuid, 0L)) {
+                villager.getNavigation().moveTo(target, speed);
+                NEXT_DEFENSE_MOVE_REFRESH.put(uuid, now + FOLLOW_REFRESH_TICKS);
+            }
             return true;
         }
+        villager.getNavigation().stop();
+        NEXT_DEFENSE_MOVE_REFRESH.remove(villager.getUUID());
         long now = world.getGameTime();
         if (now >= NEXT_DEFENSE_HIT.getOrDefault(villager.getUUID(), 0L)) {
             villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
@@ -140,18 +159,24 @@ public final class ValetGroupRuntime {
             }
             double distance = command.mode() == ValetGroupMode.GUARD_WIDE ? GUARD_WIDE_DISTANCE : command.mode() == ValetGroupMode.GUARD_CLOSE ? GUARD_CLOSE_DISTANCE : FOLLOW_DISTANCE;
             if (villager.distanceToSqr(player) <= distance * distance) {
-                return false;
+                villager.getNavigation().stop();
+                NEXT_COMMAND_REFRESH.remove(villager.getUUID());
+                return true;
             }
             villager.getLookControl().setLookAt(player, 20.0F, 20.0F);
-            return villager.getNavigation().moveTo(player, speed);
+            moveCommandTo(world, villager, player.getX(), player.getY(), player.getZ(), speed);
+            return true;
         }
 
         if (command.mode() == ValetGroupMode.ATTACK_AREA && command.pos() != null) {
             double radius = Math.max(4.0D, command.radius() * 0.75D);
             if (villager.distanceToSqr(command.pos().getX() + 0.5D, command.pos().getY() + 0.5D, command.pos().getZ() + 0.5D) <= radius * radius) {
-                return false;
+                villager.getNavigation().stop();
+                NEXT_COMMAND_REFRESH.remove(villager.getUUID());
+                return true;
             }
-            return villager.getNavigation().moveTo(command.pos().getX() + 0.5D, command.pos().getY(), command.pos().getZ() + 0.5D, speed);
+            moveCommandTo(world, villager, command.pos().getX() + 0.5D, command.pos().getY(), command.pos().getZ() + 0.5D, speed);
+            return true;
         }
 
         if (command.mode() == ValetGroupMode.ATTACK_TARGET) {
@@ -162,19 +187,79 @@ public final class ValetGroupRuntime {
                     targetPos = living.blockPosition();
                 }
             }
-            if (targetPos == null || villager.distanceToSqr(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D) <= 36.0D) {
-                return false;
+            if (targetPos == null) {
+                villager.getNavigation().stop();
+                NEXT_COMMAND_REFRESH.remove(villager.getUUID());
+                return true;
             }
-            return villager.getNavigation().moveTo(targetPos.getX() + 0.5D, targetPos.getY(), targetPos.getZ() + 0.5D, speed);
+            if (villager.distanceToSqr(targetPos.getX() + 0.5D, targetPos.getY(), targetPos.getZ() + 0.5D) <= 36.0D) {
+                villager.getNavigation().stop();
+                NEXT_COMMAND_REFRESH.remove(villager.getUUID());
+                return true;
+            }
+            moveCommandTo(world, villager, targetPos.getX() + 0.5D, targetPos.getY(), targetPos.getZ() + 0.5D, speed);
+            return true;
         }
         if (command.mode() == ValetGroupMode.MOVE_TO && command.pos() != null) {
-            return tickLongDistanceMovement(world, villager, command.pos(), speed);
+            return tickLongDistanceMovement(world, villager, command.pos(), speed, true);
+        }
+        if (command.mode() == ValetGroupMode.RECALL) {
+            BlockPos anchor = ValetAnchor.get(world, villager);
+            if (anchor == null) {
+                LOCAL_RECALL_HANDOFFS.remove(villager.getUUID());
+                villager.getNavigation().stop();
+                return true;
+            }
+            UUID uuid = villager.getUUID();
+            GlobalPos recallAnchor = GlobalPos.of(world.dimension(), anchor);
+            if (recallAnchor.equals(LOCAL_RECALL_HANDOFFS.get(uuid))) {
+                return false;
+            }
+            double dx = anchor.getX() + 0.5D - villager.getX();
+            double dz = anchor.getZ() + 0.5D - villager.getZ();
+            if (dx * dx + dz * dz <= RECALL_LOCAL_HANDOFF_DISTANCE * RECALL_LOCAL_HANDOFF_DISTANCE
+                    && !villager.isInWater()) {
+                if (!recallAnchor.equals(LOCAL_RECALL_HANDOFFS.put(uuid, recallAnchor))) {
+                    villager.getNavigation().stop();
+                    NEXT_MOVE_REFRESH.remove(uuid);
+                    MOVE_FAILURES.remove(uuid);
+                    ACTIVE_SWIM_TARGETS.remove(uuid);
+                    SWIM_PROGRESS.remove(uuid);
+                    ValetDebug.record(villager, "group recall_local_handoff anchor="
+                            + ValetDebug.shortPos(anchor));
+                }
+                return false;
+            }
+            return tickLongDistanceMovement(world, villager, anchor, speed, false);
         }
         return false;
     }
 
-    private static boolean tickLongDistanceMovement(ServerLevel world, Villager villager, BlockPos destination, double speed) {
-        Villager leader = stableTravelLeader(world, villager);
+    private static void moveCommandTo(
+            ServerLevel world,
+            Villager villager,
+            double x,
+            double y,
+            double z,
+            double speed
+    ) {
+        long now = world.getGameTime();
+        UUID uuid = villager.getUUID();
+        if (now < NEXT_COMMAND_REFRESH.getOrDefault(uuid, 0L)) {
+            return;
+        }
+        villager.getNavigation().moveTo(x, y, z, speed);
+        NEXT_COMMAND_REFRESH.put(uuid, now + FOLLOW_REFRESH_TICKS);
+    }
+
+    private static boolean tickLongDistanceMovement(
+            ServerLevel world,
+            Villager villager,
+            BlockPos destination,
+            double speed,
+            boolean followGroupLeader
+    ) {
+        Villager leader = followGroupLeader ? stableTravelLeader(world, villager) : villager;
         if (leader != villager) {
             double distanceSquared = villager.distanceToSqr(leader);
             boolean swimming = villager.isInWater() || leader.isInWater();
@@ -226,15 +311,9 @@ public final class ValetGroupRuntime {
 
         long gameTime = world.getGameTime();
         long nextRefresh = NEXT_MOVE_REFRESH.getOrDefault(villager.getUUID(), 0L);
-        boolean stuck = ValetGroupExcavation.observeAndIsStuck(villager);
-        boolean excavationActive = ValetGroupExcavation.hasActivePath(villager);
-        if (excavationActive) {
-            if (ValetGroupExcavation.tick(world, villager, destination)) {
-                return true;
-            }
-        }
+        boolean stuck = villager.getNavigation().isStuck();
 
-        if (gameTime < nextRefresh && (stuck || !villager.getNavigation().isDone())) {
+        if (gameTime < nextRefresh) {
             return true;
         }
 
@@ -269,14 +348,8 @@ public final class ValetGroupRuntime {
 
         int nextFailures = Math.min(6, failures + 1);
         MOVE_FAILURES.put(villager.getUUID(), nextFailures);
-        ValetDebug.record(villager, "group surface_failed attempts=" + nextFailures);
-        if (nextFailures >= SURFACE_FAILURES_BEFORE_EXCAVATION) {
-            villager.getNavigation().stop();
-            ValetDebug.record(villager, "group surface_exhausted -> excavation");
-            if (ValetGroupExcavation.tick(world, villager, destination)) {
-                return true;
-            }
-        }
+        villager.getNavigation().stop();
+        ValetDebug.record(villager, "group surface_failed attempts=" + nextFailures + " action=backoff");
         return true;
     }
 
@@ -372,7 +445,6 @@ public final class ValetGroupRuntime {
             boolean approaching = approachPath != null && villager.getNavigation().moveTo(approachPath, speed);
             NEXT_MOVE_REFRESH.put(villager.getUUID(), gameTime + MOVE_REFRESH_TICKS);
             if (approaching) {
-                ValetGroupExcavation.clear(villager.getUUID());
                 recordSwimTarget(villager, route.approach(), "group swim_approach target=");
                 return true;
             }
@@ -387,7 +459,6 @@ public final class ValetGroupRuntime {
             return false;
         }
 
-        ValetGroupExcavation.clear(villager.getUUID());
         villager.getNavigation().stop();
         BlockPos swimTarget;
         if (keepTarget) {
@@ -618,23 +689,27 @@ public final class ValetGroupRuntime {
     public static void clear(UUID valetUuid) {
         NEXT_MOVE_REFRESH.remove(valetUuid);
         NEXT_FOLLOW_REFRESH.remove(valetUuid);
+        NEXT_COMMAND_REFRESH.remove(valetUuid);
+        NEXT_DEFENSE_MOVE_REFRESH.remove(valetUuid);
         MOVE_FAILURES.remove(valetUuid);
         NEXT_DEFENSE_HIT.remove(valetUuid);
         ACTIVE_SWIM_TARGETS.remove(valetUuid);
         SWIM_PROGRESS.remove(valetUuid);
+        LOCAL_RECALL_HANDOFFS.remove(valetUuid);
         TRAVEL_LEADERS.entrySet().removeIf(entry -> entry.getValue().equals(valetUuid));
-        ValetGroupExcavation.clear(valetUuid);
     }
 
     public static void clearAll() {
         NEXT_MOVE_REFRESH.clear();
         NEXT_FOLLOW_REFRESH.clear();
+        NEXT_COMMAND_REFRESH.clear();
+        NEXT_DEFENSE_MOVE_REFRESH.clear();
         MOVE_FAILURES.clear();
         NEXT_DEFENSE_HIT.clear();
         ACTIVE_SWIM_TARGETS.clear();
         SWIM_PROGRESS.clear();
+        LOCAL_RECALL_HANDOFFS.clear();
         TRAVEL_LEADERS.clear();
-        ValetGroupExcavation.clearAll();
     }
 
     public static ServerPlayer getPlayer(ServerLevel world, java.util.UUID uuid) {

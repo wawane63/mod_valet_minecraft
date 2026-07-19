@@ -59,6 +59,14 @@ public final class ValetAnimalStorage extends SavedData {
         return List.copyOf(areas);
     }
 
+    public boolean removeArea(int id) {
+        boolean removed = areas.removeIf(area -> area.id() == id);
+        if (removed) {
+            setDirty();
+        }
+        return removed;
+    }
+
     public String nextDefaultName(ValetAnimalType type) {
         return type == null ? "Enclos " + nextId : type.defaultAreaName(nextId);
     }

@@ -6,10 +6,8 @@ import com.wawane.valet.state.ValetIdentity;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
@@ -72,44 +70,8 @@ public enum ValetRole {
         return ARTISAN;
     }
 
-    public static ValetRole fromWorkstation(BlockState state) {
-        if (state.is(ValetMod.COMBAT_WORKSTATION)) {
-            return COMBATANT;
-        }
-        if (state.is(ValetMod.FARMER_WORKSTATION)) {
-            return FARMER;
-        }
-        if (state.is(ValetMod.ANIMAL_WORKSTATION)) {
-            return BREEDER;
-        }
-        if (state.is(ValetMod.MAGIC_WORKSTATION)) {
-            return MAGICIAN;
-        }
-        if (state.is(ValetMod.COOK_WORKSTATION)) {
-            return COOK;
-        }
-        if (state.is(ValetMod.STEWARD_WORKSTATION)) {
-            return STEWARD;
-        }
-        return ARTISAN;
-    }
-
     public static ValetRole get(ServerLevel world, Villager villager) {
-        if (ValetIdentity.isTagged(villager)) {
-            return LAST_KNOWN_ROLES.getOrDefault(villager.getUUID(), ARTISAN);
-        }
-        BlockPos home = ValetHome.get(world, villager);
-        if (home == null) {
-            LAST_KNOWN_ROLES.remove(villager.getUUID());
-            return ARTISAN;
-        }
-        if (!ValetHome.isChunkLoaded(world, home)) {
-            ValetRole cached = LAST_KNOWN_ROLES.get(villager.getUUID());
-            return cached != null ? cached : inferFromOrder(villager);
-        }
-        ValetRole role = fromWorkstation(world.getBlockState(home));
-        LAST_KNOWN_ROLES.put(villager.getUUID(), role);
-        return role;
+        return LAST_KNOWN_ROLES.getOrDefault(villager.getUUID(), inferFromOrder(villager));
     }
 
     public static void clear(UUID uuid) {

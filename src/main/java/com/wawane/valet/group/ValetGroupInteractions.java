@@ -164,7 +164,7 @@ public final class ValetGroupInteractions {
                 ValetGroupRuntime.clear(villager.getUUID());
                 ValetBehavior.clearRecall(villager.getUUID());
                 if (group.command().mode() == ValetGroupMode.RECALL) {
-                    ValetBehavior.recallToWorkstation(world, villager);
+                    ValetBehavior.recallToAnchor(world, villager);
                 }
                 ValetWorkGoal.requestRestart(villager);
                 ValetDebug.record(villager, "group command=" + group.command().mode().name().toLowerCase() + " group=" + group.id());

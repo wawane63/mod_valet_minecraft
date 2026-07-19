@@ -183,6 +183,14 @@ public final class ValetOrders {
         return ANIMAL_CULL.getOrDefault(villager.getUUID(), false);
     }
 
+    public static boolean hasEnabledAnimalAction(Villager villager) {
+        return shouldBreedAnimals(villager)
+                || shouldShearAnimals(villager)
+                || shouldCollectAnimalEggs(villager)
+                || shouldMilkAnimals(villager)
+                || shouldCullAnimals(villager);
+    }
+
     public static int getMaxAnimals(Villager villager) {
         return sanitizeMaxAnimals(ANIMAL_MAX.getOrDefault(villager.getUUID(), DEFAULT_MAX_ANIMALS));
     }
@@ -220,9 +228,13 @@ public final class ValetOrders {
     }
 
     public static void setHarvestCrops(Villager villager, int farmAreaId, int cropMask, boolean replant, boolean tillSoil) {
+        if (farmAreaId < 0) {
+            set(villager, ValetOrder.NONE);
+            return;
+        }
         UUID uuid = villager.getUUID();
         ORDERS.put(uuid, ValetOrder.HARVEST_CROPS);
-        FARM_AREAS.put(uuid, Math.max(-1, farmAreaId));
+        FARM_AREAS.put(uuid, farmAreaId);
         FARM_CROP_MASKS.put(uuid, sanitizeFarmCropMask(cropMask));
         FARM_REPLANT.put(uuid, replant);
         FARM_TILL_SOIL.put(uuid, tillSoil);
@@ -230,6 +242,10 @@ public final class ValetOrders {
     }
 
     public static void setBreedingAnimals(Villager villager, int animalAreaId, boolean breed, boolean shear, boolean collectEggs, boolean milk, boolean cull, int maxAnimals) {
+        if (animalAreaId < 0 || !breed && !shear && !collectEggs && !milk && !cull) {
+            set(villager, ValetOrder.NONE);
+            return;
+        }
         UUID uuid = villager.getUUID();
         ORDERS.put(uuid, ValetOrder.BREED_ANIMALS);
         ANIMAL_AREAS.put(uuid, Math.max(-1, animalAreaId));

@@ -16,7 +16,10 @@ import com.wawane.valet.network.packets.ChooseCombatPerkPayload;
 import com.wawane.valet.network.packets.ChoosePerkPayload;
 import com.wawane.valet.network.packets.DeleteConstructionPayload;
 import com.wawane.valet.network.packets.DeleteFarmAreaPayload;
+import com.wawane.valet.network.packets.DeleteAnimalAreaPayload;
+import com.wawane.valet.network.packets.OpenValetInventoryPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.RequestBedBadgePayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
 import com.wawane.valet.network.packets.SetFarmOrderPayload;
@@ -29,6 +32,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.network.chat.Component;
@@ -72,6 +77,8 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private static final int INVENTORY_COLUMNS = 6;
     private static final int INVENTORY_SLOT_SIZE = 18;
     private static final int INVENTORY_SLOT_GAP = 5;
+    private static final int ROLE_ICON_SIZE = 16;
+    private static final Identifier ARTISAN_ROLE_ICON = Identifier.fromNamespaceAndPath("valet", "textures/gui/role/artisan.png");
     private static final ValetPerk[] ARTISAN_TREE_PERKS = {ValetPerk.SPEED, ValetPerk.VISION, ValetPerk.MOVEMENT, ValetPerk.STORAGE, ValetPerk.PATHING, ValetPerk.VEIN, ValetPerk.HAUL, ValetPerk.LIGHTING};
     private static final ValetPerk[] FARMER_TREE_PERKS = {ValetPerk.FARM_HANDS, ValetPerk.FARM_RANGE, ValetPerk.FARM_REPLANTING, ValetPerk.FARM_TILLING, ValetPerk.FARM_STORAGE, ValetPerk.FARM_STEWARD};
     private static final ValetPerk[] MAGIC_TREE_PERKS = {
@@ -94,9 +101,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private EditBox nameField;
     private EditBox animalMaxField;
     private Button renameButton;
+    private Button bedBadgeButton;
     private Button buildConstructionButton;
     private Button deleteConstructionButton;
     private Button deleteFarmAreaButton;
+    private Button deleteAnimalAreaButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
     private Checkbox animalBreedCheckbox;
@@ -223,6 +232,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         renameButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.rename_apply"), button -> sendRename())
                 .bounds(rightLeft + RIGHT_WIDTH - 62, top + 20, 52, 18)
                 .build());
+        bedBadgeButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.bed_badge"), button -> requestBedBadge())
+                .bounds(rightLeft + RIGHT_WIDTH - 92, top + 106, 82, 18)
+                .build());
         buildConstructionButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.get_blueprint"), button -> sendSelectedConstructionOrder())
                 .bounds(rightLeft + RIGHT_WIDTH - 116, top + 42, 52, 18)
                 .build());
@@ -230,6 +242,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
                 .build());
         deleteFarmAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete_farm_area"), button -> sendDeleteFarmArea())
+                .bounds(rightLeft + RIGHT_WIDTH - 88, top + 42, 78, 18)
+                .build());
+        deleteAnimalAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete_animal_area"), button -> sendDeleteAnimalArea())
                 .bounds(rightLeft + RIGHT_WIDTH - 88, top + 42, 78, 18)
                 .build());
         int behaviorLeft = getLeftPanelLeft() + 8;
@@ -366,7 +381,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         bowPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_bow"), button -> selectRightPage(RightPage.BOW))
                 .bounds(rightLeft + 124, top + 132, 42, 18)
                 .build());
-        inventoryPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_inventory"), button -> selectRightPage(RightPage.INVENTORY))
+        inventoryPageButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.page_inventory"), button -> openValetInventory())
                 .bounds(rightLeft + 170, top + 132, 86, 18)
                 .build());
         updatePageButtons();
@@ -424,7 +439,25 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
         context.text(font, Component.translatable("screen.valet.rename"), left + 10, top + 9, 0xFF303030, false);
         Component roleLabel = Component.translatable(localRole.getTranslationKey());
-        context.text(font, roleLabel, left + RIGHT_WIDTH - font.width(roleLabel) - 10, top + 9, 0xFF5A5142, false);
+        int roleRight = left + RIGHT_WIDTH - 10;
+        if (localRole == ValetRole.ARTISAN) {
+            context.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    ARTISAN_ROLE_ICON,
+                    roleRight - ROLE_ICON_SIZE,
+                    top + 5,
+                    0.0F,
+                    0.0F,
+                    ROLE_ICON_SIZE,
+                    ROLE_ICON_SIZE,
+                    ROLE_ICON_SIZE,
+                    ROLE_ICON_SIZE,
+                    ROLE_ICON_SIZE,
+                    ROLE_ICON_SIZE
+            );
+            roleRight -= ROLE_ICON_SIZE + 4;
+        }
+        context.text(font, roleLabel, roleRight - font.width(roleLabel), top + 9, 0xFF5A5142, false);
         context.text(font, getAvailableTitle(), left + 10, top + 45, 0xFF303030, false);
         context.text(font, getSelectedText(), left + 10, top + 60, 0xFF1F1F1F, false);
         context.text(font, getHintText(), left + 10, top + 75, 0xFF5A5142, false);
@@ -804,14 +837,12 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
 
         if (localRole == ValetRole.FARMER) {
             orderEntries.add(OrderEntry.category(TargetCategory.FARM, Component.translatable("screen.valet.category_farm")));
-            orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, -1, Component.literal("  ").append(Component.translatable("screen.valet.farm_all"))));
             for (ValetFarmArea area : localFarmAreas) {
                 orderEntries.add(OrderEntry.target(ValetOrder.HARVEST_CROPS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.farm_area_count", area.name(), area.blockCount()))));
             }
         }
         if (localRole == ValetRole.BREEDER) {
             orderEntries.add(OrderEntry.category(TargetCategory.ANIMAL, Component.translatable("screen.valet.category_animals")));
-            orderEntries.add(OrderEntry.target(ValetOrder.BREED_ANIMALS, -1, Component.literal("  ").append(Component.translatable("screen.valet.animal_all"))));
             for (ValetAnimalArea area : localAnimalAreas) {
                 Component typeLabel = getAnimalTypeLabel(area);
                 orderEntries.add(OrderEntry.target(ValetOrder.BREED_ANIMALS, area.id(), Component.literal("  ").append(Component.translatable("screen.valet.animal_area_count", area.name(), typeLabel))));
@@ -906,11 +937,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         }
         if (selectedCategory == TargetCategory.FARM) {
             ValetFarmArea area = getSelectedFarmArea();
-            return area == null ? Component.translatable("screen.valet.farm_all") : Component.literal(area.name());
+            return area == null ? Component.translatable("screen.valet.farm_unassigned") : Component.literal(area.name());
         }
         if (selectedCategory == TargetCategory.ANIMAL) {
             ValetAnimalArea area = getSelectedAnimalArea();
-            return area == null ? Component.translatable("screen.valet.animal_all") : Component.literal(area.name());
+            return area == null ? Component.translatable("screen.valet.animal_unassigned") : Component.literal(area.name());
         }
         if (selectedCategory == TargetCategory.CONSTRUCTION) {
             ValetConstructionSummary construction = getSelectedConstruction();
@@ -1390,6 +1421,10 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         ClientPlayNetworking.send(new SetValetRolePayload(getValetEntityId(), localRole));
     }
 
+    private void requestBedBadge() {
+        ClientPlayNetworking.send(new RequestBedBadgePayload(getValetEntityId()));
+    }
+
     @Override
     public boolean keyPressed(KeyEvent event) {
         int keyCode = event.key();
@@ -1581,6 +1616,24 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         ClientPlayNetworking.send(new DeleteFarmAreaPayload(viewModel.valetEntityId(), farmAreaId));
     }
 
+    private void sendDeleteAnimalArea() {
+        ValetAnimalArea area = getSelectedAnimalArea();
+        if (area == null) {
+            return;
+        }
+
+        int animalAreaId = area.id();
+        localAnimalAreas.removeIf(candidate -> candidate.id() == animalAreaId);
+        selectedAnimalAreaId = -1;
+        rebuildOrderEntries();
+
+        ClientPlayNetworking.send(new DeleteAnimalAreaPayload(viewModel.valetEntityId(), animalAreaId));
+    }
+
+    private void openValetInventory() {
+        ClientPlayNetworking.send(new OpenValetInventoryPayload(viewModel.valetEntityId()));
+    }
+
     private void selectRightPage(RightPage page) {
         if (!isPageAllowed(page)) {
             page = defaultPageForRole();
@@ -1642,6 +1695,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         updatePageButton(swordPageButton, localRole == ValetRole.FARMER || localRole == ValetRole.BREEDER ? RightPage.FARM_OPTIONS : RightPage.SWORD, localRole == ValetRole.BREEDER ? "screen.valet.page_animal_options" : localRole == ValetRole.FARMER ? "screen.valet.page_farm_options" : "screen.valet.page_sword", localRole == ValetRole.FARMER || localRole == ValetRole.BREEDER || localRole == ValetRole.COMBATANT);
         updatePageButton(bowPageButton, RightPage.BOW, "screen.valet.page_bow", localRole == ValetRole.COMBATANT);
         updatePageButton(inventoryPageButton, RightPage.INVENTORY, "screen.valet.page_inventory", true);
+        inventoryPageButton.active = true;
     }
 
     private void updatePageButton(Button button, RightPage page, String translationKey, boolean visible) {
@@ -1688,6 +1742,11 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             boolean hasSelectedFarmArea = selectedCategory == TargetCategory.FARM && getSelectedFarmArea() != null;
             deleteFarmAreaButton.visible = hasSelectedFarmArea;
             deleteFarmAreaButton.active = hasSelectedFarmArea;
+        }
+        if (deleteAnimalAreaButton != null) {
+            boolean hasSelectedAnimalArea = selectedCategory == TargetCategory.ANIMAL && getSelectedAnimalArea() != null;
+            deleteAnimalAreaButton.visible = hasSelectedAnimalArea;
+            deleteAnimalAreaButton.active = hasSelectedAnimalArea;
         }
 
         boolean animalVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.ANIMAL;

@@ -50,7 +50,7 @@ public final class ValetBehavior {
         return world.isDarkOutside() && !shouldAvoidNightReturn(villager);
     }
 
-    public static void recallToWorkstation(ServerLevel world, Villager villager) {
+    public static void recallToAnchor(ServerLevel world, Villager villager) {
         RECALLS.put(villager.getUUID(), new Recall(world.getGameTime() + RECALL_MAX_TRAVEL_TICKS, 0L));
     }
 

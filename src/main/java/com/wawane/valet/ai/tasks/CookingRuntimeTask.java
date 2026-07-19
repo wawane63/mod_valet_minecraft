@@ -60,7 +60,7 @@ public final class CookingRuntimeTask {
         }
 
         if (hasCookableIngredient()) {
-            startTarget(world, workOrigin, Action.COOK_AT_WORKSTATION);
+            startTarget(world, workOrigin, Action.COOK_AT_ANCHOR);
             return;
         }
 
@@ -101,7 +101,7 @@ public final class CookingRuntimeTask {
         switch (action) {
             case TAKE_FROM_CONTAINER -> takeFromContainer(world);
             case HARVEST_CROP -> harvestCrop(world);
-            case COOK_AT_WORKSTATION -> cookAtWorkstation(world);
+            case COOK_AT_ANCHOR -> cookAtAnchor(world);
             case NONE -> control.setState(State.FIND_TARGET);
         }
     }
@@ -232,7 +232,7 @@ public final class CookingRuntimeTask {
         control.setDelayTicks(control.actionDelayTicks());
     }
 
-    private void cookAtWorkstation(ServerLevel world) {
+    private void cookAtAnchor(ServerLevel world) {
         Recipe recipe = firstAvailableRecipe();
         if (recipe == null) {
             clearTarget();
@@ -428,7 +428,7 @@ public final class CookingRuntimeTask {
         NONE,
         TAKE_FROM_CONTAINER,
         HARVEST_CROP,
-        COOK_AT_WORKSTATION
+        COOK_AT_ANCHOR
     }
 
     private record Recipe(Item ingredient, int ingredientCount, Item result) {

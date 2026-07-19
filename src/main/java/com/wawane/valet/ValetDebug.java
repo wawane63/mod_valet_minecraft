@@ -2,7 +2,7 @@ package com.wawane.valet;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
-import com.wawane.valet.ai.ValetWorkDriver;
+import com.wawane.valet.ai.ValetBrain;
 import com.wawane.valet.state.ValetData;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
@@ -59,7 +59,7 @@ public final class ValetDebug {
             Villager villager = nearest.get();
             String event = LAST_EVENTS.getOrDefault(villager.getUUID(), "event=aucun");
             player.sendOverlayMessage(Component.literal("[Valet] profession=" + villager.getVillagerData().profession()
-                    + " " + ValetWorkDriver.describe(villager) + " | " + event));
+                    + " " + ValetBrain.describe(villager) + " | " + event));
         }
     }
 
@@ -128,7 +128,7 @@ public final class ValetDebug {
         for (Villager villager : valets) {
             String event = LAST_EVENTS.getOrDefault(villager.getUUID(), "event=aucun");
             player.sendSystemMessage(Component.literal("[Valet] profession=" + villager.getVillagerData().profession()
-                    + " " + ValetWorkDriver.describe(villager) + " | " + event));
+                    + " " + ValetBrain.describe(villager) + " | " + event));
         }
     }
 

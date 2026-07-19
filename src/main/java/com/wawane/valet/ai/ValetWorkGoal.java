@@ -4,7 +4,6 @@ import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.ValetConversations;
 import com.wawane.valet.ValetDebug;
-import com.wawane.valet.ValetHome;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.core.ValetBlockReservations;
@@ -12,7 +11,6 @@ import com.wawane.valet.ai.core.ValetEntityReservations;
 import com.wawane.valet.ai.core.ValetOrderKey;
 import com.wawane.valet.ai.core.ValetWorkSettings;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
-import com.wawane.valet.ai.path.ValetPathPlanner;
 import com.wawane.valet.ai.path.ValetSafeNavigation;
 import com.wawane.valet.ai.tasks.BreedingRuntimeTask;
 import com.wawane.valet.ai.tasks.ConstructionRuntimeTask;
@@ -37,12 +35,8 @@ import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.order.ValetWoodTarget;
 import com.wawane.valet.state.ValetBehavior;
 import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -58,7 +52,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
-import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -71,27 +64,23 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-public class ValetWorkGoal extends Goal {
+public class ValetWorkGoal {
     private static final Set<UUID> RESTART_REQUESTS = ConcurrentHashMap.newKeySet();
     private static final int PASSAGE_HEIGHT = 2;
     private static final int BUILD_HORIZONTAL_REACH = 4;
     private static final int BUILD_VERTICAL_REACH = 6;
-    private static final int FENCE_GATE_CLOSE_TICKS = 6;
     private static final int FLEE_PATH_REFRESH_TICKS = 10;
     private static final int FLEE_THREAT_SCAN_INTERVAL_TICKS = 10;
     private static final int NAVIGATION_NO_PROGRESS_TICKS = 40;
-    private static final int NAVIGATION_STEP_TIMEOUT_TICKS = 120;
-    private static final int FARMER_NAVIGATION_TIMEOUT_TICKS = 400;
-    private static final int FARMER_WALK_TARGET_RETRY_TICKS = 10;
+    private static final int NAVIGATION_TARGET_TIMEOUT_TICKS = 400;
+    private static final int WALK_TARGET_RETRY_TICKS = 10;
     private static final int WATER_ESCAPE_NO_PROGRESS_TICKS = 60;
     private static final int WATER_ESCAPE_RETRY_TICKS = 20;
     private static final double NAVIGATION_PROGRESS_EPSILON = 0.04D;
@@ -107,38 +96,6 @@ public class ValetWorkGoal extends Goal {
             ValetMineTarget.EMERALD.tag(),
             ValetMineTarget.DIAMOND.tag()
     );
-    private static final Set<Block> NATURAL_PATH_BLOCKS = Set.of(
-            Blocks.STONE,
-            Blocks.GRANITE,
-            Blocks.DIORITE,
-            Blocks.ANDESITE,
-            Blocks.DEEPSLATE,
-            Blocks.TUFF,
-            Blocks.CALCITE,
-            Blocks.DRIPSTONE_BLOCK,
-            Blocks.DIRT,
-            Blocks.GRASS_BLOCK,
-            Blocks.COARSE_DIRT,
-            Blocks.ROOTED_DIRT,
-            Blocks.PODZOL,
-            Blocks.MYCELIUM,
-            Blocks.MUD,
-            Blocks.CLAY,
-            Blocks.GRAVEL,
-            Blocks.SAND,
-            Blocks.RED_SAND,
-            Blocks.SANDSTONE,
-            Blocks.RED_SANDSTONE,
-            Blocks.NETHERRACK,
-            Blocks.BASALT,
-            Blocks.BLACKSTONE,
-            Blocks.END_STONE,
-            Blocks.SNOW,
-            Blocks.SNOW_BLOCK,
-            Blocks.ICE,
-            Blocks.PACKED_ICE,
-            Blocks.BLUE_ICE
-    );
     private static final Set<Block> FALLING_PATH_BLOCKS = Set.of(
             Blocks.GRAVEL,
             Blocks.SAND,
@@ -147,7 +104,6 @@ public class ValetWorkGoal extends Goal {
 
     private final Villager villager;
     private final ValetWorkSettings settings;
-    private final ValetPathPlanner pathPlanner = new ValetPathPlanner();
     private final MiningRuntimeTask miningTask;
     private final FarmingRuntimeTask farmingTask;
     private final ConstructionRuntimeTask constructionTask;
@@ -163,7 +119,6 @@ public class ValetWorkGoal extends Goal {
     private int pathIndex;
     private int delayTicks;
     private String activeOrderKey = "";
-    private final Map<BlockPos, Integer> openedFenceGates = new HashMap<>();
     private BlockPos animatedContainerPos;
     private Block animatedContainerBlock;
     private int animatedContainerCloseTicks;
@@ -191,7 +146,6 @@ public class ValetWorkGoal extends Goal {
         this.breedingTask = new BreedingRuntimeTask(new BreedingControl());
         this.cookingTask = new CookingRuntimeTask(new CookingControl());
         this.stewardTask = new StewardRuntimeTask(new StewardControl());
-        setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
 
     public static void requestRestart(Villager villager) {
@@ -202,22 +156,18 @@ public class ValetWorkGoal extends Goal {
         RESTART_REQUESTS.remove(uuid);
     }
 
-    @Override
     public boolean canUse() {
         return isAvailableValet() && shouldRunCustomControl();
     }
 
-    @Override
     public boolean canContinueToUse() {
         return isAvailableValet() && shouldRunCustomControl();
     }
 
-    @Override
     public void start() {
         resetForCurrentOrder("starts");
     }
 
-    @Override
     public void stop() {
         state = State.FIND_TARGET;
         delayTicks = 0;
@@ -231,11 +181,6 @@ public class ValetWorkGoal extends Goal {
         breedingTask.clearAll();
         ValetBlockReservations.releaseAll(villager.getUUID());
         ValetEntityReservations.releaseAll(villager.getUUID());
-        if (villager.level() instanceof ServerLevel world) {
-            closeOpenedFenceGatesNow(world);
-        } else {
-            openedFenceGates.clear();
-        }
         closeAnimatedContainerNow();
         cachedFleeThreat = null;
         fleePathRefreshTicks = 0;
@@ -248,14 +193,12 @@ public class ValetWorkGoal extends Goal {
         }
     }
 
-    @Override
     public void tick() {
         if (!(villager.level() instanceof ServerLevel world)) {
             return;
         }
 
         tickAnimatedContainer(world);
-        tickOpenedFenceGates(world);
         constructionTask.tickCooldown();
         miningTask.tickCooldown();
         farmingTask.tickCooldown();
@@ -282,23 +225,19 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (shouldClaimMovement(world)) {
-            if (isVanillaFarmerWalkActive()) {
-                suppressVanillaDestinationTargets();
-            } else {
-                suppressVanillaMovementTargets();
+        boolean groupCommand = ValetGroupRuntime.hasControllingCommand(world, villager);
+        if (groupCommand) {
+            if (!ValetGroupRuntime.isLocalRecallHandoff(world, villager)
+                    && abandonWorkPathForExternalMovement("group_command")) {
+                villager.getNavigation().stop();
             }
-        }
-
-        if (ValetGroupRuntime.hasControllingCommand(world, villager)
-                && ValetGroupRuntime.tickSelfDefense(world, villager, settings.combatMoveSpeed())) {
-            abandonWorkPathForExternalMovement("group_defense");
-            return;
+            if (ValetGroupRuntime.tickSelfDefense(world, villager, settings.combatMoveSpeed())) {
+                return;
+            }
         }
 
         if (ValetGroupRuntime.isTravelCommand(world, villager)
                 && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
-            abandonWorkPathForExternalMovement("group_travel");
             return;
         }
 
@@ -317,7 +256,6 @@ public class ValetWorkGoal extends Goal {
 
         if (!ValetGroupRuntime.isTravelCommand(world, villager)
                 && ValetGroupRuntime.tickMovement(world, villager, settings.combatMoveSpeed())) {
-            abandonWorkPathForExternalMovement("group_command");
             return;
         }
 
@@ -331,7 +269,7 @@ public class ValetWorkGoal extends Goal {
         updatePassiveState();
 
         switch (state) {
-            case IDLE -> logisticsTask.idleAtWorkstation(world);
+            case IDLE -> logisticsTask.idleAtAnchor(world);
             case FIND_TARGET -> findTarget(world);
             case EXECUTING_PATH -> executePath(world);
             case MINING -> miningTask.tickMining(world);
@@ -343,7 +281,7 @@ public class ValetWorkGoal extends Goal {
             case STEWARDING -> stewardTask.tickStewarding(world);
             case COLLECTING -> miningTask.tickCollecting(world);
             case RETURNING -> logisticsTask.returnToChest(world);
-            case RETURNING_HOME -> logisticsTask.returnToWorkstation(world);
+            case RETURNING_HOME -> logisticsTask.returnToAnchor(world);
             case DEPOSITING -> logisticsTask.tickDepositing(world);
         }
     }
@@ -394,7 +332,9 @@ public class ValetWorkGoal extends Goal {
     }
 
     private boolean hasBreedingOrder() {
-        return isOrderAllowed(ValetOrders.get(villager)) && ValetOrders.get(villager) == ValetOrder.BREED_ANIMALS;
+        return isOrderAllowed(ValetOrders.get(villager))
+                && ValetOrders.get(villager) == ValetOrder.BREED_ANIMALS
+                && ValetOrders.hasEnabledAnimalAction(villager);
     }
 
     private boolean hasCraftOrder() {
@@ -435,14 +375,20 @@ public class ValetWorkGoal extends Goal {
         if (ValetGroupRuntime.hasControllingCommand(world, villager)) {
             return true;
         }
+        if (ValetBrain.isThreatened(villager)) {
+            return true;
+        }
+        if (hasActiveOrder()) {
+            return true;
+        }
         if (ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
             return false;
         }
-        return hasWorkOrigin() || hasActiveOrder() || hasInventoryItems();
+        return hasWorkOrigin() || hasInventoryItems();
     }
 
     private State chooseStartState() {
-        if (villager.level() instanceof ServerLevel world && ValetBehavior.isRecallActive(world, villager)) {
+        if (villager.level() instanceof ServerLevel world && isRecallRequested(world)) {
             return State.RETURNING_HOME;
         }
         if (villager.level() instanceof ServerLevel world
@@ -451,6 +397,12 @@ public class ValetWorkGoal extends Goal {
             return State.IDLE;
         }
         return ValetStateMachine.chooseStartState(ValetConversations.isTalking(villager), hasActiveOrder(), shouldReturnToChestBeforeWork());
+    }
+
+    private boolean isRecallRequested(ServerLevel world) {
+        return ValetBehavior.isRecallActive(world, villager)
+                || ValetGroupRuntime.getCommand(world, villager).mode() == ValetGroupMode.RECALL
+                && !ValetGroupRuntime.isLocalRecallHandoff(world, villager);
     }
 
     private void resetForCurrentOrder(String action) {
@@ -482,8 +434,7 @@ public class ValetWorkGoal extends Goal {
         ValetRole role = ValetRole.get(world, villager);
         int farmAreaId = ValetOrders.getFarmAreaId(villager);
         boolean missingFarmArea = order == ValetOrder.HARVEST_CROPS
-                && farmAreaId >= 0
-                && ValetFarmStorage.get(world).getArea(farmAreaId) == null;
+                && (farmAreaId < 0 || ValetFarmStorage.get(world).getArea(farmAreaId) == null);
         if (role.allows(order) && !missingFarmArea) {
             return;
         }
@@ -558,7 +509,7 @@ public class ValetWorkGoal extends Goal {
     }
 
     private void updatePassiveState() {
-        if (villager.level() instanceof ServerLevel world && ValetBehavior.isRecallActive(world, villager)) {
+        if (villager.level() instanceof ServerLevel world && isRecallRequested(world)) {
             if (state != State.RETURNING_HOME && !isExecuting(PathPurpose.HOME)) {
                 clearPathState();
                 clearMiningState();
@@ -766,46 +717,8 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (pathPurpose == PathPurpose.CROP) {
-            executeVanillaFarmerPath(world);
-            return;
-        }
-
-        BlockPos next = path.get(pathIndex);
-        if (hasReachedPathStep(next)) {
-            ValetDebug.record(villager, "path step purpose=" + pathPurpose + " step=" + ValetDebug.shortPos(next));
-            clearNavigationStep();
-            pathIndex++;
-            delayTicks = pathStepDelayTicks();
-            return;
-        }
-
-        if (activeNavigationStep == null || !activeNavigationStep.equals(next)) {
-            BlockPos current = currentStandPos(world);
-            BlockPos obstruction = findMovementObstruction(world, next);
-            if (obstruction != null) {
-                clearNavigationStep();
-                miningTask.beginMining(world, obstruction, false);
-                return;
-            }
-
-            if (!canTraverseStep(world, current, next)) {
-                failNavigationStep(current, next, describeBlockedStep(world, current, next));
-                return;
-            }
-
-            openDoorsForStep(world, next);
-        }
-
-        if (!moveToPathStep(world, next)) {
-            failNavigationStep(currentStandPos(world), next, "vanilla_navigation");
-        }
-    }
-
-    private void executeVanillaFarmerPath(ServerLevel world) {
         BlockPos destination = path.get(path.size() - 1);
-
-        if (farmingTask.canWorkFromCurrentStand()) {
+        if (pathPurpose == PathPurpose.CROP && farmingTask.canWorkFromCurrentStand()) {
             ValetDebug.record(villager, "path destination purpose=CROP step=" + ValetDebug.shortPos(destination));
             clearNavigationStep();
             pathIndex = path.size();
@@ -813,33 +726,80 @@ public class ValetWorkGoal extends Goal {
             return;
         }
 
-        if (!moveToVanillaFarmerTarget(world, destination)) {
-            failNavigationStep(currentStandPos(world), destination, "vanilla_farmer_navigation");
+        if (hasReachedPathStep(destination)) {
+            ValetDebug.record(villager, "path destination purpose=" + pathPurpose + " step=" + ValetDebug.shortPos(destination));
+            clearNavigationStep();
+            pathIndex = path.size();
+            delayTicks = pathStepDelayTicks();
+            return;
+        }
+
+        if (!moveToBrainTarget(world, destination)) {
+            failNavigationStep(currentStandPos(world), destination, "vanilla_brain_navigation");
         }
     }
 
     private List<BlockPos> planPathToAdjacent(ServerLevel world, PathPurpose purpose, BlockPos targetBlock, Set<BlockPos> goals) {
-        BlockPos start = currentStandPos(world);
-        if (goals.isEmpty()) {
+        ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+        if (zone == null || targetBlock == null || goals.isEmpty() || !zone.contains(targetBlock)) {
             return List.of();
         }
 
-        BlockPos origin = getWorkOrigin(world);
-        if (origin == null) {
-            return List.of();
+        List<BlockPos> orderedGoals = goals.stream()
+                .filter(zone::contains)
+                .filter(goal -> ValetSafeNavigation.isSafeStand(world, goal, PASSAGE_HEIGHT))
+                .sorted(java.util.Comparator.comparingDouble(goal -> squaredDistance(villager.blockPosition(), goal)))
+                .limit(32)
+                .toList();
+        BlockPos bestGoal = findBestReachableGoal(world, orderedGoals, zone);
+        BlockPos openedGate = bestGoal == null
+                ? ValetFenceGateAccess.tryOpenForPath(world, villager, orderedGoals, zone)
+                : null;
+        if (openedGate != null) {
+            bestGoal = findBestReachableGoal(world, orderedGoals, zone);
+            if (bestGoal == null) {
+                ValetFenceGateAccess.rollbackLastOpen(world, villager);
+            }
         }
+        return bestGoal == null ? List.of() : List.of(bestGoal.immutable());
+    }
 
-        return pathPlanner.planPathToAdjacent(
-                world,
-                origin,
-                start,
-                targetBlock,
-                goals,
-                maxPathNodes(),
-                maxPathLength(),
-                (stepWorld, from, to) -> canPrepareStep(stepWorld, from, to, purpose),
-                (stepWorld, from, to) -> movementCost(stepWorld, from, to, purpose)
-        );
+    private BlockPos findBestReachableGoal(
+            ServerLevel world,
+            List<BlockPos> orderedGoals,
+            ValetWorkZone.Zone zone
+    ) {
+        for (BlockPos goal : orderedGoals) {
+            Path candidate = ValetSafeNavigation.createSafeLocalPath(
+                    world,
+                    villager,
+                    goal,
+                    PASSAGE_HEIGHT,
+                    false,
+                    maxPathLength()
+            );
+            if (candidate == null
+                    || !pathReentersAndStaysInZone(candidate, zone)) {
+                continue;
+            }
+            return goal;
+        }
+        return null;
+    }
+
+    private boolean pathReentersAndStaysInZone(Path candidate, ValetWorkZone.Zone zone) {
+        if (candidate == null || zone == null) {
+            return false;
+        }
+        boolean entered = zone.contains(villager.blockPosition());
+        for (int index = 0; index < candidate.getNodeCount(); index++) {
+            boolean inside = zone.contains(candidate.getNodePos(index));
+            if (entered && !inside) {
+                return false;
+            }
+            entered |= inside;
+        }
+        return entered;
     }
 
     private void startPath(PathPurpose purpose, List<BlockPos> nextPath) {
@@ -848,81 +808,29 @@ public class ValetWorkGoal extends Goal {
         pathIndex = 0;
         clearNavigationStep();
         state = State.EXECUTING_PATH;
-        ValetDebug.record(villager, "path start purpose=" + purpose + " len=" + nextPath.size());
+        ValetDebug.record(villager, "path start purpose=" + purpose + " mode=brain_vanilla target="
+                + ValetDebug.shortPos(nextPath.isEmpty() ? null : nextPath.get(nextPath.size() - 1)));
     }
 
     private boolean hasReachedPathStep(BlockPos step) {
         return ValetSafeNavigation.hasReached(villager, step);
     }
 
-    private boolean moveToPathStep(ServerLevel world, BlockPos step) {
-        suppressVanillaMovementTargets();
-        double targetX = step.getX() + 0.5D;
-        double targetZ = step.getZ() + 0.5D;
-        faceTarget(targetX, targetZ);
-        villager.getLookControl().setLookAt(targetX, step.getY() + 1.0D, targetZ);
-
-        double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, step);
-        if (!ValetSafeNavigation.isSafeStand(world, step, PASSAGE_HEIGHT)) {
+    private boolean moveToBrainTarget(ServerLevel world, BlockPos destination) {
+        if (!ValetWorkZone.contains(world, villager, destination)
+                || !ValetSafeNavigation.isSafeStand(world, destination, PASSAGE_HEIGHT)) {
             return false;
         }
-        if (activeNavigationStep == null || !activeNavigationStep.equals(step)) {
-            Path vanillaPath = ValetSafeNavigation.createSafeLocalPath(world, villager, step, PASSAGE_HEIGHT, false);
-            if (vanillaPath == null || !villager.getNavigation().moveTo(vanillaPath, settings.workMoveSpeed())) {
-                ValetDebug.record(villager, "path navigation_rejected purpose=" + pathPurpose
-                        + " step=" + ValetDebug.shortPos(step));
-                return false;
-            }
-            activeNavigationStep = step.immutable();
-            navigationStepTicks = 0;
-            navigationNoProgressTicks = 0;
-            navigationBestDistanceSquared = distanceSquared;
-            ValetDebug.record(villager, "path navigation_start purpose=" + pathPurpose
-                    + " step=" + ValetDebug.shortPos(step));
-            return true;
-        }
-
-        navigationStepTicks++;
-        if (distanceSquared + NAVIGATION_PROGRESS_EPSILON < navigationBestDistanceSquared) {
-            navigationBestDistanceSquared = distanceSquared;
-            navigationNoProgressTicks = 0;
-        } else {
-            navigationNoProgressTicks++;
-        }
-
-        if (navigationStepTicks >= NAVIGATION_STEP_TIMEOUT_TICKS
-                || navigationNoProgressTicks >= NAVIGATION_NO_PROGRESS_TICKS
-                || villager.getNavigation().isStuck()) {
-            ValetDebug.record(villager, "path navigation_stuck purpose=" + pathPurpose
-                    + " step=" + ValetDebug.shortPos(step)
-                    + " ticks=" + navigationStepTicks
-                    + " idle=" + navigationNoProgressTicks);
-            return false;
-        }
-
-        if (villager.getNavigation().isDone()) {
-            Path vanillaPath = ValetSafeNavigation.createSafeLocalPath(world, villager, step, PASSAGE_HEIGHT, false);
-            if (vanillaPath == null || !villager.getNavigation().moveTo(vanillaPath, settings.workMoveSpeed())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean moveToVanillaFarmerTarget(ServerLevel world, BlockPos destination) {
         double distanceSquared = ValetSafeNavigation.distanceSquaredToCenter(villager, destination);
-        if (!ValetSafeNavigation.isSafeStand(world, destination, PASSAGE_HEIGHT)) {
-            return false;
-        }
 
         if (activeNavigationStep == null || !activeNavigationStep.equals(destination)) {
-            setVanillaFarmerWalkTarget(destination);
+            setBrainWalkTarget(destination);
             activeNavigationStep = destination.immutable();
             navigationStepTicks = 0;
             navigationNoProgressTicks = 0;
             navigationBestDistanceSquared = distanceSquared;
-            ValetDebug.record(villager, "path navigation_start purpose=CROP step="
-                    + ValetDebug.shortPos(destination) + " mode=vanilla_farmer");
+            ValetDebug.record(villager, "path navigation_start purpose=" + pathPurpose + " target="
+                    + ValetDebug.shortPos(destination) + " mode=brain_vanilla");
             return true;
         }
 
@@ -937,42 +845,31 @@ public class ValetWorkGoal extends Goal {
         boolean hasExpectedWalkTarget = villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
                 .map(walkTarget -> walkTarget.getTarget().currentBlockPosition().equals(destination))
                 .orElse(false);
-        if (!hasExpectedWalkTarget && navigationStepTicks % FARMER_WALK_TARGET_RETRY_TICKS == 0) {
-            setVanillaFarmerWalkTarget(destination);
-            ValetDebug.record(villager, "path navigation_retry purpose=CROP step="
-                    + ValetDebug.shortPos(destination) + " mode=vanilla_farmer");
+        if (!hasExpectedWalkTarget && navigationStepTicks % WALK_TARGET_RETRY_TICKS == 0) {
+            setBrainWalkTarget(destination);
+            ValetDebug.record(villager, "path navigation_retry purpose=" + pathPurpose + " target="
+                    + ValetDebug.shortPos(destination) + " mode=brain_vanilla");
         }
 
-        if (navigationStepTicks >= FARMER_NAVIGATION_TIMEOUT_TICKS) {
-            ValetDebug.record(villager, "path navigation_stuck purpose=CROP step="
+        if (navigationStepTicks >= NAVIGATION_TARGET_TIMEOUT_TICKS
+                || navigationNoProgressTicks >= NAVIGATION_NO_PROGRESS_TICKS && villager.getNavigation().isDone()) {
+            ValetDebug.record(villager, "path navigation_stuck purpose=" + pathPurpose + " target="
                     + ValetDebug.shortPos(destination)
                     + " ticks=" + navigationStepTicks
                     + " idle=" + navigationNoProgressTicks
-                    + " mode=vanilla_farmer");
+                    + " mode=brain_vanilla");
             return false;
         }
         return true;
     }
 
-    private void setVanillaFarmerWalkTarget(BlockPos destination) {
+    private void setBrainWalkTarget(BlockPos destination) {
         BlockPosTracker tracker = new BlockPosTracker(destination);
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, tracker);
         villager.getBrain().setMemory(
                 MemoryModuleType.WALK_TARGET,
                 new WalkTarget(tracker, (float) settings.workMoveSpeed(), 0)
         );
-    }
-
-    private void faceTarget(double targetX, double targetZ) {
-        double dx = targetX - villager.getX();
-        double dz = targetZ - villager.getZ();
-        if (dx * dx + dz * dz < 1.0E-6D) {
-            return;
-        }
-        float yaw = (float) (Math.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F;
-        villager.setYRot(yaw);
-        villager.setYHeadRot(yaw);
-        villager.setYBodyRot(yaw);
     }
 
     private void clearNavigationStep() {
@@ -997,6 +894,8 @@ public class ValetWorkGoal extends Goal {
             miningTask.rememberCurrentTarget();
         } else if (pathPurpose == PathPurpose.CROP) {
             farmingTask.rememberCurrentTargetFailure();
+        } else if (pathPurpose == PathPurpose.ANIMAL) {
+            breedingTask.rememberCurrentTargetFailure();
         }
         state = interruptedPathState();
         clearPathState();
@@ -1005,6 +904,10 @@ public class ValetWorkGoal extends Goal {
 
     private Set<BlockPos> findStandGoals(ServerLevel world, BlockPos targetBlock, PathPurpose purpose) {
         Set<BlockPos> goals = new HashSet<>();
+
+        if (purpose == PathPurpose.HOME && canPrepareStand(world, targetBlock)) {
+            goals.add(targetBlock.immutable());
+        }
 
         for (BlockPos pos : BlockPos.betweenClosed(
                 targetBlock.getX() - 2,
@@ -1018,7 +921,7 @@ public class ValetWorkGoal extends Goal {
             if (!stand.equals(targetBlock)
                     && !wouldMineOwnSupport(targetBlock, stand, purpose)
                     && canReachTargetFromStand(targetBlock, stand)
-                    && canPrepareStand(world, stand, purpose)) {
+                    && canPrepareStand(world, stand)) {
                 goals.add(stand);
             }
         }
@@ -1042,7 +945,7 @@ public class ValetWorkGoal extends Goal {
                 targetBlock.getZ() + BUILD_HORIZONTAL_REACH
         )) {
             BlockPos stand = pos.immutable();
-            if (!stand.equals(targetBlock) && canReachBuildTargetFromStand(targetBlock, stand) && canPrepareStand(world, stand, PathPurpose.BUILD)) {
+            if (!stand.equals(targetBlock) && canReachBuildTargetFromStand(targetBlock, stand) && canPrepareStand(world, stand)) {
                 goals.add(stand);
             }
         }
@@ -1050,7 +953,7 @@ public class ValetWorkGoal extends Goal {
         return goals;
     }
 
-    private boolean isNearWorkstation(ServerLevel world, BlockPos workOrigin) {
+    private boolean isNearAnchor(ServerLevel world, BlockPos workOrigin) {
         Set<BlockPos> goals = findStandGoals(world, workOrigin, PathPurpose.HOME);
         BlockPos current = currentStandPos(world);
         return goals.contains(current) || squaredDistance(current, workOrigin) <= 4;
@@ -1078,124 +981,8 @@ public class ValetWorkGoal extends Goal {
         return distance == 1;
     }
 
-    private int movementCost(ServerLevel world, BlockPos from, BlockPos to, PathPurpose purpose) {
-        int cost = 10 + Math.abs(to.getY() - from.getY()) * 6;
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            cost += clearCost(world, to.above(y), purpose);
-        }
-        return cost;
-    }
-
-    private int clearCost(ServerLevel world, BlockPos pos, PathPurpose purpose) {
-        BlockState blockState = world.getBlockState(pos);
-        if (isPassableTunnelSpace(world, pos)) {
-            return 0;
-        }
-        if (!canMinePathBlock(world, pos, blockState, purpose)) {
-            return 10_000;
-        }
-        return 80 + Math.max(0, Math.round(blockState.getDestroySpeed(world, pos) * 20.0F));
-    }
-
-    private boolean canPrepareStand(ServerLevel world, BlockPos standPos, PathPurpose purpose) {
-        if (!canStandOn(world, standPos.below())) {
-            return false;
-        }
-
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            if (!canClearForTunnel(world, standPos.above(y), purpose)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean canPrepareStep(ServerLevel world, BlockPos from, BlockPos to, PathPurpose purpose) {
-        int dx = Math.abs(to.getX() - from.getX());
-        int dy = to.getY() - from.getY();
-        int dz = Math.abs(to.getZ() - from.getZ());
-        if (dx + dz != 1 || dy < -1 || dy > 1 || !canStandOn(world, to.below())) {
-            return false;
-        }
-
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            if (!canClearForTunnel(world, to.above(y), purpose)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean canClearForTunnel(ServerLevel world, BlockPos pos, PathPurpose purpose) {
-        BlockState blockState = world.getBlockState(pos);
-        return isPassableTunnelSpace(world, pos) || canMinePathBlock(world, pos, blockState, purpose);
-    }
-
-    private BlockPos findMovementObstruction(ServerLevel world, BlockPos to) {
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            BlockPos candidate = to.above(y);
-            BlockState blockState = world.getBlockState(candidate);
-            if (!isPassableTunnelSpace(world, candidate)) {
-                return canMinePathBlock(world, candidate, blockState, pathPurpose) ? candidate : null;
-            }
-        }
-
-        return null;
-    }
-
-    private boolean canTraverseStep(ServerLevel world, BlockPos from, BlockPos to) {
-        int dx = Math.abs(to.getX() - from.getX());
-        int dy = to.getY() - from.getY();
-        int dz = Math.abs(to.getZ() - from.getZ());
-        if (dx + dz != 1 || dy < -1 || dy > 1) {
-            return false;
-        }
-
-        if (!isSafeStand(world, to)) {
-            return false;
-        }
-
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            if (!isPassableTunnelSpace(world, to.above(y))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private String describeBlockedStep(ServerLevel world, BlockPos from, BlockPos to) {
-        int dx = Math.abs(to.getX() - from.getX());
-        int dy = to.getY() - from.getY();
-        int dz = Math.abs(to.getZ() - from.getZ());
-        if (dx + dz != 1 || dy < -1 || dy > 1) {
-            return "delta:" + dx + "," + dy + "," + dz;
-        }
-
-        if (!isSafeStand(world, to)) {
-            return "stand:" + ValetDebug.shortPos(to);
-        }
-
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            BlockPos pos = to.above(y);
-            if (!isPassableTunnelSpace(world, pos)) {
-                BlockState state = world.getBlockState(pos);
-                return ValetDebug.shortPos(pos) + ":" + state.getBlock().getDescriptionId();
-            }
-        }
-        return "unknown";
-    }
-
-    private boolean isSafeStand(ServerLevel world, BlockPos standPos) {
-        if (!canStandOn(world, standPos.below())) {
-            return false;
-        }
-
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            if (!isPassableTunnelSpace(world, standPos.above(y))) {
-                return false;
-            }
-        }
-        return true;
+    private boolean canPrepareStand(ServerLevel world, BlockPos standPos) {
+        return ValetSafeNavigation.isSafeStand(world, standPos, PASSAGE_HEIGHT);
     }
 
     private boolean escapeFluidIfNeeded(ServerLevel world) {
@@ -1223,7 +1010,9 @@ public class ValetWorkGoal extends Goal {
                     ? State.FIND_TARGET
                     : hasConstructionOrder() && !hasInventoryItems() ? State.RETURNING_HOME : State.RETURNING;
             SafeNavigationTarget target = findNearestSafeStand(world, current, 5, 4);
-            if (target == null || !villager.getNavigation().moveTo(target.path(), settings.workMoveSpeed())) {
+            if (target == null
+                    || !pathReentersAndStaysInZone(target.path(), ValetWorkZone.get(world, villager))
+                    || !villager.getNavigation().moveTo(target.path(), settings.workMoveSpeed())) {
                 clearWaterEscapeState(true);
                 waterEscapeRetryTicks = WATER_ESCAPE_RETRY_TICKS;
                 villager.getJumpControl().jump();
@@ -1253,7 +1042,11 @@ public class ValetWorkGoal extends Goal {
 
             if (villager.getNavigation().isDone()) {
                 Path safePath = ValetSafeNavigation.createSafeLocalPath(world, villager, waterEscapeTarget, PASSAGE_HEIGHT, true, 32);
-                if (safePath == null || !villager.getNavigation().moveTo(safePath, settings.workMoveSpeed())) {
+                ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+                if (safePath == null
+                        || zone == null
+                        || !pathReentersAndStaysInZone(safePath, zone)
+                        || !villager.getNavigation().moveTo(safePath, settings.workMoveSpeed())) {
                     clearWaterEscapeState(true);
                     waterEscapeRetryTicks = WATER_ESCAPE_RETRY_TICKS;
                     villager.getJumpControl().jump();
@@ -1267,11 +1060,15 @@ public class ValetWorkGoal extends Goal {
     }
 
     private SafeNavigationTarget findNearestSafeStand(ServerLevel world, BlockPos origin, int horizontalRadius, int verticalRadius) {
+        ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+        if (zone == null) {
+            return null;
+        }
         SafeNavigationTarget nearest = null;
         double nearestDistance = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.withinManhattan(origin, horizontalRadius, verticalRadius, horizontalRadius)) {
             BlockPos stand = pos.immutable();
-            if (!ValetSafeNavigation.isSafeStand(world, stand, PASSAGE_HEIGHT)) {
+            if (!zone.contains(stand) || !ValetSafeNavigation.isSafeStand(world, stand, PASSAGE_HEIGHT)) {
                 continue;
             }
 
@@ -1280,7 +1077,7 @@ public class ValetWorkGoal extends Goal {
                 continue;
             }
             Path path = ValetSafeNavigation.createSafeLocalPath(world, villager, stand, PASSAGE_HEIGHT, true, 32);
-            if (path != null) {
+            if (path != null && pathReentersAndStaysInZone(path, zone)) {
                 nearest = new SafeNavigationTarget(stand, path);
                 nearestDistance = distance;
             }
@@ -1309,94 +1106,10 @@ public class ValetWorkGoal extends Goal {
     }
 
     private boolean isFenceGatePassage(BlockState blockState) {
-        return blockState.getBlock() instanceof FenceGateBlock && blockState.getFluidState().isEmpty();
-    }
-
-    private void openDoorsForStep(ServerLevel world, BlockPos to) {
-        for (int y = 0; y < PASSAGE_HEIGHT; y++) {
-            BlockPos pos = to.above(y);
-            openDoorAt(world, pos);
-            openFenceGateAt(world, pos);
-        }
-    }
-
-    private void openDoorAt(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        if (!ValetSafeNavigation.canOpenDoor(state) || !state.hasProperty(DoorBlock.OPEN)) {
-            return;
-        }
-
-        BlockPos lowerPos = state.hasProperty(DoorBlock.HALF) && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos;
-        BlockState lowerState = world.getBlockState(lowerPos);
-        BlockState upperState = world.getBlockState(lowerPos.above());
-        boolean opened = false;
-        if (ValetSafeNavigation.canOpenDoor(lowerState) && lowerState.hasProperty(DoorBlock.OPEN) && !lowerState.getValue(DoorBlock.OPEN)) {
-            opened |= world.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true), Block.UPDATE_ALL);
-        }
-        if (ValetSafeNavigation.canOpenDoor(upperState) && upperState.hasProperty(DoorBlock.OPEN) && !upperState.getValue(DoorBlock.OPEN)) {
-            opened |= world.setBlock(lowerPos.above(), upperState.setValue(DoorBlock.OPEN, true), Block.UPDATE_ALL);
-        }
-        if (opened) {
-            world.playSound(null, lowerPos, SoundEvents.WOODEN_DOOR_OPEN, SoundSource.BLOCKS, 0.7F, 1.0F);
-            ValetDebug.record(villager, "path door_open pos=" + ValetDebug.shortPos(lowerPos));
-        }
-    }
-
-    private void openFenceGateAt(ServerLevel world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        if (!(state.getBlock() instanceof FenceGateBlock) || !state.hasProperty(FenceGateBlock.OPEN) || state.getValue(FenceGateBlock.OPEN)) {
-            return;
-        }
-
-        if (!world.setBlock(pos, state.setValue(FenceGateBlock.OPEN, true), Block.UPDATE_ALL)) {
-            return;
-        }
-        openedFenceGates.put(pos.immutable(), FENCE_GATE_CLOSE_TICKS);
-        world.playSound(null, pos, SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 0.7F, 1.0F);
-        ValetDebug.record(villager, "path gate_open pos=" + ValetDebug.shortPos(pos));
-    }
-
-    private void tickOpenedFenceGates(ServerLevel world) {
-        Iterator<Map.Entry<BlockPos, Integer>> iterator = openedFenceGates.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<BlockPos, Integer> entry = iterator.next();
-            BlockPos pos = entry.getKey();
-            BlockState state = world.getBlockState(pos);
-            if (!(state.getBlock() instanceof FenceGateBlock) || !state.hasProperty(FenceGateBlock.OPEN) || !state.getValue(FenceGateBlock.OPEN)) {
-                iterator.remove();
-                continue;
-            }
-
-            if (villager.getBoundingBox().intersects(new AABB(pos))) {
-                entry.setValue(FENCE_GATE_CLOSE_TICKS);
-                continue;
-            }
-
-            int ticks = entry.getValue() - 1;
-            if (ticks > 0) {
-                entry.setValue(ticks);
-                continue;
-            }
-
-            if (!world.setBlock(pos, state.setValue(FenceGateBlock.OPEN, false), Block.UPDATE_ALL)) {
-                entry.setValue(FENCE_GATE_CLOSE_TICKS);
-                continue;
-            }
-            world.playSound(null, pos, SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 0.7F, 1.0F);
-            ValetDebug.record(villager, "path gate_close pos=" + ValetDebug.shortPos(pos));
-            iterator.remove();
-        }
-    }
-
-    private void closeOpenedFenceGatesNow(ServerLevel world) {
-        for (BlockPos pos : openedFenceGates.keySet()) {
-            BlockState state = world.getBlockState(pos);
-            if (state.getBlock() instanceof FenceGateBlock && state.hasProperty(FenceGateBlock.OPEN) && state.getValue(FenceGateBlock.OPEN)) {
-                world.setBlock(pos, state.setValue(FenceGateBlock.OPEN, false), Block.UPDATE_ALL);
-                world.playSound(null, pos, SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 0.7F, 1.0F);
-            }
-        }
-        openedFenceGates.clear();
+        return blockState.getBlock() instanceof FenceGateBlock
+                && blockState.hasProperty(FenceGateBlock.OPEN)
+                && blockState.getValue(FenceGateBlock.OPEN)
+                && blockState.getFluidState().isEmpty();
     }
 
     private boolean canStandOn(ServerLevel world, BlockPos pos) {
@@ -1420,25 +1133,6 @@ public class ValetWorkGoal extends Goal {
         return current;
     }
 
-    private boolean canMinePathBlock(ServerLevel world, BlockPos pos, BlockState blockState, PathPurpose purpose) {
-        if (purpose == PathPurpose.CROP || purpose == PathPurpose.ANIMAL) {
-            return false;
-        }
-        if (purpose == PathPurpose.STEWARD) {
-            return false;
-        }
-        if (purpose == PathPurpose.CHEST || purpose == PathPurpose.HOME || purpose == PathPurpose.CRAFT) {
-            return canMineNaturalPathBlock(world, pos, blockState);
-        }
-        if (purpose == PathPurpose.ORE && ValetOrders.get(villager) == ValetOrder.MINE_ORES) {
-            return canMineWorkBlock(world, pos, blockState);
-        }
-        if (purpose == PathPurpose.ORE && ValetOrders.get(villager) == ValetOrder.CHOP_WOOD) {
-            return canMineWorkBlock(world, pos, blockState);
-        }
-        return false;
-    }
-
     private boolean canMineWorkBlock(ServerLevel world, BlockPos pos, BlockState blockState) {
         if (!canMineBaseBlock(world, pos, blockState)) {
             return false;
@@ -1448,25 +1142,8 @@ public class ValetWorkGoal extends Goal {
             return false;
         }
 
-        Block block = blockState.getBlock();
-        if (FALLING_PATH_BLOCKS.contains(block)) {
-            return true;
-        }
-
-        if (ValetOrders.get(villager) == ValetOrder.CHOP_WOOD && isTreeCrownBlock(blockState)) {
-            return true;
-        }
-
         return isSelectedResource(world, pos, blockState)
-                || isOre(blockState)
-                || NATURAL_PATH_BLOCKS.contains(block);
-    }
-
-    private boolean canMineNaturalPathBlock(ServerLevel world, BlockPos pos, BlockState blockState) {
-        if (!canMineBaseBlock(world, pos, blockState) || hasFallingBlockDirectlyAbove(world, pos)) {
-            return false;
-        }
-        return NATURAL_PATH_BLOCKS.contains(blockState.getBlock());
+                || ValetOrders.get(villager) == ValetOrder.CHOP_WOOD && isTreeCrownBlock(blockState);
     }
 
     private boolean canMineCraftResource(ServerLevel world, BlockPos pos, BlockState blockState) {
@@ -1478,7 +1155,6 @@ public class ValetWorkGoal extends Goal {
                 && blockState.getFluidState().isEmpty()
                 && !ValetBlockReservations.isClaimedByOther(world, villager.getUUID(), pos)
                 && !wouldExposeFluid(world, pos)
-                && !ValetMod.isValetWorkstation(blockState)
                 && !blockState.is(ValetMod.CONSTRUCTION_BEACON)
                 && !blockState.is(ValetMod.CONSTRUCTION_BLUEPRINT)
                 && !blockState.is(ValetMod.FARM_BEACON)
@@ -1527,10 +1203,6 @@ public class ValetWorkGoal extends Goal {
 
     private int materialRadius() {
         return settings.materialRadius();
-    }
-
-    private int maxPathNodes() {
-        return settings.maxPathNodes();
     }
 
     private int maxPathLength() {
@@ -1675,10 +1347,6 @@ public class ValetWorkGoal extends Goal {
         return target != null && target.matches(blockState);
     }
 
-    private boolean isBonusResource(BlockState blockState) {
-        return isOre(blockState) || blockState.is(BlockTags.LOGS);
-    }
-
     private static boolean isOre(BlockState blockState) {
         for (TagKey<Block> oreTag : ORE_TAGS) {
             if (blockState.is(oreTag)) {
@@ -1780,15 +1448,12 @@ public class ValetWorkGoal extends Goal {
     }
 
     private BlockPos getWorkOrigin(ServerLevel world) {
-        BlockPos workOrigin = getKnownWorkOrigin(world);
-        if (workOrigin != null) {
-            return workOrigin;
-        }
-        return hasActiveOrder() ? villager.blockPosition() : null;
+        ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+        return zone == null ? null : zone.anchor();
     }
 
     private BlockPos getKnownWorkOrigin(ServerLevel world) {
-        return ValetHome.get(world, villager);
+        return getWorkOrigin(world);
     }
 
     private boolean canStoreAllDrops(List<ItemStack> drops) {
@@ -1872,20 +1537,6 @@ public class ValetWorkGoal extends Goal {
         villager.setDeltaMovement(0.0D, villager.getDeltaMovement().y, 0.0D);
     }
 
-    private boolean shouldClaimMovement(ServerLevel world) {
-        if (ValetGroupRuntime.hasControllingCommand(world, villager)) {
-            return true;
-        }
-        if (ValetBehavior.shouldUseVanillaBehavior(world, villager)) {
-            return false;
-        }
-        return hasWorkOrigin() || hasActiveOrder() || hasInventoryItems() || state != State.IDLE;
-    }
-
-    private boolean isVanillaFarmerWalkActive() {
-        return state == State.EXECUTING_PATH && pathPurpose == PathPurpose.CROP && !path.isEmpty();
-    }
-
     private boolean fleeFromMonsterIfNeeded(ServerLevel world) {
         ValetRole role = ValetRole.get(world, villager);
         if (role != ValetRole.ARTISAN && role != ValetRole.FARMER && role != ValetRole.BREEDER && role != ValetRole.COOK && role != ValetRole.STEWARD) {
@@ -1904,11 +1555,18 @@ public class ValetWorkGoal extends Goal {
             away = new Vec3(villager.getRandom().nextDouble() - 0.5D, 0.0D, villager.getRandom().nextDouble() - 0.5D);
         }
         away = away.normalize();
-        double targetX = villager.getX() + away.x * 9.0D;
-        double targetZ = villager.getZ() + away.z * 9.0D;
+        ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+        if (zone == null) {
+            return false;
+        }
+        BlockPos fleeTarget = zone.clamp(BlockPos.containing(
+                villager.getX() + away.x * 9.0D,
+                villager.getY(),
+                villager.getZ() + away.z * 9.0D
+        ));
         villager.getLookControl().setLookAt(threat, 30.0F, 30.0F);
         if (fleePathRefreshTicks <= 0 || villager.getNavigation().isDone()) {
-            villager.getNavigation().moveTo(targetX, villager.getY(), targetZ, settings.combatMoveSpeed());
+            moveWithinWorkZone(world, fleeTarget, settings.combatMoveSpeed());
             fleePathRefreshTicks = FLEE_PATH_REFRESH_TICKS;
             ValetDebug.record(villager, "flee monster=" + ValetDebug.shortPos(threat.blockPosition()));
         }
@@ -1941,6 +1599,24 @@ public class ValetWorkGoal extends Goal {
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr))
                 .orElse(null);
         return cachedFleeThreat;
+    }
+
+    private boolean moveWithinWorkZone(ServerLevel world, BlockPos target, double speed) {
+        ValetWorkZone.Zone zone = ValetWorkZone.get(world, villager);
+        if (zone == null || !zone.contains(target)) {
+            return false;
+        }
+        Path safePath = ValetSafeNavigation.createSafeLocalPath(
+                world,
+                villager,
+                target,
+                PASSAGE_HEIGHT,
+                false,
+                maxPathLength()
+        );
+        return safePath != null
+                && pathReentersAndStaysInZone(safePath, zone)
+                && villager.getNavigation().moveTo(safePath, speed);
     }
 
     private boolean isFleeThreat(LivingEntity threat, double radius) {
@@ -1999,9 +1675,10 @@ public class ValetWorkGoal extends Goal {
         clearPathTargets();
     }
 
-    private void abandonWorkPathForExternalMovement(String reason) {
+    private boolean abandonWorkPathForExternalMovement(String reason) {
+        clearVanillaMovementTargets();
         if (state != State.EXECUTING_PATH && path.isEmpty() && activeNavigationStep == null) {
-            return;
+            return false;
         }
         State resumeState = interruptedPathState();
         path = List.of();
@@ -2010,6 +1687,7 @@ public class ValetWorkGoal extends Goal {
         clearPathTargets();
         state = resumeState;
         ValetDebug.record(villager, "path interrupted by=" + reason + " resume=" + resumeState);
+        return true;
     }
 
     private void clearPathTargets() {
@@ -2144,6 +1822,24 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public boolean isWithinWorkZone(ServerLevel world, BlockPos pos) {
+            return ValetWorkZone.contains(world, villager, pos);
+        }
+
+        @Override
+        public boolean moveToward(ServerLevel world, BlockPos target, double speed, boolean allowOutsideWorkZone) {
+            if (allowOutsideWorkZone) {
+                return villager.getNavigation().moveTo(
+                        target.getX() + 0.5D,
+                        target.getY(),
+                        target.getZ() + 0.5D,
+                        speed
+                );
+            }
+            return ValetWorkGoal.this.moveWithinWorkZone(world, target, speed);
+        }
+
+        @Override
         public int getUsableInventorySlots(Container inventory) {
             return ValetWorkGoal.this.getUsableInventorySlots(inventory);
         }
@@ -2232,6 +1928,11 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
+        public boolean isRecallActive(ServerLevel world) {
+            return ValetWorkGoal.this.isRecallRequested(world);
+        }
+
+        @Override
         public int requestedFarmPlantingCropMask() {
             return farmingTask.requestedPlantingCropMask();
         }
@@ -2264,8 +1965,8 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
-        public boolean isNearWorkstation(ServerLevel world, BlockPos workOrigin) {
-            return ValetWorkGoal.this.isNearWorkstation(world, workOrigin);
+        public boolean isNearAnchor(ServerLevel world, BlockPos workOrigin) {
+            return ValetWorkGoal.this.isNearAnchor(world, workOrigin);
         }
 
         @Override
@@ -2296,6 +1997,11 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int chestRadius() {
             return ValetWorkGoal.this.chestRadius();
+        }
+
+        @Override
+        public boolean isWithinWorkZone(ServerLevel world, BlockPos pos) {
+            return ValetWorkZone.contains(world, villager, pos);
         }
 
         @Override
@@ -2500,6 +2206,16 @@ public class ValetWorkGoal extends Goal {
 
     private final class ConstructionControl implements ConstructionRuntimeTask.Control {
         @Override
+        public int materialRadius() {
+            return ValetWorkGoal.this.materialRadius();
+        }
+
+        @Override
+        public boolean isWithinWorkZone(ServerLevel world, BlockPos pos) {
+            return ValetWorkZone.contains(world, villager, pos);
+        }
+
+        @Override
         public Villager villager() {
             return villager;
         }
@@ -2535,11 +2251,6 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
-        public int materialRadius() {
-            return ValetWorkGoal.this.materialRadius();
-        }
-
-        @Override
         public int getUsableInventorySlots(Container inventory) {
             return ValetWorkGoal.this.getUsableInventorySlots(inventory);
         }
@@ -2566,6 +2277,16 @@ public class ValetWorkGoal extends Goal {
     }
 
     private final class CraftingControl implements CraftingRuntimeTask.Control {
+        @Override
+        public int materialRadius() {
+            return ValetWorkGoal.this.materialRadius();
+        }
+
+        @Override
+        public boolean isWithinWorkZone(ServerLevel world, BlockPos pos) {
+            return ValetWorkZone.contains(world, villager, pos);
+        }
+
         @Override
         public Villager villager() {
             return villager;
@@ -2669,11 +2390,6 @@ public class ValetWorkGoal extends Goal {
         @Override
         public int mineVerticalRadius() {
             return ValetWorkGoal.this.mineVerticalRadius();
-        }
-
-        @Override
-        public int materialRadius() {
-            return ValetWorkGoal.this.materialRadius();
         }
 
         @Override
@@ -2848,11 +2564,6 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
-        public List<ValetAnimalArea> getAnimalAreas(ServerLevel world) {
-            return ValetAnimalStorage.get(world).getAreas();
-        }
-
-        @Override
         public boolean hasBreedingOrder() {
             return ValetWorkGoal.this.hasBreedingOrder();
         }
@@ -2943,21 +2654,6 @@ public class ValetWorkGoal extends Goal {
         }
 
         @Override
-        public int animalRadius() {
-            return settings.farmRadius();
-        }
-
-        @Override
-        public int animalVerticalRadius() {
-            return settings.farmVerticalRadius();
-        }
-
-        @Override
-        public int materialRadius() {
-            return ValetWorkGoal.this.materialRadius();
-        }
-
-        @Override
         public int getUsableInventorySlots(Container inventory) {
             return ValetWorkGoal.this.getUsableInventorySlots(inventory);
         }
@@ -2972,11 +2668,6 @@ public class ValetWorkGoal extends Goal {
         @Override
         public Villager villager() {
             return villager;
-        }
-
-        @Override
-        public PathPurpose currentPathPurpose() {
-            return pathPurpose;
         }
 
         @Override
@@ -3002,11 +2693,6 @@ public class ValetWorkGoal extends Goal {
         @Override
         public boolean matchesSelectedTarget(ServerLevel world, BlockPos pos, BlockState blockState) {
             return ValetWorkGoal.this.matchesSelectedTarget(world, pos, blockState);
-        }
-
-        @Override
-        public boolean isBonusResource(BlockState blockState) {
-            return ValetWorkGoal.this.isBonusResource(blockState);
         }
 
         @Override
@@ -3087,11 +2773,6 @@ public class ValetWorkGoal extends Goal {
         @Override
         public void animateMining(ServerLevel world, BlockPos miningPos, BlockState miningState) {
             ValetWorkGoal.this.animateMining(world, miningPos, miningState);
-        }
-
-        @Override
-        public State interruptedPathState() {
-            return ValetWorkGoal.this.interruptedPathState();
         }
 
         @Override

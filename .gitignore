@@ -17,3 +17,5 @@ fabric-installer-*.jar
 codex_backups/
 tools/
 .DS_Store
+__pycache__/
+*.py[cod]

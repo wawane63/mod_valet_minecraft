@@ -2,112 +2,6 @@
 
 Ce guide liste les objets ajoutes par le mod Valet et leur obtention.
 
-## Postes de metier
-
-Les postes transforment un villageois sans metier en valet specialise. Un poste doit rester reserve a un seul valet.
-
-### Poste d'artisan
-
-`valet:valet_workstation`
-
-Role : bois, minerais, construction et craft.
-
-| | Table de craft | |
-| --- | --- | --- |
-|  | Pioche en bois |  |
-| Hache en bois | Coffre | Hache en bois |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste d'artisan`
-
-### Poste de combattant
-
-`valet:combat_workstation`
-
-Role : defense locale, arbre epee et arbre arc.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Epee en bois | Arc | Epee en bois |
-| Buche | Coffre | Buche |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste de combattant`
-
-### Poste de fermier
-
-`valet:farmer_workstation`
-
-Role : recolte, replantation, passage de houe et zones de ferme.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Graines de ble | Houe en bois | Graines de ble |
-| Composteur | Planches | Composteur |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste de fermier`
-
-### Poste de magicien
-
-`valet:magic_workstation`
-
-Role : defense locale avec sort de glace, puis arbre magie `Destruction` / `Soin` / `Alteration`.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Fiole | Arc | Fiole |
-| Buche | Coffre | Buche |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste de magicien`
-
-### Poste d'eleveur
-
-`valet:poste_eleveur`
-
-Role : reproduction, tonte, ramassage d'oeufs et traite dans les enclos.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Ble | Cisailles | Ble |
-| Seau | Bloc de paille | Seau |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste d'eleveur`
-
-### Poste de cuisinier
-
-`valet:cook_workstation`
-
-Role : recolte du ble et des pommes de terre, collecte d'ingredients crus dans son coffre de cuisinier, cuisson et depot des repas dans ce meme coffre dedie.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Ble | Houe en bois | Ble |
-| Bol | Fumoir | Bol |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste de cuisinier`
-
-Repas prepares automatiquement : pain, pomme de terre cuite, steak, cotelette de porc cuite, poulet roti, mouton cuit, lapin cuit, morue cuite et saumon cuit.
-
-### Poste d'intendant
-
-`valet:steward_workstation`
-
-Role : transferts automatiques entre coffres, coffres pieges et barils proches.
-
-Utilisation : place les items filtres dans les 9 premiers slots du coffre/baril cible. L'intendant garde ces filtres, prend les items dans les coffres/barils sans filtre et remplit les destinations compatibles. Le filtre le plus a gauche est prioritaire, puis le coffre/baril le plus proche du poste.
-
-| | Table de craft | |
-| --- | --- | --- |
-| Coffre | Entonnoir | Coffre |
-| Redstone | Baril | Redstone |
-| Planches | Planches | Planches |
-
-Sortie : `1 Poste d'intendant`
-
 ### Coffre de cuisinier
 
 `valet:cook_chest`
@@ -139,9 +33,17 @@ Recette sans forme :
 
 La recette apparait dans le livre de recettes lorsque le joueur a obtenu ces deux ingredients.
 
+## Insigne de lit
+
+`valet:bed_badge`
+
+- Aucun craft : ouvre l'UI du valet et clique `Insigne lit`.
+- L'objet est lie a l'UUID de ce valet uniquement; utilise-le sur son lit.
+- Il est consomme seulement si l'assignation du lit reussit.
+
 ## Balises de zone
 
-Les balises servent a selectionner une zone dans le monde. Pose deux balises du meme type pour definir le volume.
+Les balises servent a selectionner une zone dans le monde. Pose deux balises du meme type pour definir le volume; apres confirmation, leurs coordonnees sont sauvegardees et les blocs peuvent etre casses.
 
 ### Balise de construction
 

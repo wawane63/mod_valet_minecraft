@@ -62,8 +62,55 @@ tasks.register('verifyNoValetTeleport') {
     }
 }
 
+tasks.register('verifyValetMovementArchitecture') {
+    group = 'verification'
+    description = 'Verifie que le deplacement Valet ne reinstalle ni moteur A*, ni navigation custom, ni excavation.'
+    inputs.files(fileTree('src/main/java') {
+        include '**/*.java'
+    })
+
+    doLast {
+        def forbiddenSources = [
+                'ValetWorkDriver.java',
+                'ValetPathPlanner.java',
+                'ValetGroupExcavation.java'
+        ]
+        def existingForbidden = inputs.files.files.findAll { forbiddenSources.contains(it.name) }
+        if (!existingForbidden.isEmpty()) {
+            throw new GradleException("Ancienne architecture de deplacement interdite: ${existingForbidden*.path.join(', ')}")
+        }
+
+        def customNavigation = inputs.files.files.findAll {
+            def source = it.text
+            source.contains('extends PathNavigation')
+                    || source.contains('extends GroundPathNavigation')
+                    || source.contains('NodeEvaluator')
+        }
+        if (!customNavigation.isEmpty()) {
+            throw new GradleException("Navigation custom interdite pour les valets: ${customNavigation*.path.join(', ')}")
+        }
+
+        def movementFiles = inputs.files.files.findAll {
+            it.name in ['ValetWorkGoal.java', 'ValetBrain.java', 'ValetGroupRuntime.java', 'ValetBoundedMoveToTargetSink.java']
+        }
+        def excavation = movementFiles.findAll { it.text.contains('destroyBlock(') }
+        if (!excavation.isEmpty()) {
+            throw new GradleException("Bris de bloc interdit dans le deplacement Valet: ${excavation*.path.join(', ')}")
+        }
+
+        def forbiddenJobSiteWriters = inputs.files.files.findAll {
+            it.text.contains('setMemory(MemoryModuleType.JOB_SITE')
+                    || it.text.contains('setMemoryWithExpiry(MemoryModuleType.JOB_SITE')
+        }
+        if (!forbiddenJobSiteWriters.isEmpty()) {
+            throw new GradleException("JOB_SITE interdit comme autorite Valet: ${forbiddenJobSiteWriters*.path.join(', ')}")
+        }
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyNoValetTeleport')
+    dependsOn tasks.named('verifyValetMovementArchitecture')
 }
 
 java {

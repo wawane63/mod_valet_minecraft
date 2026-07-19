@@ -31,10 +31,7 @@ public final class MiningRuntimeTask {
     private BlockPos targetOrePos;
     private BlockPos miningPos;
     private BlockPos reservedTargetPos;
-    private BlockPos reservedPathBlockPos;
     private BlockState miningState;
-    private boolean miningOre;
-    private boolean miningBonusResource;
     private boolean veinExhausted;
     private int pathFailures;
     private int woodcuttingTicks;
@@ -115,13 +112,13 @@ public final class MiningRuntimeTask {
             return;
         }
 
-        if (!claimMiningBlock(world, targetOrePos, true)) {
+        if (!claimMiningBlock(world, targetOrePos)) {
             return;
         }
 
         Set<BlockPos> goals = control.findStandGoals(world, targetOrePos, PathPurpose.ORE);
         if (goals.contains(control.villager().blockPosition())) {
-            beginMining(world, targetOrePos, true);
+            beginMining(world, targetOrePos);
             return;
         }
 
@@ -151,7 +148,7 @@ public final class MiningRuntimeTask {
 
     public void completePath(ServerLevel world) {
         if (isSelectedTarget(world, targetOrePos)) {
-            beginMining(world, targetOrePos, true);
+            beginMining(world, targetOrePos);
         } else {
             removeFromCurrentVein(targetOrePos);
             releaseReservedTarget();
@@ -159,10 +156,9 @@ public final class MiningRuntimeTask {
         }
     }
 
-    public void beginMining(ServerLevel world, BlockPos pos, boolean ore) {
+    public void beginMining(ServerLevel world, BlockPos pos) {
         BlockState blockState = world.getBlockState(pos);
-        boolean bonusResource = !ore && control.currentPathPurpose() == PathPurpose.ORE && control.isBonusResource(blockState);
-        if (ore && !control.canReachTargetFromStand(pos, control.villager().blockPosition())) {
+        if (!control.canReachTargetFromStand(pos, control.villager().blockPosition())) {
             ValetDebug.record(control.villager(), "mine unreachable target=" + ValetDebug.shortPos(pos));
             rememberFailedTarget(pos);
             removeFromCurrentVein(pos);
@@ -174,29 +170,25 @@ public final class MiningRuntimeTask {
 
         if (!control.canMineWorkBlock(world, pos, blockState)) {
             ValetDebug.record(control.villager(), "mine unmineable target=" + ValetDebug.shortPos(pos) + " block=" + blockState.getBlock().getDescriptionId());
-            if (ore) {
-                rememberFailedTarget(pos);
-                removeFromCurrentVein(pos);
-                releaseReservedTarget();
-                targetOrePos = null;
-            }
+            rememberFailedTarget(pos);
+            removeFromCurrentVein(pos);
+            releaseReservedTarget();
+            targetOrePos = null;
             control.setState(control.interruptedWorkState());
             return;
         }
 
-        if (!claimMiningBlock(world, pos, ore)) {
+        if (!claimMiningBlock(world, pos)) {
             return;
         }
 
         miningPos = pos.immutable();
         failedTargets.remove(miningPos);
         miningState = blockState;
-        miningOre = ore;
-        miningBonusResource = bonusResource;
-        woodcuttingTicks = ore && ValetOrders.get(control.villager()) == ValetOrder.CHOP_WOOD ? WOODCUTTING_TICKS : 0;
+        woodcuttingTicks = ValetOrders.get(control.villager()) == ValetOrder.CHOP_WOOD ? WOODCUTTING_TICKS : 0;
         control.villager().getNavigation().stop();
         control.setState(State.MINING);
-        ValetDebug.record(control.villager(), "mine begin target=" + ValetDebug.shortPos(miningPos) + " ore=" + miningOre + " block=" + miningState.getBlock().getDescriptionId());
+        ValetDebug.record(control.villager(), "mine begin target=" + ValetDebug.shortPos(miningPos) + " block=" + miningState.getBlock().getDescriptionId());
     }
 
     public void tickMining(ServerLevel world) {
@@ -206,7 +198,7 @@ public final class MiningRuntimeTask {
             return;
         }
 
-        if (miningOre && !control.canReachTargetFromStand(miningPos, control.villager().blockPosition())) {
+        if (!control.canReachTargetFromStand(miningPos, control.villager().blockPosition())) {
             ValetDebug.record(control.villager(), "mine lost_reach target=" + ValetDebug.shortPos(miningPos));
             control.setState(control.interruptedWorkState());
             clearMiningState();
@@ -214,28 +206,25 @@ public final class MiningRuntimeTask {
         }
 
         if (!world.getBlockState(miningPos).is(miningState.getBlock())) {
-            if (miningOre) {
-                removeFromCurrentVein(miningPos);
-            }
+            removeFromCurrentVein(miningPos);
             ValetDebug.record(control.villager(), "mine target_changed target=" + ValetDebug.shortPos(miningPos));
             control.setState(getAfterMiningState());
             clearMiningState();
             return;
         }
 
-        if (!claimMiningBlock(world, miningPos, miningOre)) {
+        if (!claimMiningBlock(world, miningPos)) {
             return;
         }
 
-        if (miningOre && ValetOrders.get(control.villager()) == ValetOrder.CHOP_WOOD) {
+        if (ValetOrders.get(control.villager()) == ValetOrder.CHOP_WOOD) {
             tickWoodMining(world);
             return;
         }
 
         control.villager().getLookControl().setLookAt(miningPos.getX() + 0.5D, miningPos.getY() + 0.5D, miningPos.getZ() + 0.5D);
-        boolean collectDrops = miningOre || miningBonusResource;
-        List<ItemStack> drops = collectDrops ? Block.getDrops(miningState, world, miningPos, world.getBlockEntity(miningPos), control.villager(), control.getToolForBlock(miningState)) : List.of();
-        if (collectDrops && !control.canStoreAllDrops(drops)) {
+        List<ItemStack> drops = Block.getDrops(miningState, world, miningPos, world.getBlockEntity(miningPos), control.villager(), control.getToolForBlock(miningState));
+        if (!control.canStoreAllDrops(drops)) {
             ValetDebug.record(control.villager(), "mine drops_no_space target=" + ValetDebug.shortPos(miningPos) + " drops=" + drops.size());
             control.setState(State.RETURNING);
             clearMiningState();
@@ -245,28 +234,19 @@ public final class MiningRuntimeTask {
 
         if (!world.destroyBlock(miningPos, false, control.villager())) {
             ValetDebug.record(control.villager(), "mine break_failed target=" + ValetDebug.shortPos(miningPos));
-            if (miningOre) {
-                rememberFailedTarget(miningPos);
-                removeFromCurrentVein(miningPos);
-                control.setState(control.interruptedWorkState());
-            } else {
-                control.clearPathState();
-                control.setState(control.interruptedPathState());
-            }
+            rememberFailedTarget(miningPos);
+            removeFromCurrentVein(miningPos);
+            control.setState(control.interruptedWorkState());
             clearMiningState();
             control.setDelayTicks(20);
             return;
         }
         control.animateMining(world, miningPos, miningState);
         ValetDebug.record(control.villager(), "mine broke target=" + ValetDebug.shortPos(miningPos) + " block=" + miningState.getBlock().getDescriptionId());
-        if (collectDrops) {
-            control.placeTorchIfNeeded(world, miningPos);
-            control.collectDrops(drops);
-            ValetProgress.addXp(control.villager(), miningOre ? 8 : 2);
-        }
-        if (miningOre) {
-            removeFromCurrentVein(miningPos);
-        }
+        control.placeTorchIfNeeded(world, miningPos);
+        control.collectDrops(drops);
+        ValetProgress.addXp(control.villager(), 8);
+        removeFromCurrentVein(miningPos);
 
         control.setState(getAfterMiningState());
         clearMiningState();
@@ -300,15 +280,9 @@ public final class MiningRuntimeTask {
     }
 
     public void clearMiningState() {
-        if (miningOre) {
-            releaseReservedTarget();
-        } else {
-            releaseReservedPathBlock();
-        }
+        releaseReservedTarget();
         miningPos = null;
         miningState = null;
-        miningOre = false;
-        miningBonusResource = false;
         woodcuttingTicks = 0;
     }
 
@@ -473,34 +447,21 @@ public final class MiningRuntimeTask {
         }
     }
 
-    private boolean claimMiningBlock(ServerLevel world, BlockPos pos, boolean ore) {
+    private boolean claimMiningBlock(ServerLevel world, BlockPos pos) {
         BlockPos immutable = pos.immutable();
         if (control.claimBlock(world, immutable, BLOCK_RESERVATION_TICKS)) {
-            if (ore) {
-                if (reservedTargetPos != null && !reservedTargetPos.equals(immutable)) {
-                    releaseReservedTarget();
-                }
-                reservedTargetPos = immutable;
-            } else {
-                if (reservedPathBlockPos != null && !reservedPathBlockPos.equals(immutable)) {
-                    releaseReservedPathBlock();
-                }
-                reservedPathBlockPos = immutable;
+            if (reservedTargetPos != null && !reservedTargetPos.equals(immutable)) {
+                releaseReservedTarget();
             }
+            reservedTargetPos = immutable;
             return true;
         }
 
         ValetDebug.record(control.villager(), "mine reserved target=" + ValetDebug.shortPos(immutable));
-        if (ore) {
-            releaseReservedTarget();
-            removeFromCurrentVein(immutable);
-            targetOrePos = null;
-            control.setState(control.interruptedWorkState());
-        } else {
-            releaseReservedPathBlock();
-            control.clearPathState();
-            control.setState(control.interruptedPathState());
-        }
+        releaseReservedTarget();
+        removeFromCurrentVein(immutable);
+        targetOrePos = null;
+        control.setState(control.interruptedWorkState());
         control.setDelayTicks(8);
         return false;
     }
@@ -509,13 +470,6 @@ public final class MiningRuntimeTask {
         if (reservedTargetPos != null) {
             control.releaseBlock(reservedTargetPos);
             reservedTargetPos = null;
-        }
-    }
-
-    private void releaseReservedPathBlock() {
-        if (reservedPathBlockPos != null) {
-            control.releaseBlock(reservedPathBlockPos);
-            reservedPathBlockPos = null;
         }
     }
 
@@ -531,7 +485,7 @@ public final class MiningRuntimeTask {
         if (!control.hasInventorySpace()) {
             return State.RETURNING;
         }
-        return miningOre ? State.COLLECTING : State.EXECUTING_PATH;
+        return State.COLLECTING;
     }
 
     private boolean isSelectedTarget(ServerLevel world, BlockPos pos) {
@@ -572,8 +526,6 @@ public final class MiningRuntimeTask {
     public interface Control {
         Villager villager();
 
-        PathPurpose currentPathPurpose();
-
         BlockPos getWorkOrigin(ServerLevel world);
 
         boolean hasMiningOrder();
@@ -583,8 +535,6 @@ public final class MiningRuntimeTask {
         boolean hasInventoryItems();
 
         boolean matchesSelectedTarget(ServerLevel world, BlockPos pos, BlockState blockState);
-
-        boolean isBonusResource(BlockState blockState);
 
         boolean matchesSelectedWoodBlock(BlockState blockState);
 
@@ -617,8 +567,6 @@ public final class MiningRuntimeTask {
         void placeTorchIfNeeded(ServerLevel world, BlockPos minedPos);
 
         void animateMining(ServerLevel world, BlockPos miningPos, BlockState miningState);
-
-        State interruptedPathState();
 
         State interruptedWorkState();
 

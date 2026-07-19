@@ -67,12 +67,12 @@ public final class CraftingRuntimeTask {
             return;
         }
 
-        startWorkstationStep(world);
+        startAnchorStep(world);
     }
 
     public void tickCrafting(ServerLevel world) {
-        if (action == Action.CRAFT_AT_WORKSTATION) {
-            craftAtWorkstation(world);
+        if (action == Action.CRAFT_AT_ANCHOR) {
+            craftAtAnchor(world);
             return;
         }
 
@@ -134,7 +134,7 @@ public final class CraftingRuntimeTask {
     private void startResourceStep(ServerLevel world, Action nextAction, String needDebug) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
-            ValetDebug.record(control.villager(), "craft no_workstation");
+            ValetDebug.record(control.villager(), "craft no_anchor");
             control.setDelayTicks(40);
             return;
         }
@@ -165,17 +165,17 @@ public final class CraftingRuntimeTask {
         control.startPath(PathPurpose.CRAFT, resource.path());
     }
 
-    private void startWorkstationStep(ServerLevel world) {
+    private void startAnchorStep(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null) {
-            ValetDebug.record(control.villager(), "craft no_workstation");
+            ValetDebug.record(control.villager(), "craft no_anchor");
             control.setDelayTicks(40);
             return;
         }
 
         targetPos = workOrigin;
         targetState = world.getBlockState(workOrigin);
-        action = Action.CRAFT_AT_WORKSTATION;
+        action = Action.CRAFT_AT_ANCHOR;
         Set<BlockPos> goals = control.findStandGoals(world, workOrigin, PathPurpose.CRAFT);
         if (goals.contains(control.currentStandPos(world))) {
             control.setState(State.CRAFTING);
@@ -184,7 +184,7 @@ public final class CraftingRuntimeTask {
 
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.CRAFT, workOrigin, goals);
         if (path.isEmpty()) {
-            ValetDebug.record(control.villager(), "craft no_workstation_path pos=" + ValetDebug.shortPos(workOrigin));
+            ValetDebug.record(control.villager(), "craft no_anchor_path pos=" + ValetDebug.shortPos(workOrigin));
             clearTarget();
             control.clearPathState();
             control.setState(State.RETURNING_HOME);
@@ -194,10 +194,10 @@ public final class CraftingRuntimeTask {
         control.startPath(PathPurpose.CRAFT, path);
     }
 
-    private void craftAtWorkstation(ServerLevel world) {
+    private void craftAtAnchor(ServerLevel world) {
         BlockPos workOrigin = control.getWorkOrigin(world);
         if (workOrigin == null || !control.canReachTargetFromStand(workOrigin, control.currentStandPos(world))) {
-            ValetDebug.record(control.villager(), "craft lost_workstation");
+            ValetDebug.record(control.villager(), "craft lost_anchor");
             clearTarget();
             control.setState(State.FIND_TARGET);
             return;
@@ -337,7 +337,9 @@ public final class CraftingRuntimeTask {
                 continue;
             }
             BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, immutable);
-            if (containers.add(canonical) && !isCraftContainer(world, canonical)) {
+            if (control.isWithinWorkZone(world, canonical)
+                    && containers.add(canonical)
+                    && !isCraftContainer(world, canonical)) {
                 containers.remove(canonical);
             }
         }
@@ -417,7 +419,7 @@ public final class CraftingRuntimeTask {
                 ValetWoodTarget target = ValetWoodTarget.fromState(blockState);
                 yield target != null && target.matchesNaturalTree(world, pos);
             }
-            case NONE, CRAFT_AT_WORKSTATION -> false;
+            case NONE, CRAFT_AT_ANCHOR -> false;
         };
     }
 
@@ -584,7 +586,7 @@ public final class CraftingRuntimeTask {
         NONE,
         MINE_COBBLESTONE,
         MINE_LOG,
-        CRAFT_AT_WORKSTATION
+        CRAFT_AT_ANCHOR
     }
 
     private record ResourceTarget(BlockPos pos, BlockState state, List<BlockPos> path) {
@@ -637,6 +639,8 @@ public final class CraftingRuntimeTask {
         int mineVerticalRadius();
 
         int materialRadius();
+
+        boolean isWithinWorkZone(ServerLevel world, BlockPos pos);
 
         void animateChestUse(ServerLevel world, BlockPos pos);
 

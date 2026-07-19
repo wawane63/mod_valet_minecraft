@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- Pixel-perfect wide Java skin rebuilt from the SuperMaker Artisan concept. -->
+  <!-- Head base. -->
+  <g id="head-base">
+    <rect x="8" y="0" width="8" height="8" fill="#6f2e18"/>
+    <rect x="9" y="1" width="5" height="2" fill="#a84b20"/>
+    <rect x="8" y="5" width="3" height="3" fill="#4a2017"/>
+    <rect x="16" y="0" width="8" height="8" fill="#b87352"/>
+    <rect x="0" y="8" width="8" height="8" fill="#c88762"/>
+    <rect x="8" y="8" width="8" height="8" fill="#d8956d"/>
+    <rect x="16" y="8" width="8" height="8" fill="#c88762"/>
+    <rect x="24" y="8" width="8" height="8" fill="#6f2e18"/>
+    <rect x="24" y="10" width="3" height="4" fill="#4a2017"/>
+    <rect x="28" y="9" width="3" height="3" fill="#a84b20"/>
+    <rect x="0" y="8" width="8" height="3" fill="#6f2e18"/>
+    <rect x="0" y="11" width="2" height="4" fill="#4a2017"/>
+    <rect x="6" y="10" width="2" height="3" fill="#a84b20"/>
+    <rect x="8" y="8" width="8" height="3" fill="#6f2e18"/>
+    <rect x="8" y="10" width="2" height="2" fill="#a84b20"/>
+    <rect x="14" y="9" width="2" height="3" fill="#4a2017"/>
+    <rect x="16" y="8" width="8" height="3" fill="#6f2e18"/>
+    <rect x="16" y="10" width="2" height="3" fill="#4a2017"/>
+    <rect x="22" y="11" width="2" height="4" fill="#a84b20"/>
+    <rect x="10" y="12" width="1" height="1" fill="#f4ead8"/>
+    <rect x="11" y="12" width="1" height="1" fill="#302720"/>
+    <rect x="13" y="12" width="1" height="1" fill="#302720"/>
+    <rect x="14" y="12" width="1" height="1" fill="#f4ead8"/>
+    <rect x="12" y="13" width="1" height="1" fill="#bc7658"/>
+    <rect x="11" y="15" width="3" height="1" fill="#8f4f40"/>
+    <rect x="2" y="12" width="1" height="2" fill="#b87352"/>
+    <rect x="21" y="12" width="1" height="2" fill="#b87352"/>
+  </g>
+
+  <!-- Head outer layer: sparse auburn hair tufts. -->
+  <g id="head-overlay">
+    <rect x="40" y="0" width="8" height="2" fill="#4a2017"/>
+    <rect x="40" y="2" width="2" height="3" fill="#6f2e18"/>
+    <rect x="46" y="2" width="2" height="4" fill="#a84b20"/>
+    <rect x="32" y="8" width="2" height="5" fill="#4a2017"/>
+    <rect x="38" y="8" width="2" height="3" fill="#a84b20"/>
+    <rect x="40" y="8" width="2" height="1" fill="#a84b20"/>
+    <rect x="43" y="8" width="2" height="1" fill="#6f2e18"/>
+    <rect x="47" y="8" width="1" height="3" fill="#4a2017"/>
+    <rect x="48" y="8" width="2" height="4" fill="#4a2017"/>
+    <rect x="54" y="8" width="2" height="5" fill="#a84b20"/>
+    <rect x="56" y="8" width="8" height="2" fill="#4a2017"/>
+    <rect x="56" y="10" width="2" height="5" fill="#6f2e18"/>
+    <rect x="62" y="10" width="2" height="5" fill="#a84b20"/>
+  </g>
+
+  <!-- Right leg base: brown work trousers and charcoal boots. -->
+  <g id="right-leg-base">
+    <rect x="4" y="16" width="4" height="4" fill="#4d3527"/>
+    <rect x="8" y="16" width="4" height="4" fill="#2f241d"/>
+    <rect x="0" y="20" width="4" height="12" fill="#38291f"/>
+    <rect x="4" y="20" width="4" height="12" fill="#563b2a"/>
+    <rect x="8" y="20" width="4" height="12" fill="#493226"/>
+    <rect x="12" y="20" width="4" height="12" fill="#33251e"/>
+    <rect x="5" y="23" width="2" height="2" fill="#6a4932"/>
+    <rect x="0" y="28" width="16" height="4" fill="#202322"/>
+    <rect x="4" y="28" width="4" height="1" fill="#383c39"/>
+    <rect x="4" y="31" width="4" height="1" fill="#111313"/>
+  </g>
+
+  <!-- Torso base: spruce jacket, leather apron and crossed rear straps. -->
+  <g id="torso-base">
+    <rect x="20" y="16" width="8" height="4" fill="#244d3e"/>
+    <rect x="28" y="16" width="8" height="4" fill="#102b25"/>
+    <rect x="16" y="20" width="4" height="12" fill="#123329"/>
+    <rect x="20" y="20" width="8" height="12" fill="#1d4939"/>
+    <rect x="28" y="20" width="4" height="12" fill="#14382d"/>
+    <rect x="32" y="20" width="8" height="12" fill="#183f33"/>
+    <rect x="23" y="20" width="2" height="2" fill="#eadfbe"/>
+    <rect x="22" y="21" width="1" height="2" fill="#cfc19c"/>
+    <rect x="25" y="21" width="1" height="2" fill="#cfc19c"/>
+    <rect x="21" y="23" width="6" height="9" fill="#9c754b"/>
+    <rect x="22" y="23" width="4" height="1" fill="#c29a61"/>
+    <rect x="22" y="28" width="4" height="3" fill="#775439"/>
+    <rect x="23" y="28" width="2" height="1" fill="#b28655"/>
+    <rect x="21" y="23" width="1" height="1" fill="#e6b74f"/>
+    <rect x="22" y="23" width="1" height="1" fill="#21b66b"/>
+    <rect x="32" y="22" width="1" height="2" fill="#765138"/>
+    <rect x="33" y="24" width="1" height="2" fill="#765138"/>
+    <rect x="34" y="26" width="1" height="2" fill="#765138"/>
+    <rect x="35" y="28" width="2" height="2" fill="#765138"/>
+    <rect x="37" y="26" width="1" height="2" fill="#765138"/>
+    <rect x="38" y="24" width="1" height="2" fill="#765138"/>
+    <rect x="39" y="22" width="1" height="2" fill="#765138"/>
+    <rect x="32" y="30" width="8" height="1" fill="#694731"/>
+  </g>
+
+  <!-- Right arm base. -->
+  <g id="right-arm-base">
+    <rect x="44" y="16" width="4" height="4" fill="#21483a"/>
+    <rect x="48" y="16" width="4" height="4" fill="#102b25"/>
+    <rect x="40" y="20" width="16" height="4" fill="#173d31"/>
+    <rect x="44" y="20" width="4" height="4" fill="#214b3b"/>
+    <rect x="40" y="24" width="16" height="5" fill="#eadfbe"/>
+    <rect x="40" y="27" width="16" height="2" fill="#cfc19c"/>
+    <rect x="40" y="29" width="16" height="3" fill="#c88762"/>
+    <rect x="44" y="29" width="4" height="1" fill="#dda07a"/>
+    <rect x="52" y="29" width="4" height="1" fill="#b87352"/>
+  </g>
+
+  <!-- Torso outer layer: dimensional apron, badge, pocket and rear straps. -->
+  <g id="torso-overlay">
+    <rect x="20" y="36" width="1" height="4" fill="#765138"/>
+    <rect x="27" y="36" width="1" height="4" fill="#765138"/>
+    <rect x="21" y="39" width="6" height="9" fill="#aa8052"/>
+    <rect x="22" y="39" width="4" height="1" fill="#cba46a"/>
+    <rect x="22" y="44" width="4" height="3" fill="#775439"/>
+    <rect x="23" y="44" width="2" height="1" fill="#b88b58"/>
+    <rect x="21" y="37" width="1" height="1" fill="#e6b74f"/>
+    <rect x="22" y="37" width="1" height="1" fill="#21b66b"/>
+    <rect x="32" y="36" width="1" height="2" fill="#80583a"/>
+    <rect x="33" y="38" width="1" height="2" fill="#80583a"/>
+    <rect x="34" y="40" width="1" height="2" fill="#80583a"/>
+    <rect x="35" y="42" width="2" height="2" fill="#80583a"/>
+    <rect x="37" y="40" width="1" height="2" fill="#80583a"/>
+    <rect x="38" y="38" width="1" height="2" fill="#80583a"/>
+    <rect x="39" y="36" width="1" height="2" fill="#80583a"/>
+    <rect x="32" y="44" width="8" height="2" fill="#6c4931"/>
+    <rect x="35" y="44" width="2" height="2" fill="#d4a85e"/>
+  </g>
+
+  <!-- Right arm outer cuff and elbow patch. -->
+  <g id="right-arm-overlay">
+    <rect x="44" y="40" width="4" height="2" fill="#f2e6c6"/>
+    <rect x="40" y="40" width="4" height="2" fill="#ded0ad"/>
+    <rect x="48" y="40" width="4" height="2" fill="#ded0ad"/>
+    <rect x="52" y="40" width="4" height="2" fill="#f2e6c6"/>
+    <rect x="52" y="37" width="2" height="2" fill="#78533a"/>
+  </g>
+
+  <!-- Left leg base. -->
+  <g id="left-leg-base">
+    <rect x="20" y="48" width="4" height="4" fill="#4d3527"/>
+    <rect x="24" y="48" width="4" height="4" fill="#2f241d"/>
+    <rect x="16" y="52" width="4" height="12" fill="#33251e"/>
+    <rect x="20" y="52" width="4" height="12" fill="#563b2a"/>
+    <rect x="24" y="52" width="4" height="12" fill="#493226"/>
+    <rect x="28" y="52" width="4" height="12" fill="#38291f"/>
+    <rect x="21" y="55" width="2" height="2" fill="#6a4932"/>
+    <rect x="16" y="60" width="16" height="4" fill="#202322"/>
+    <rect x="20" y="60" width="4" height="1" fill="#383c39"/>
+    <rect x="20" y="63" width="4" height="1" fill="#111313"/>
+  </g>
+
+  <!-- Left arm base. -->
+  <g id="left-arm-base">
+    <rect x="36" y="48" width="4" height="4" fill="#21483a"/>
+    <rect x="40" y="48" width="4" height="4" fill="#102b25"/>
+    <rect x="32" y="52" width="16" height="4" fill="#173d31"/>
+    <rect x="36" y="52" width="4" height="4" fill="#214b3b"/>
+    <rect x="32" y="56" width="16" height="5" fill="#eadfbe"/>
+    <rect x="32" y="59" width="16" height="2" fill="#cfc19c"/>
+    <rect x="32" y="61" width="16" height="3" fill="#c88762"/>
+    <rect x="36" y="61" width="4" height="1" fill="#dda07a"/>
+    <rect x="44" y="61" width="4" height="1" fill="#b87352"/>
+  </g>
+
+  <!-- Left arm outer cuff and elbow patch. -->
+  <g id="left-arm-overlay">
+    <rect x="52" y="56" width="4" height="2" fill="#f2e6c6"/>
+    <rect x="48" y="56" width="4" height="2" fill="#ded0ad"/>
+    <rect x="56" y="56" width="4" height="2" fill="#ded0ad"/>
+    <rect x="60" y="56" width="4" height="2" fill="#f2e6c6"/>
+    <rect x="60" y="53" width="2" height="2" fill="#78533a"/>
+  </g>
+</svg>

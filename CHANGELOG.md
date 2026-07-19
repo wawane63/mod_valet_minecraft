@@ -1,27 +1,59 @@
 # Changelog
 
-## 0.4.3 - Navigation de surface et maire unique
+## 0.4.3 - Brain/POI, navigation de surface et maire unique
 
 ### Added
 
+- Un bouton `Insigne lit` permet de demander gratuitement au valet un objet non craftable lie a son UUID.
+- Le bouton `Inventaire` ouvre les huit vrais emplacements du valet dans une interface vanilla; le joueur peut y prendre ou deposer des objets.
+- L'eleveur peut supprimer definitivement l'enclos selectionne avec `Suppr. enclos`, comme le fermier avec ses champs.
 - Le maire porte un trident visible pour etre identifiable immediatement.
 - Un clic droit sur le maire ouvre directement l'interface des quetes.
 - L'interface affiche l'icone de l'objet demande, la quantite presente dans l'inventaire et le bilan conserve apres livraison.
+- Un kit visuel pilote donne a l'Artisan une icone de role 16x16 et un skin Java wide 64x64.
+- Le mod possede maintenant une icone 128x128 dans les listes Fabric.
 
 ### Changed
 
-- Les missions longue distance essaient des troncons de surface de 12, 8, 4 puis 24 blocs avant d'autoriser une excavation.
-- Quatre echecs de surface bornes sont requis avant le passage au planificateur de galerie.
-- Les detours de surface restent alternes et les nouvelles signatures `surface_path`, `surface_failed` et `surface_exhausted` rendent la decision visible dans le log.
+- Le Brain du villageois est l'unique ordonnanceur des valets avec les activites `WORK`, `REST` et `IDLE`; l'ancien driver de tick parallele est supprime.
+- Tous les trajets metier utilisent une `WALK_TARGET`, `MoveToTargetSink`, `InteractWithDoor` et un chemin vanilla complet borne par `ValetWorkZone`.
+- L'insigne cree l'identite sans bloc; pour le fermier et l'eleveur, la zone choisie dans l'UI devient l'ancre mobile et remplace toute assignation par poste ou `JOB_SITE`.
+- Le lit `HOME` est choisi avec l'Insigne de lit fourni par le valet, dans un rayon residentiel de 32 blocs autour de l'ancre, reserve uniquement si son POI et son trajet local sont valides, et reste le seul ticket POI possede par le valet.
+- L'Insigne de lit cible un valet exact, n'est consomme qu'apres une assignation reussie et evite de fabriquer un second Insigne de valet.
+- Les sept anciens postes sont entierement retires des registres, ressources, modeles, traductions, recettes, loot tables et POI.
+- Le mode libre conserve une promenade locale; fuite, combat, eau et coffres restent dans le territoire, sauf mission de groupe explicitement ordonnee.
+- Les missions de groupe replanifient ou attendent lorsqu'aucun trajet de surface n'existe; elles ne creusent plus pour se deplacer.
+- Le rappel de groupe derive maintenant de la commande persistante, rejoint l'ancre propre a chaque valet, puis cede la main au trajet local 3D.
+- Les balises de champ et d'enclos ne servent qu'a saisir les coordonnees; la zone persiste dans le monde apres leur retrait.
+- L'eleveur retire jusqu'a 16 aliments par trajet de coffre au lieu de refaire une detection et un aller-retour apres chaque animal.
+- L'Insigne de valet utilise une icone originale en pixel art au lieu du modele d'etiquette vanilla.
+- Le rendu Valet utilise le skin Artisan comme apparence par defaut au lieu de Steve.
+- Le skin Artisan reprend maintenant fidelement le modele SuperMaker valide : frange rousse asymetrique, veste vert sapin, manches creme, tablier long a deux poches, badge, harnais croise, pantalon brun et bottes charbon. Les secondes couches Java donnent du relief aux cheveux, au tablier, aux poignets et aux sangles; le PNG final reste regenerable localement sans filigrane.
 
 ### Fixed
 
-- Les chemins en terre, terres labourees et escaliers utilisent maintenant la meme validation de support dans la navigation et l'excavation de groupe.
-- Le planificateur de galerie refuse de creuser entre un et quatre blocs sous une surface deja praticable.
-- Un fort denivele mesure au bout d'un troncon de 24 blocs ne declenche plus immediatement le minage si une montee plus courte est atteignable.
+- Le fermier ne recherche plus un HOME global et ne peut plus viser le lit du joueur ni creuser sous une maison pour l'atteindre.
+- Aucun obstacle de trajet n'est casse : ancien A* bloc par bloc, minage de chemin et excavation de groupe sont retires.
+- L'eleveur memorise les animaux et coffres inaccessibles, ouvre uniquement un portillon coherent avec le chemin bloque, laisse vanilla recalculer puis referme apres approche et passage.
+- Le nourrissage automatique n'est plus affame par l'idle : un enclos precis est obligatoire, le valet atteint chaque adulte pret, le nourrit puis laisse le `BreedGoal` vanilla former le couple.
+- L'UI de l'eleveur affiche tous les enclos sauvegardes sans filtrage par poste; animaux et stockages sont limites a l'enclos choisi et sa marge logistique.
+- Les coffres poses juste a l'exterieur des balises d'enclos sont detectes dans une marge de deux blocs; le log distingue maintenant `no_feed_source` de `no_target`.
+- `no_feed_source` indique maintenant le nombre de coffres detectes, exclus temporairement et de types d'aliments recherches.
+- La suppression d'un enclos annule tous les ordres d'elevage encore lies a cette zone persistante.
+- Le plafond compte les naissances deja en attente et est revalide juste avant nourrissage ou abattage; aucun animal amoureux n'est abattu.
+- Les valets actuels gardent leur UUID et leurs donnees; les memoires `JOB_SITE` et leur ticket Valet sont nettoyes sans recreer de poste.
+- Une commande de groupe `RECALL` rend la main au metier des que son relais local est atteint; elle ne peut plus immobiliser indefiniment le fermier a l'ancre.
+- Les portillons se referment des que le valet a change de cote et libere leur volume, avec un timeout de securite borne.
+- L'Insigne de lit accepte tout lit libre et atteignable dans le rayon residentiel de l'ancre, sans elargir la recherche des cibles ou coffres de travail.
+- Le centre non praticable d'un champ ou d'un enclos est remplace par la case sure la plus proche; le retour HOME peut viser directement cette case et ne boucle plus sur `logistics no_home_path`.
+- La mort ou la suppression d'un valet libere uniquement son ticket `HOME` confirme avant d'effacer ses marqueurs.
+- Suivi, garde, attaque et defense ne recalculent plus un chemin chaque tick; leur navigation s'arrete proprement a portee et le backoff de mission est respecte apres un echec de surface.
+- Un valet au-dessus ou au-dessous de son ancre ne considere plus le rappel termine sur la seule distance horizontale et conserve son trajet local pendant un detour d'escalier.
+- Construction, craft, logistique et combat ne peuvent plus lire ou selectionner un coffre de maison hors territoire.
 - Le menu des quetes ne transmet plus de conteneur nul a Minecraft 26.2 lors du comptage ou du retrait des livraisons.
 - Les titres, descriptions, quantites et recompenses des quetes ne sont plus transparents en Minecraft 26.2.
 - Les valets n'ouvrent plus les portes en fer ou en cuivre; seules les portes en bois fermees peuvent etre actionnees, comme pour les villageois.
+- L'eleveur traverse physiquement un portillon ouvert sans demander un chemin vanilla vers son bloc; le portillon reste ouvert jusqu'a son passage puis se referme.
 - Un UUID de maire est conserve par dimension; les doublons deja charges sont automatiquement supprimes et le maire reste pres de sa cloche.
 
 ## 0.4.2 - Navigation vanilla, fermier et ameliorations generales

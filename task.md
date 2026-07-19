@@ -8,6 +8,83 @@
 
 ## Etat courant
 
+- [x] Tester les acces Spaleforce, Media.io, PicFixer et SuperMaker sans transmettre les identifiants utilisateur.
+- [x] Generer sur SuperMaker une nouvelle direction artistique pour l'insigne, l'icone Artisan, l'icone du mod et la tenue Artisan.
+- [x] Reconstruire les quatre PNG sans filigrane ni faux damier, avec dimensions et UV Minecraft valides.
+- [x] Compiler, installer et verifier le jar contenant le kit visuel refait; jar unique identique au build, SHA-256 `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`, bootstrap serveur valide jusqu'a l'arret EULA attendu.
+- [x] Diagnostiquer le lit joueur, le creusage et la boucle de nourrissage de l'eleveur dans le jar, la sauvegarde et `latest.log`.
+- [x] Remplacer l'orchestration parallele par une configuration Brain WORK/REST/IDLE et un `MoveToTargetSink` borne.
+- [x] Ajouter un territoire borne ancre au poste, etendre seulement vers un champ/enclos lie, sans fallback joueur/entite, avec persistance `ValetBed*`.
+- [x] Reclamer le poste autour du valet uniquement, filtrer le bloc par role et ne plus voler/liberer les POI des autres villageois.
+- [x] Renommer l'ancien faux `ValetHome` en `ValetWorkstation` avec migration NBT, afin de separer definitivement JOB_SITE et HOME.
+- [x] Reserver uniquement un lit HOME local atteignable par un chemin vanilla borne et suivre explicitement le ticket POI possede.
+- [x] Remplacer tous les trajets metier bloc par bloc par des `WALK_TARGET` et chemins vanilla complets; supprimer l'ancien A* Valet.
+- [x] Supprimer le minage d'obstacles, les portes/portillons forces et l'excavation de groupe lies au deplacement.
+- [ ] Corriger et valider le nourrissage automatique de l'eleveur (enclos balise utilisable sans poste, trajet vanilla, echec ANIMAL memorise, abattage seulement au-dessus du plafond et coffres bornes a l'enclos; test runtime restant).
+- [x] Afficher les enclos balises dans l'UI de l'eleveur sans exiger un `poste_eleveur`; l'enclos choisi devient l'ancre persistante lorsque le poste est absent.
+- [x] Borner les coffres de nourriture de l'eleveur au territoire du poste/enclos.
+- [x] Generaliser la zone aux fuites, combats autonomes, sorties d'eau et coffres de fleches; conserver les ordres de groupe explicites comme seule exception.
+- [x] Refuser explicitement tout chemin autonome lorsqu'aucun territoire persistant n'est resolu.
+- [x] Reaffirmer WORK/REST/IDLE apres l'actualisation vanilla et forcer la securite en cas de menace, y compris la nuit.
+- [x] Supprimer les dernieres branches mortes et interfaces de minage d'obstacles; le runtime mine uniquement une ressource explicitement ciblee.
+- [x] Retablir la promenade du mode libre dans la zone et garantir que menace, fuite ou combat demarrent aussi sans ordre metier.
+- [x] Resoudre la zone une seule fois par validation de chemin Brain pour eviter les recalculs par noeud.
+- [x] Corriger les imports du comportement de promenade bornee apres le premier controle de compilation.
+- [x] Resynchroniser le ticket POI du JOB_SITE au chargement, refuser tout poste deja memoire par un autre villageois et liberer les tickets lors d'une destruction.
+- [x] Dedoublonner les HOME restaures avant de conserver ou reprendre un lit POI.
+- [x] Borner aussi les coffres de construction, craft et logistique afin qu'aucun metier ne lise ni selectionne un stockage de maison hors territoire.
+- [x] Remplacer l'ancien franchissement force des portillons par une ouverture Brain bornee, un chemin vanilla recalcule et une fermeture differee apres passage.
+- [x] Ajouter une verification Gradle qui interdit le retour du driver parallele, de l'A* custom, du NodeEvaluator et du bris de bloc dans le deplacement.
+- [x] Journaliser l'ouverture/fermeture Brain des portillons et ne jamais refermer tant qu'une entite occupe le passage.
+- [x] Journaliser l'attribution et la reprise du HOME local pour rendre le test lit/poste verifiable dans `latest.log`.
+- [x] Corriger les imports de telemetrie HOME/portillon detectes par le build final.
+- [x] Persister la propriete reelle des tickets POI JOB_SITE/HOME, ne jamais liberer un ticket non confirme et exclure les lits de reapparition joueur de l'attribution locale.
+- [x] Identifier le portillon depuis le dernier noeud du chemin vanilla bloque et garantir sa fermeture mondiale apres dechargement ou arret serveur.
+- [x] Interdire l'elevage sans enclos assigne et remplacer la naissance forcee par le nourrissage individuel a portee puis le `BreedGoal` vanilla.
+- [x] Supprimer les derniers fallbacks d'elevage hors enclos et leurs interfaces de rayon devenues obsoletes.
+- [x] Invalider les marqueurs de ticket JOB_SITE devenus obsoletes et verifier que le portillon de repli separe bien le valet de sa cible.
+- [x] Supprimer toute recherche automatique de lit et exiger une attribution HOME explicite, locale, atteignable et munie d'un ticket POI confirme.
+- [x] Ajouter l'interaction accroupi + Insigne sur un lit, adopter seulement un JOB_SITE legacy concordant et couvrir tout l'enclos lie dans la zone combinee.
+- [x] Garantir un stand adjacent pour chaque animal, imposer un enclos precis dans l'UI/reseau et aligner le cooldown sur la phase d'amour vanilla.
+- [x] Prouver l'orientation du portillon, annuler toute ouverture inutile et attendre l'approche/passage avant fermeture.
+- [x] Resoudre exactement la moitie POI du lit, limiter l'attribution aux valets avec poste et supprimer le choix UI obsolete `Tous enclos`.
+- [x] Selectionner le valet du lit par proximite de son poste persistant, pas par sa position courante eventuellement egaree.
+- [x] Synchroniser README, changelog, registre et notes 0.4.3 avec l'attribution explicite du lit, l'enclos obligatoire et `breeding fed`.
+- [x] Remplacer la paire artificielle par le nourrissage individuel des adultes prets, meme eloignes, et laisser leur `BreedGoal` vanilla former le couple.
+- [x] Scanner uniquement les block entities conteneurs de l'enclos assigne et unifier la capacite reproduction/abattage.
+- [x] Restaurer les methodes de bornage Construction retirees par erreur mecanique et les supprimer uniquement du controle Elevage.
+- [x] Restaurer aussi les methodes de bornage Craft retirees par la meme modification mecanique.
+- [x] Remplacer le grand rectangle poste-enclos/champ par l'union des deux zones et un corridor borne de huit blocs.
+- [x] Filtrer et valider les enclos lies au poste dans l'UI, le reseau et le runtime, puis prioriser tout ordre metier sur le mode libre.
+- [x] Corriger les imports Brain requis par la priorite des ordres metier.
+- [x] Throttler suivi/garde/combat, respecter le backoff apres echec et stopper les anciennes cibles Brain a portee.
+- [x] Rendre RECALL persistant via la commande de groupe, le trajet longue distance vers chaque poste et les tickets temporaires; retirer les tickets MOVE_TO a l'arrivee.
+- [x] Corriger l'import BlockPos du gestionnaire de tickets de groupe.
+- [x] Prouver que le chemin recalcule traverse le portillon ouvert et ne plus le fermer apres huit secondes pendant une navigation encore active.
+- [x] Ne jamais liberer un HOME non marque comme possede et resynchroniser le marqueur avec l'occupation exacte du POI.
+- [x] Distinguer la migration legacy du poste, conserver son origine et detecter les conflits via la table globale des postes.
+- [x] Reconciler l'occupation exacte du JOB_SITE sans release/take non prouve, liberer seulement les tickets marques au changement de dimension et purger les caches au dechargement.
+- [x] Ordonner nuit avant travail, travail avant mode libre, et refuser un ordre d'elevage sans aucune action active.
+- [x] Exiger un stand adjacent reel pour toute action animale et introduire un trajet explicite vers les coffres d'enclos au lieu d'un retrait a distance.
+- [x] Revalider le plafond avant nourrissage/abattage, compter les naissances en attente et limiter chaque recherche de ravitaillement a un scan d'enclos.
+- [x] Synchroniser les documents 0.4.3 avec le nourrissage individuel, le ravitaillement physique, les POI prouves et les correctifs de groupe.
+- [x] Actualiser la cartographie vanilla avec l'inventaire exhaustif des Goal/BrainTask/navigateurs et la suppression definitive de l'excavation de mouvement.
+- [x] Effacer et arreter l'ancien trajet Brain avant de lancer une commande de groupe, pour eviter que `MoveToTargetSink` ne stoppe le nouveau chemin au tick suivant.
+- [x] Retirer aussi les tickets MOVE_TO des suiveurs arretes autour du meneur arrive, sans conserver de chunk charge indefiniment.
+- [x] Refuser au chargement tout HOME/JOB_SITE NBT d'une autre dimension apres teleportation, sans reliberer l'ancien POI.
+- [x] Preserver le runtime du nouveau valet lors d'un portail et liberer les anciens tickets marques pendant la lecture inter-dimensions, avant leur rejet.
+- [x] Revalider le ticket HOME exact aussi dans le fast-path de reattribution du meme lit.
+- [x] Corriger l'arrivee RECALL horizontale par un relais HOME local 3D persistant pendant les detours et conserver les tickets jusqu'a l'arrivee verticale reelle.
+- [x] Ancrer le relais RECALL sur la dimension et le poste exacts pour interdire sa reutilisation apres portail ou changement de poste.
+- [x] Liberer les tickets POI `HOME` et `JOB_SITE` lors de la mort du valet avant d'effacer leurs marqueurs de possession.
+- [x] Compiler, installer le jar unique et valider le bootstrap serveur; scenarios en jeu a retester.
+- [x] Synchroniser README, CHANGELOG, registre de jar, notes importantes et note 0.4.3 avec la refonte et son hash final.
+
+- [x] Generer les quatre concepts du kit visuel pilote : insigne, icone Artisan, poste Artisan et skin Artisan.
+- [x] Convertir l'insigne et l'icone de role Artisan en PNG RGBA 16x16 exploitables par Minecraft.
+- [x] Reconstruire le skin Artisan sur le patron officiel Java wide 64x64 avec transparence valide.
+- [x] Integrer le modele cubique du poste Artisan, l'insigne, l'icone UI, le skin par defaut et l'icone du mod.
+- [x] Compiler, installer et verifier le jar du kit visuel pilote.
 - [x] Diagnostiquer dans `latest.log` le tunnel creuse sous un chemin en terre encore intact.
 - [x] Partager la validation des supports entre navigation sure et excavation de groupe.
 - [x] Essayer plusieurs petits trajets de surface avant de permettre le minage.
@@ -18,6 +95,7 @@
 - [x] Ouvrir l'interface des quetes au clic droit sur le maire.
 - [x] Rendre visibles les textes de quete et afficher objets, progression et bilan de livraison dans l'UI partagee `J`/maire.
 - [x] Empecher les valets d'ouvrir les portes metalliques et limiter leur action aux portes en bois comme les villageois.
+- [x] Supprimer la boucle de l'eleveur sur un portillon ouvert puis referme avant son passage.
 - [x] Compiler le correctif Java 0.4.3.
 - [x] Construire et installer le jar local 0.4.3.
 - [x] Verifier le jar unique, le hash et le bootstrap serveur.
@@ -85,7 +163,37 @@
 
 ## Derniere action
 
-- Publication 0.4.3 preparee : auth GitHub validee, tag/release absents, notes et registre alignes sur `v0.4.3`.
+- Refonte en cours : ajout de `ValetAnchor`, migration automatique des anciennes coordonnees de poste, suppression du `JOB_SITE` Valet et territoire derive de l'insigne + zone explicitement choisie.
+- Role, scan Artisan, rappel de groupe et ouverture UI utilisent maintenant l'ancre de l'insigne au lieu d'un poste.
+- Le chargement periodique garantit l'ancre des valets existants et efface leur `JOB_SITE`; cette ancienne etape de compatibilite a ensuite ete remplacee par la suppression complete des postes.
+- Suppression du code mort de recherche, reclamation, rappel et liberation des postes/POI de metier.
+- L'UI du fermier exige maintenant un champ precis comme l'eleveur; les ordres globaux `Tous champs` sans territoire persistant sont supprimes.
+- Les coffres d'elevage peuvent etre places jusqu'a deux blocs autour de l'enclos enregistre; la telemetrie distingue maintenant l'absence de nourriture d'une absence d'animaux.
+- Apres ouverture d'un portillon bloquant, tout chemin vanilla valide vers l'animal est accepte sans exiger un noeud artificiellement colle au portillon.
+- Les messages de creation confirment que les balises de champ/enclos peuvent etre cassees apres enregistrement des coordonnees.
+- Etape intermediaire : les anciens postes avaient d'abord ete retires des onglets creatifs; ils sont maintenant entierement supprimes apres leur retrait de la survie.
+- Recettes, loots et tag de poste acquerable supprimes : les anciens blocs sont des compatibilites inertes et ne peuvent plus attribuer un metier.
+- Diagnostic runtime du 15 juillet : l'enclos 1 et ses deux balises existaient, mais `isLinkedAnimalArea` le masquait puis annulait l'ordre avec `breeding area_not_linked id=1` car aucun `poste_eleveur` n'etait assigne.
+- Correction appliquee : sans poste, un enclos SavedData explicitement choisi est accepte comme territoire borne; avec un poste, la liaison maximale de 48 blocs reste obligatoire.
+- Refonte Brain/POI compilee et controlee par `check`, y compris les gardes anti-driver, anti-A* custom, anti-NodeEvaluator, anti-teleportation et anti-bris de trajet.
+- Build propre final installe seul dans Minecraft; SHA-256 identique build/installation : `252E24A132C5809987FFB99967669DB60C9F1F082A9DF97E5415B9523AB97596`.
+- Refonte sans poste, ancre mobile et Insigne de lit : `clean build`, controles architecture/teleportation et installation locale reussis; un seul `valet-0.4.3.jar` installe, hash `252E24A132C5809987FFB99967669DB60C9F1F082A9DF97E5415B9523AB97596`.
+- Le jar final contient `ValetBrain`, `ValetBoundedMoveToTargetSink`, `ValetResidence` et `ValetWorkstation`; les anciennes classes `ValetWorkDriver`, `ValetPathPlanner` et `ValetGroupExcavation` en sont absentes.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3, Fabric API 0.154.2+26.2, Java 25 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
+- Kit visuel pilote demarre : quatre concepts IA en style Minecraft Vanilla ont ete archives dans `docs/assets/visual-pilot/`.
+- `textures/item/valet_tag.png` et `textures/gui/role/artisan.png` sont valides en PNG RGBA 16x16 avec fond transparent.
+- `textures/entity/valet/artisan.png` est valide en PNG RGBA 64x64 sur le patron officiel wide; la source SVG reste archivee pour les retouches.
+- L'insigne remplace l'etiquette vanilla, l'icone apparait dans l'UI Artisan et le skin remplace Steve; le prototype de modele du poste Artisan a ensuite ete retire avec tous les postes.
+- `fabric.mod.json` reference maintenant une icone Valet 128x128; le pipeline et les prompts anglais sont conserves dans `docs/visual-asset-pipeline.md`.
+- Compilation Java et build complet valides; `installClientJar` a installe un seul `valet-0.4.3.jar` contenant tous les nouveaux assets.
+- SHA-256 identique entre build et installation : `A4FF7402CFCF5CC5B8A4B542433AD6531542778E4C288815DCD19FC97A55A162`.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
+- Log `04:55:46-54` analyse : l'eleveur boucle sur `gate_open`, `navigation_rejected`, `gate_close` sans quitter `-2444,62,-236`.
+- Correction 0.4.3 codee : traversee physique du pas de portillon ouvert, surveillance de progression et maintien de l'ouverture jusqu'au passage.
+- Compilation Java validee pour le correctif du portillon.
+- Build complet valide; le correctif local 0.4.3 est installe seul avec le SHA-256 `140AAF48A984E0BC592E2B0F800329AEB3FD26B518339CF50FB38B133BD9221E`.
+- Bootstrap serveur valide avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3 jusqu'a l'arret EULA attendu.
+- Publication 0.4.3 terminee auparavant : commit `7c80f7b`, tag et release GitHub avec le jar publie `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27`.
 - Log `04:42:15` analyse : `path door_open` confirme que le runtime ouvrait directement une porte en fer pendant un trajet vers un coffre.
 - Correction 0.4.3 codee : la regle de passage est partagee, seules les portes en bois peuvent etre ouvertes et une porte metallique fermee reste un obstacle.
 - Compilation Java validee pour l'interdiction des portes metalliques.
@@ -208,8 +316,58 @@
 
 ## Prochaine tache
 
+- Retester l'eleveur devant le portillon : il doit l'ouvrir, le traverser sans `navigation_rejected`, puis le refermer apres son passage.
 - Retester dans `Vlit` la porte fermee : le fermier doit l'ouvrir, la traverser et poursuivre jusqu'aux cultures mures.
 - Retester dans `Vlit` la sortie de la maison puis la recolte des cultures mures avec le prochain jar 0.4.2.
 - Tester en jeu le deplacement du fermier jusqu'a une terre a labourer avec le prochain jar 0.4.2.
 - Tester en jeu la traversee d'eau de groupe, puis les trajets metier, l'excavation, les escaliers, les portes et la sortie d'eau avec le jar 0.4.2.
 - Lire `latest.log` apres ce test avant tout nouvel ajustement du mouvement.
+- Refonte IA sans poste : le tri de coffre de l'intendant depend maintenant d'un intendant dans son territoire, les derniers noms actifs `workstation` ont ete remplaces par `anchor`, et l'ancien mapping role/poste mort a ete supprime.
+- Nettoyage des runtimes : artisan, cuisinier, constructeur et logistique utilisent des noms et diagnostics d'ancre ; aucun de ces flux ne suppose encore un poste de metier.
+- Nettoyage du pathfinding : le recalcul apres ouverture d'un portillon valide directement le nouveau chemin vanilla-safe, sans ancien filtre mort lie au portillon ; le rappel de groupe cible explicitement l'ancre.
+- Etape intermediaire UI : les messages d'assignation de poste ont ete retires et l'ecran d'artisan parle de l'ancre; les postes ont ensuite ete supprimes completement.
+- Compilation intermediaire : correction de l'appel de role de l'intendant pour fournir le monde serveur exige par l'API.
+- Documentation synchronisee avec l'architecture sans poste : ancre persistante, lit HOME explicite, zones UI persistantes apres retrait des balises et migration transparente des valets existants.
+- Garde-fou Gradle ajoute contre toute reintroduction d'un ecrivain `JOB_SITE`; les anciens blocs sont nommes explicitement comme postes legacy dans le code.
+- Correctif UI complet : champs, enclos et constructions sont transmis des l'ouverture pour tous les roles, afin qu'un changement de metier dans l'ecran affiche immediatement les zones sauvegardees.
+- Bootstrap serveur isole reussi : Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3 charges; arret EULA attendu, sans acces a la survie du joueur.
+- [x] Remplacer le second craft d'Insigne par un Insigne de lit non craftable, donne depuis l'UI et lie a l'UUID exact du valet; assignation sur lit puis consommation uniquement en cas de succes.
+- [x] Ajouter l'asset item reutilisant l'icone de l'Insigne, les libelles UI, le nom lie au valet, le tooltip et les retours joueur FR/EN de l'Insigne de lit.
+- [x] Compilation Java intermediaire reussie pour le payload, le bouton UI, l'item NBT lie et l'assignation exacte du lit.
+- [x] Synchroniser README, changelog, registre, crafts, notes importantes et note 0.4.3 avec le nouvel Insigne de lit fourni par le valet.
+- [x] Nettoyer le guide des crafts : anciennes recettes de postes retirees, Insigne de lit documente et caractere temporaire des balises explicite.
+- [x] Decoupler les donnees de l'Insigne de lit du module Blueprint tout en conservant le composant vanilla `CUSTOM_DATA`.
+- [x] Build final, installation du jar unique et bootstrap serveur isole reussis avec l'Insigne de lit; arret EULA attendu sans acces a la survie.
+- [x] Supprimer completement les sept postes du registre Java et du POI; conserver uniquement la profession legacy sans predicate pour migrer les entites deja sauvegardees.
+- [x] Retirer de `ValetAnchor` toutes les cles, tickets et branches de migration `ValetWorkstation*`; les valets actuels conservent leur `ValetAnchor*` deja ecrit.
+- [x] Faire du centre du champ/enclos selectionne l'ancre mobile et l'unique territoire du fermier/eleveur; supprimer l'ancien union/corridor avec l'ancre precedente.
+- [x] Supprimer les derniers controles d'enclos « lie » devenus inutiles : l'enclos selectionne est directement l'autorite de l'eleveur.
+- [x] Nettoyer l'import d'ancien lien de zone dans le runtime d'elevage.
+- [x] Corriger le fermier immobilise : une commande de groupe `RECALL` cesse de controler le valet apres le relais local atteint, ce qui rend ensuite la priorite a l'ordre de ferme actif.
+- [x] Fermer le portillon derriere le valet par detection du changement de cote, des que le passage est libre; ramener les delais de securite a 0,5 s / 4 s / 10 s au lieu de 2 s / 8 s / 60 s.
+- [x] Corriger l'Insigne de lit avec l'ancre mobile : accepter tout lit dans la zone selectionnee, charger le POI autour du lit exact et journaliser chaque refus (`outside_selected_area`, `player_respawn`, `no_path`, etc.).
+- [x] Supprimer du jar les derniers assets, modeles, blockstates, items, traductions et tags des sept anciens postes; aucune reference active `workstation`, `poste_eleveur` ou `VALET_POI` ne subsiste dans Java/resources.
+- [x] Synchroniser README, changelog, registre, crafts, notes importantes et note 0.4.3 avec l'ancre mobile, le rappel libere, la fermeture de portillon et la suppression complete des postes.
+- [x] Validation intermediaire `check` reussie : compilation, ressources et garde-fous de navigation sans teleportation ni ancien moteur interdits.
+- [x] Build final installe : un seul `valet-0.4.3.jar`, identique au build, SHA-256 `252E24A132C5809987FFB99967669DB60C9F1F082A9DF97E5415B9523AB97596`.
+- [x] Bootstrap serveur final reussi avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3; arret EULA attendu sans ouverture de la survie.
+- [x] Diagnostic log du second test : fermier confirme fonctionnel; eleveur bloque par `logistics no_home_path` vers le centre non praticable de l'enclos; Insigne de lit refuse par `outside_selected_area` malgre un lit a 26 blocs de l'ancre.
+- [x] Normaliser l'ancre du champ/enclos vers une case sure proche et autoriser HOME a viser directement cette case.
+- [x] Separer le rayon residentiel HOME (32 blocs autour de l'ancre) du territoire strict de travail, afin d'accepter le lit explicite sans autoriser les coffres ou cibles de maison.
+- [x] Ne modifier ni le plafond ni le reglage du nombre maximal d'animaux, conformement a la reprise demandee.
+- [x] Compilation Java intermediaire reussie pour l'ancre praticable et le rayon residentiel HOME separe.
+- [x] Synchroniser README, changelog, registre, notes importantes et note 0.4.3 avec l'ancre praticable et le rayon HOME de 32 blocs.
+- [x] Validation `check` reussie : compilation, ressources et garde-fous de navigation valides; aucun changement du plafond d'animaux.
+- [x] Jar corrige installe seul dans Minecraft, identique au build : SHA-256 `252E24A132C5809987FFB99967669DB60C9F1F082A9DF97E5415B9523AB97596`.
+- [x] Bootstrap serveur isole reussi avec Valet 0.4.3; arret EULA attendu, sans ouverture ni modification de la survie.
+- [x] Ajouter les fondations de suppression persistante d'un enclos et l'adaptateur serveur donnant acces aux huit vrais slots du valet via une interface vanilla 9x1.
+- [x] Enregistrer les payloads serveur de suppression d'enclos et d'ouverture de l'inventaire; toute suppression annule les ordres d'elevage encore lies a la zone.
+- [x] Ajouter le bouton `Suppr. enclos` et transformer le bouton `Inventaire` en ouverture du vrai conteneur interactif du valet.
+- [x] Faire prendre a l'eleveur jusqu'a 16 nourritures par passage au coffre et ajouter les traductions FR/EN de l'enclos et de l'inventaire interactif.
+- [x] Compilation Java intermediaire reussie pour la suppression d'enclos, l'inventaire interactif et le retrait groupe de nourriture.
+- [x] Synchroniser plan, README, changelog, registre de comportement, notes importantes et note 0.4.3 avec ces trois changements visibles.
+- [x] Build complet et installation locale reussis : un seul `valet-0.4.3.jar`, identique au build, SHA-256 `7F5D6259C9CC7A06F9DEFA28D5FBDAD7AE5FF4245CD512A71DBB2F4E01DA5A90`.
+- [x] Enrichir `no_feed_source` avec `containers`, `excluded` et `feedTypes` pour trancher le prochain cas de ble visible mais non reconnu.
+- [x] Rebuild final et installation apres diagnostic enrichi : jar unique identique au build, SHA-256 `FD56F50273076A9C9144E78DDC5E7B0EDB1CC8B34A07F830E4DC81D7A39F80F6`.
+- [x] Bootstrap serveur final reussi avec Minecraft 26.2, Fabric Loader 0.19.3, Java 25 et Valet 0.4.3; arret EULA attendu.
+- [x] Reprendre fidelement le modele Artisan SuperMaker valide : coiffure asymetrique, volumes, tablier, poches, harnais croise et ombrages dans le patron Java 64x64; jar unique installe et identique au build, SHA-256 `21705B769C2554A5A84DE0D791C313FD539ED3B2D6D90DFF8A41EAA3B2C0B45C`.

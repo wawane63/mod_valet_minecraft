@@ -1,6 +1,6 @@
 package com.wawane.valet.order;
 
-import com.wawane.valet.ValetHome;
+import com.wawane.valet.ValetAnchor;
 import com.wawane.valet.progress.ValetPerk;
 import com.wawane.valet.progress.ValetProgress;
 import net.minecraft.core.BlockPos;
@@ -62,8 +62,8 @@ public final class ValetMiningScanner {
     }
 
     private static BlockPos getWorkOrigin(ServerLevel world, Villager villager) {
-        BlockPos home = ValetHome.get(world, villager);
-        return home == null ? villager.blockPosition() : home;
+        BlockPos anchor = ValetAnchor.get(world, villager);
+        return anchor == null ? villager.blockPosition() : anchor;
     }
 
     private static int scanRadius(Villager villager) {

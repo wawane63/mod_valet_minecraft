@@ -1,13 +1,6 @@
 {
   "replace": false,
   "values": [
-    "valet:valet_workstation",
-    "valet:combat_workstation",
-    "valet:farmer_workstation",
-    "valet:poste_eleveur",
-    "valet:magic_workstation",
-    "valet:cook_workstation",
-    "valet:steward_workstation",
     "valet:cook_chest",
     "valet:infinite_arrow_chest",
     "valet:animal_beacon"

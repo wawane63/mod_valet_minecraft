@@ -1,11 +1,13 @@
 package com.wawane.valet.group;
 
 import com.wawane.valet.ValetMod;
+import com.wawane.valet.ValetAnchor;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -16,6 +18,8 @@ public final class ValetGroupTravelTickets {
     private static final int TICKET_RADIUS = 2;
     private static final int MAX_TICKET_CENTERS = 32;
     private static final double LOOK_AHEAD_BLOCKS = 32.0D;
+    private static final double MOVE_TO_ARRIVAL_DISTANCE = 8.0D;
+    private static final double RECALL_ARRIVAL_DISTANCE = 3.0D;
     private static final Map<ServerLevel, Set<Long>> ACTIVE_TICKETS = new IdentityHashMap<>();
 
     private ValetGroupTravelTickets() {
@@ -55,7 +59,9 @@ public final class ValetGroupTravelTickets {
         Set<Long> desired = new HashSet<>();
         for (ValetGroup group : ValetGroupStorage.get(world).getGroups()) {
             ValetGroupCommand command = group.command();
-            if (command.mode() != ValetGroupMode.MOVE_TO || command.pos() == null) {
+            boolean moveTo = command.mode() == ValetGroupMode.MOVE_TO && command.pos() != null;
+            boolean recall = command.mode() == ValetGroupMode.RECALL;
+            if (!moveTo && !recall) {
                 continue;
             }
             for (UUID member : group.members()) {
@@ -63,10 +69,24 @@ public final class ValetGroupTravelTickets {
                 if (!(entity instanceof Villager villager) || !villager.isAlive() || villager.isRemoved()) {
                     continue;
                 }
-                desired.add(villager.chunkPosition().pack());
-                double dx = command.pos().getX() + 0.5D - villager.getX();
-                double dz = command.pos().getZ() + 0.5D - villager.getZ();
+                BlockPos destination = moveTo ? command.pos() : ValetAnchor.get(world, villager);
+                if (destination == null) {
+                    continue;
+                }
+                double dx = destination.getX() + 0.5D - villager.getX();
+                double dz = destination.getZ() + 0.5D - villager.getZ();
                 double distance = Math.sqrt(dx * dx + dz * dz);
+                boolean arrived = moveTo
+                        ? distance <= MOVE_TO_ARRIVAL_DISTANCE
+                        : villager.distanceToSqr(
+                                destination.getX() + 0.5D,
+                                destination.getY() + 0.5D,
+                                destination.getZ() + 0.5D
+                        ) <= RECALL_ARRIVAL_DISTANCE * RECALL_ARRIVAL_DISTANCE;
+                if (arrived && !villager.isInWater()) {
+                    continue;
+                }
+                desired.add(villager.chunkPosition().pack());
                 if (distance > 1.0D) {
                     double lookAhead = Math.min(LOOK_AHEAD_BLOCKS, distance);
                     int aheadX = (int) Math.floor(villager.getX() + dx / distance * lookAhead);

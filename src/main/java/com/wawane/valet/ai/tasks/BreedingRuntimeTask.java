@@ -10,7 +10,6 @@ import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -42,19 +41,21 @@ public final class BreedingRuntimeTask {
     private static final int ENTITY_RESERVATION_TICKS = 600;
     private static final int FAILED_TARGET_MEMORY_TICKS = 240;
     private static final int MILK_COOLDOWN_TICKS = 6000;
-    private static final int BREED_PARENT_COOLDOWN_TICKS = 6000;
     private static final int MAX_PATH_FAILURES_BEFORE_BACKOFF = 5;
     private static final int AREA_VERTICAL_MARGIN = 2;
+    private static final int CONTAINER_MARGIN = 2;
+    private static final int FEED_RESTOCK_BATCH = 16;
     private static final int CULL_ANIMALS_PER_SURFACE_BLOCK = 4;
 
     private final Control control;
     private final Map<UUID, Integer> failedTargets = new HashMap<>();
+    private final Map<BlockPos, Integer> failedContainers = new HashMap<>();
     private final Map<UUID, Integer> milkCooldowns = new HashMap<>();
-    private final Map<UUID, Integer> breedCooldowns = new HashMap<>();
     private UUID primaryEntityUuid;
-    private UUID secondaryEntityUuid;
     private BlockPos targetPos;
     private Action action = Action.NONE;
+    private ValetAnimalType restockFeedType;
+    private Item restockItem;
     private int pathFailures;
 
     public BreedingRuntimeTask(Control control) {
@@ -82,12 +83,12 @@ public final class BreedingRuntimeTask {
                 entry.setValue(ticks);
             }
         }
-        Iterator<Map.Entry<UUID, Integer>> breedIterator = breedCooldowns.entrySet().iterator();
-        while (breedIterator.hasNext()) {
-            Map.Entry<UUID, Integer> entry = breedIterator.next();
+        Iterator<Map.Entry<BlockPos, Integer>> containerIterator = failedContainers.entrySet().iterator();
+        while (containerIterator.hasNext()) {
+            Map.Entry<BlockPos, Integer> entry = containerIterator.next();
             int ticks = entry.getValue() - 1;
             if (ticks <= 0) {
-                breedIterator.remove();
+                containerIterator.remove();
             } else {
                 entry.setValue(ticks);
             }
@@ -102,14 +103,21 @@ public final class BreedingRuntimeTask {
             return;
         }
 
-        ValetAnimalArea area = control.getAnimalArea(world, ValetOrders.getAnimalAreaId(control.villager()));
-        if (ValetOrders.getAnimalAreaId(control.villager()) >= 0 && area == null) {
+        int areaId = ValetOrders.getAnimalAreaId(control.villager());
+        if (areaId < 0) {
+            clearTarget();
+            ValetDebug.record(control.villager(), "breeding no_assigned_area");
+            control.setState(State.RETURNING_HOME);
+            control.setDelayTicks(control.noTargetDelayTicks());
+            return;
+        }
+        ValetAnimalArea area = control.getAnimalArea(world, areaId);
+        if (area == null) {
             ValetDebug.record(control.villager(), "breeding unknown_area");
             ValetOrders.set(control.villager(), com.wawane.valet.order.ValetOrder.NONE);
             control.setState(State.RETURNING_HOME);
             return;
         }
-
         WorkTarget target = findWorkTarget(world, workOrigin, area);
         if (target == null) {
             releaseReservedEntities();
@@ -121,14 +129,15 @@ public final class BreedingRuntimeTask {
 
         action = target.action();
         primaryEntityUuid = target.primaryUuid();
-        secondaryEntityUuid = target.secondaryUuid();
         targetPos = target.pos();
-        if (!claimTargetEntities(world)) {
+        restockFeedType = target.feedType();
+        restockItem = target.item();
+        if (!isRestockAction() && !claimTargetEntities(world)) {
             return;
         }
 
         Set<BlockPos> goals = control.findStandGoals(world, targetPos, PathPurpose.ANIMAL);
-        if (goals.contains(control.currentStandPos(world)) || isNearTarget()) {
+        if (goals.contains(control.currentStandPos(world))) {
             control.setState(State.BREEDING);
             return;
         }
@@ -136,7 +145,7 @@ public final class BreedingRuntimeTask {
         List<BlockPos> path = control.planPathToAdjacent(world, PathPurpose.ANIMAL, targetPos, goals);
         if (path.isEmpty()) {
             pathFailures++;
-            rememberFailedTarget(primaryEntityUuid);
+            rememberCurrentLocationFailure();
             ValetDebug.record(control.villager(), "breeding no_path action=" + action + " target=" + ValetDebug.shortPos(targetPos));
             clearTarget();
             if (pathFailures >= MAX_PATH_FAILURES_BEFORE_BACKOFF) {
@@ -155,7 +164,7 @@ public final class BreedingRuntimeTask {
     }
 
     public void completePath(ServerLevel world) {
-        if (resolvePrimaryEntity(world) == null) {
+        if (!isRestockAction() && resolvePrimaryEntity(world) == null) {
             clearTarget();
             control.setState(control.interruptedWorkState());
             return;
@@ -163,7 +172,25 @@ public final class BreedingRuntimeTask {
         control.setState(State.BREEDING);
     }
 
+    public void rememberCurrentTargetFailure() {
+        pathFailures++;
+        rememberCurrentLocationFailure();
+        clearTarget();
+    }
+
     public void tickBreeding(ServerLevel world) {
+        ValetAnimalArea area = currentAssignedArea(world);
+        if (area == null) {
+            rememberCurrentLocationFailure();
+            clearTarget();
+            control.setState(control.interruptedWorkState());
+            return;
+        }
+        if (isRestockAction()) {
+            tickRestocking(world, area);
+            return;
+        }
+
         Entity primary = resolvePrimaryEntity(world);
         if (primary == null || primary.isRemoved()) {
             clearTarget();
@@ -171,20 +198,27 @@ public final class BreedingRuntimeTask {
             return;
         }
 
+        if (!isInsideArea(primary.blockPosition(), area)) {
+            rememberFailedTarget(primaryEntityUuid);
+            clearTarget();
+            control.setState(control.interruptedWorkState());
+            return;
+        }
+
         targetPos = primary.blockPosition();
-        if (!isNearTarget()) {
+        if (!canInteractFromCurrentStand(world, targetPos)) {
             clearTarget();
             control.setState(State.FIND_TARGET);
             return;
         }
 
         boolean done = switch (action) {
-            case BREED -> breedPair(world, asAnimal(primary), resolveSecondaryAnimal(world));
+            case BREED -> feedAnimalForBreeding(world, area, asAnimal(primary));
             case SHEAR -> shearSheep(world, primary);
             case COLLECT_EGG -> collectEgg(world, primary);
             case MILK -> milkCow(world, primary);
-            case CULL -> cullAnimal(world, primary);
-            case NONE -> false;
+            case CULL -> cullAnimal(world, area, primary);
+            case RESTOCK_FEED, RESTOCK_ITEM, NONE -> false;
         };
 
         if (!done) {
@@ -198,16 +232,17 @@ public final class BreedingRuntimeTask {
     public void clearTarget() {
         releaseReservedEntities();
         primaryEntityUuid = null;
-        secondaryEntityUuid = null;
         targetPos = null;
         action = Action.NONE;
+        restockFeedType = null;
+        restockItem = null;
     }
 
     public void clearAll() {
         clearTarget();
         failedTargets.clear();
+        failedContainers.clear();
         milkCooldowns.clear();
-        breedCooldowns.clear();
         pathFailures = 0;
     }
 
@@ -217,6 +252,8 @@ public final class BreedingRuntimeTask {
             case MILK -> Items.BUCKET;
             case COLLECT_EGG -> Items.EGG;
             case CULL -> Items.WOODEN_SWORD;
+            case RESTOCK_FEED -> restockFeedType == null ? Items.WHEAT : restockFeedType.primaryFeedItem();
+            case RESTOCK_ITEM -> restockItem == null ? Items.WHEAT : restockItem;
             case BREED -> {
                 if (control.villager().level() instanceof ServerLevel world) {
                     Animal animal = resolvePrimaryAnimal(world);
@@ -232,7 +269,8 @@ public final class BreedingRuntimeTask {
     public String debugSummary() {
         return "animalAction=" + action
                 + " animalTarget=" + shortPos(targetPos)
-                + " failedAnimals=" + failedTargets.size();
+                + " failedAnimals=" + failedTargets.size()
+                + " failedContainers=" + failedContainers.size();
     }
 
     private WorkTarget findWorkTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
@@ -273,38 +311,23 @@ public final class BreedingRuntimeTask {
         if (!control.hasInventorySpace()) {
             return null;
         }
-        if (selectedArea != null) {
-            return findCullTargetInArea(world, workOrigin, selectedArea);
-        }
-
-        List<ValetAnimalArea> areas = new ArrayList<>(control.getAnimalAreas(world));
-        areas.sort(Comparator.comparingDouble(area -> squaredDistance(control.villager().blockPosition(), areaCenter(area))));
-        for (ValetAnimalArea area : areas) {
-            WorkTarget target = findCullTargetInArea(world, workOrigin, area);
-            if (target != null) {
-                return target;
-            }
-        }
-        return null;
+        return findCullTargetInArea(world, workOrigin, selectedArea);
     }
 
     private WorkTarget findCullTargetInArea(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
         List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> true);
-        int areaCapacity = areaSurface(area) * CULL_ANIMALS_PER_SURFACE_BLOCK;
-        int capacity = Math.max(1, Math.min(ValetOrders.getMaxAnimals(control.villager()), areaCapacity));
-        if (animals.size() < capacity) {
+        int capacity = animalCapacity(area);
+        if (animals.size() <= capacity) {
             return null;
         }
 
-        animals.sort(Comparator
-                .comparing((Animal animal) -> !isBreedingCoolingDown(animal.getUUID()))
-                .thenComparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
+        animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
         for (Animal animal : animals) {
-            if (!animal.isBaby()
+            if (animal.getAge() == 0
                     && !animal.isInLove()
                     && !isFailedTarget(animal.getUUID())
                     && !control.isEntityReservedByOther(world, animal)) {
-                return new WorkTarget(Action.CULL, animal.getUUID(), null, animal.blockPosition());
+                return WorkTarget.entity(Action.CULL, animal);
             }
         }
         return null;
@@ -312,45 +335,44 @@ public final class BreedingRuntimeTask {
 
     private WorkTarget findBreedTarget(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area) {
         List<Animal> animals = animalsInScope(world, workOrigin, area, animal -> true);
-        Map<ValetAnimalType, Integer> animalCounts = new EnumMap<>(ValetAnimalType.class);
+        int capacity = animalCapacity(area);
+        int projectedPopulation = projectedPopulation(animals);
+        if (projectedPopulation >= capacity) {
+            ValetDebug.record(control.villager(), "breeding cap_reached animals=" + animals.size()
+                    + " projected=" + projectedPopulation + " max=" + capacity);
+            return null;
+        }
+        animals.removeIf(animal -> !canFeedForBreeding(animal));
+        int eligibleAnimals = animals.size();
+        animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
+        List<BlockPos> containers = null;
+        Set<ValetAnimalType> searchedFeedTypes = new HashSet<>();
         for (Animal animal : animals) {
             ValetAnimalType type = ValetAnimalType.fromAnimal(animal);
-            if (type != null) {
-                animalCounts.merge(type, 1, Integer::sum);
-            }
-        }
-        animals.removeIf(animal -> !canParticipateInBreeding(animal));
-        animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
-        boolean capLogged = false;
-        for (int firstIndex = 0; firstIndex < animals.size(); firstIndex++) {
-            Animal first = animals.get(firstIndex);
-            ValetAnimalType type = ValetAnimalType.fromAnimal(first);
-            int animalCount = type == null ? 0 : animalCounts.getOrDefault(type, 0);
-            int maxAnimals = ValetOrders.getMaxAnimals(control.villager());
             if (type == null
-                    || isFailedTarget(first.getUUID())
-                    || control.isEntityReservedByOther(world, first)
-                    || animalCount >= maxAnimals) {
-                if (!capLogged && type != null && animalCount >= maxAnimals) {
-                    capLogged = true;
-                    ValetDebug.record(control.villager(), "breeding cap_reached type=" + type.name().toLowerCase() + " animals=" + animalCount + " max=" + maxAnimals);
-                }
+                    || isFailedTarget(animal.getUUID())
+                    || control.isEntityReservedByOther(world, animal)) {
                 continue;
             }
-
-            for (int secondIndex = firstIndex + 1; secondIndex < animals.size(); secondIndex++) {
-                Animal second = animals.get(secondIndex);
-                if (second.getUUID().equals(first.getUUID())
-                        || !type.matches(second)
-                        || isFailedTarget(second.getUUID())
-                        || control.isEntityReservedByOther(world, second)) {
-                    continue;
-                }
-                if (!ensureFeedAvailable(world, workOrigin, type, feedNeeded(first, second))) {
-                    continue;
-                }
-                return new WorkTarget(Action.BREED, first.getUUID(), second.getUUID(), first.blockPosition());
+            if (countFeed(type) >= 1) {
+                return WorkTarget.entity(Action.BREED, animal);
             }
+            if (!searchedFeedTypes.add(type)) {
+                continue;
+            }
+            if (containers == null) {
+                containers = collectContainers(world, area);
+            }
+            BlockPos container = findContainerWithItem(world, containers, stack -> isFeed(type, stack));
+            if (container != null) {
+                return WorkTarget.restockFeed(container, type);
+            }
+        }
+        if (eligibleAnimals > 0) {
+            ValetDebug.record(control.villager(), "breeding no_feed_source eligible=" + eligibleAnimals
+                    + " containers=" + (containers == null ? 0 : containers.size())
+                    + " excluded=" + failedContainers.size()
+                    + " feedTypes=" + searchedFeedTypes.size());
         }
         return null;
     }
@@ -360,9 +382,12 @@ public final class BreedingRuntimeTask {
         animals.sort(Comparator.comparingDouble(animal -> squaredDistance(control.villager().blockPosition(), animal.blockPosition())));
         for (Animal animal : animals) {
             if (!isFailedTarget(animal.getUUID())
-                    && !control.isEntityReservedByOther(world, animal)
-                    && ensureItemAvailable(world, workOrigin, Items.SHEARS, 1)) {
-                return new WorkTarget(Action.SHEAR, animal.getUUID(), null, animal.blockPosition());
+                    && !control.isEntityReservedByOther(world, animal)) {
+                if (countItem(Items.SHEARS) >= 1) {
+                    return WorkTarget.entity(Action.SHEAR, animal);
+                }
+                BlockPos container = findContainerWithItem(world, collectContainers(world, area), stack -> stack.is(Items.SHEARS));
+                return container == null ? null : WorkTarget.restockItem(container, Items.SHEARS);
             }
         }
         return null;
@@ -374,9 +399,12 @@ public final class BreedingRuntimeTask {
         for (Animal animal : animals) {
             if (!isFailedTarget(animal.getUUID())
                     && !isMilkCoolingDown(animal.getUUID())
-                    && !control.isEntityReservedByOther(world, animal)
-                    && ensureItemAvailable(world, workOrigin, Items.BUCKET, 1)) {
-                return new WorkTarget(Action.MILK, animal.getUUID(), null, animal.blockPosition());
+                    && !control.isEntityReservedByOther(world, animal)) {
+                if (countItem(Items.BUCKET) >= 1) {
+                    return WorkTarget.entity(Action.MILK, animal);
+                }
+                BlockPos container = findContainerWithItem(world, collectContainers(world, area), stack -> stack.is(Items.BUCKET));
+                return container == null ? null : WorkTarget.restockItem(container, Items.BUCKET);
             }
         }
         return null;
@@ -398,7 +426,7 @@ public final class BreedingRuntimeTask {
         }
 
         ItemEntity egg = eggs.getFirst();
-        return new WorkTarget(Action.COLLECT_EGG, egg.getUUID(), null, egg.blockPosition());
+        return WorkTarget.entity(Action.COLLECT_EGG, egg);
     }
 
     private List<Animal> animalsInScope(ServerLevel world, BlockPos workOrigin, ValetAnimalArea area, Predicate<Animal> predicate) {
@@ -421,80 +449,53 @@ public final class BreedingRuntimeTask {
     }
 
     private AABB scopeBounds(BlockPos workOrigin, ValetAnimalArea area) {
-        if (area != null) {
-            return new AABB(
-                    area.minX(),
-                    area.minY() - AREA_VERTICAL_MARGIN,
-                    area.minZ(),
-                    area.maxX() + 1.0D,
-                    area.maxY() + AREA_VERTICAL_MARGIN + 1.0D,
-                    area.maxZ() + 1.0D
-            );
-        }
-        int radius = control.animalRadius();
-        int verticalRadius = control.animalVerticalRadius();
         return new AABB(
-                workOrigin.getX() - radius,
-                workOrigin.getY() - verticalRadius,
-                workOrigin.getZ() - radius,
-                workOrigin.getX() + radius + 1.0D,
-                workOrigin.getY() + verticalRadius + 1.0D,
-                workOrigin.getZ() + radius + 1.0D
+                area.minX(),
+                area.minY() - AREA_VERTICAL_MARGIN,
+                area.minZ(),
+                area.maxX() + 1.0D,
+                area.maxY() + AREA_VERTICAL_MARGIN + 1.0D,
+                area.maxZ() + 1.0D
         );
     }
 
     private boolean isInsideArea(BlockPos pos, ValetAnimalArea area) {
-        return area == null
-                || (pos.getX() >= area.minX()
+        return pos.getX() >= area.minX()
                 && pos.getX() <= area.maxX()
                 && pos.getY() >= area.minY() - AREA_VERTICAL_MARGIN
                 && pos.getY() <= area.maxY() + AREA_VERTICAL_MARGIN
                 && pos.getZ() >= area.minZ()
-                && pos.getZ() <= area.maxZ());
+                && pos.getZ() <= area.maxZ();
     }
 
-    private boolean breedPair(ServerLevel world, Animal first, Animal second) {
-        ValetAnimalType type = first == null ? null : ValetAnimalType.fromAnimal(first);
-        if (first == null || second == null || type == null || !type.matches(second) || !canParticipateInBreeding(first) || !canParticipateInBreeding(second)) {
-            ValetDebug.record(control.villager(), "breeding pair_invalid");
+    private boolean feedAnimalForBreeding(ServerLevel world, ValetAnimalArea area, Animal animal) {
+        ValetAnimalType type = animal == null ? null : ValetAnimalType.fromAnimal(animal);
+        if (type == null || !canFeedForBreeding(animal)) {
+            ValetDebug.record(control.villager(), "breeding animal_not_ready");
             return false;
         }
-
-        int feedNeeded = feedNeeded(first, second);
-        if (feedNeeded > 0 && !takeFeed(type, feedNeeded)) {
-            ValetDebug.record(control.villager(), "breeding no_feed action=breed");
+        List<Animal> animals = animalsInScope(world, control.getWorkOrigin(world), area, candidate -> true);
+        int projectedPopulation = projectedPopulation(animals);
+        int capacity = animalCapacity(area);
+        if (projectedPopulation >= capacity) {
+            ValetDebug.record(control.villager(), "breeding cap_changed projected=" + projectedPopulation + " max=" + capacity);
             return false;
         }
-
-        lookAt(first);
+        if (!takeFeed(type, 1)) {
+            ValetDebug.record(control.villager(), "breeding no_feed action=feed");
+            return false;
+        }
+        lookAt(animal);
         control.villager().swing(InteractionHand.MAIN_HAND);
-        if (!first.isInLove()) {
-            first.setInLove(null);
-        }
-        if (!second.isInLove()) {
-            second.setInLove(null);
-        }
-        first.spawnChildFromBreeding(world, second);
-        breedCooldowns.put(first.getUUID(), BREED_PARENT_COOLDOWN_TICKS);
-        breedCooldowns.put(second.getUUID(), BREED_PARENT_COOLDOWN_TICKS);
-        ValetProgress.addXp(control.villager(), 8);
-        ValetDebug.record(control.villager(), "breeding bred type=" + type.name().toLowerCase() + " pos=" + ValetDebug.shortPos(first.blockPosition()));
+        animal.setInLove(null);
+        ValetProgress.addXp(control.villager(), 2);
+        ValetDebug.record(control.villager(), "breeding fed type=" + type.name().toLowerCase()
+                + " pos=" + ValetDebug.shortPos(animal.blockPosition()));
         return true;
     }
 
-    private boolean canParticipateInBreeding(Animal animal) {
-        return animal != null && !animal.isBaby() && !isBreedingCoolingDown(animal.getUUID()) && (animal.canFallInLove() || animal.isInLove());
-    }
-
-    private int feedNeeded(Animal first, Animal second) {
-        int needed = 0;
-        if (!first.isInLove()) {
-            needed++;
-        }
-        if (!second.isInLove()) {
-            needed++;
-        }
-        return needed;
+    private boolean canFeedForBreeding(Animal animal) {
+        return animal != null && animal.getAge() == 0 && !animal.isInLove() && animal.canFallInLove();
     }
 
     private boolean shearSheep(ServerLevel world, Entity entity) {
@@ -566,8 +567,11 @@ public final class BreedingRuntimeTask {
         return true;
     }
 
-    private boolean cullAnimal(ServerLevel world, Entity entity) {
-        if (!(entity instanceof Animal animal) || animal.isBaby()) {
+    private boolean cullAnimal(ServerLevel world, ValetAnimalArea area, Entity entity) {
+        if (!(entity instanceof Animal animal)
+                || animal.getAge() != 0
+                || animal.isInLove()
+                || animalsInScope(world, control.getWorkOrigin(world), area, candidate -> true).size() <= animalCapacity(area)) {
             ValetDebug.record(control.villager(), "breeding cull_invalid");
             return false;
         }
@@ -585,73 +589,100 @@ public final class BreedingRuntimeTask {
         return true;
     }
 
-    private boolean ensureFeedAvailable(ServerLevel world, BlockPos workOrigin, ValetAnimalType type, int amount) {
-        if (countFeed(type) >= amount) {
-            return true;
-        }
-        restockFromNearbyContainers(world, workOrigin, stack -> isFeed(type, stack), amount - countFeed(type));
-        return countFeed(type) >= amount;
-    }
-
-    private boolean ensureItemAvailable(ServerLevel world, BlockPos workOrigin, Item item, int amount) {
-        if (countItem(item) >= amount) {
-            return true;
-        }
-        restockFromNearbyContainers(world, workOrigin, stack -> stack.is(item), amount - countItem(item));
-        return countItem(item) >= amount;
-    }
-
-    private void restockFromNearbyContainers(ServerLevel world, BlockPos workOrigin, Predicate<ItemStack> predicate, int amount) {
-        if (amount <= 0) {
+    private void tickRestocking(ServerLevel world, ValetAnimalArea area) {
+        BlockPos containerPos = targetPos;
+        if (containerPos == null
+                || !isInsideLogisticsArea(containerPos, area)
+                || !canInteractFromCurrentStand(world, containerPos)) {
+            rememberCurrentLocationFailure();
+            clearTarget();
+            control.setState(State.FIND_TARGET);
+            control.setDelayTicks(20);
             return;
         }
 
-        List<BlockPos> containers = collectContainers(world, workOrigin);
-        Container target = control.villager().getInventory();
-        int moved = 0;
+        Predicate<ItemStack> predicate = action == Action.RESTOCK_FEED && restockFeedType != null
+                ? stack -> isFeed(restockFeedType, stack)
+                : stack -> restockItem != null && stack.is(restockItem);
+        Container source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
+        int moved = source == null ? 0 : takeMatchingFromContainer(
+                source,
+                control.villager().getInventory(),
+                predicate,
+                action == Action.RESTOCK_FEED ? FEED_RESTOCK_BATCH : 1
+        );
+        boolean done = moved > 0;
+        if (done) {
+            control.animateChestUse(world, containerPos);
+            ValetDebug.record(control.villager(), "breeding restocked count=" + moved + " chest=" + ValetDebug.shortPos(containerPos));
+        } else {
+            rememberCurrentLocationFailure();
+            ValetDebug.record(control.villager(), "breeding restock_failed chest=" + ValetDebug.shortPos(containerPos));
+        }
+        clearTarget();
+        control.setState(done && control.hasBreedingOrder() ? State.FIND_TARGET : control.interruptedWorkState());
+        control.setDelayTicks(done ? control.actionDelayTicks() : 20);
+    }
+
+    private BlockPos findContainerWithItem(
+            ServerLevel world,
+            List<BlockPos> containers,
+            Predicate<ItemStack> predicate
+    ) {
         for (BlockPos containerPos : containers) {
+            if (failedContainers.containsKey(containerPos)) {
+                continue;
+            }
             Container source = ValetInventoryTransfer.getContainerInventory(world, containerPos);
             if (source == null) {
                 continue;
             }
-
-            int movedHere = takeMatchingFromContainer(source, target, predicate, amount - moved);
-            if (movedHere > 0) {
-                moved += movedHere;
-                control.animateChestUse(world, containerPos);
-                ValetDebug.record(control.villager(), "breeding took_items count=" + movedHere + " chest=" + ValetDebug.shortPos(containerPos));
-            }
-            if (moved >= amount) {
-                return;
+            for (int slot = 0; slot < source.getContainerSize(); slot++) {
+                ItemStack stack = source.getItem(slot);
+                if (!stack.isEmpty() && predicate.test(stack)) {
+                    return containerPos;
+                }
             }
         }
+        return null;
     }
 
-    private List<BlockPos> collectContainers(ServerLevel world, BlockPos workOrigin) {
+    private List<BlockPos> collectContainers(ServerLevel world, ValetAnimalArea area) {
         List<BlockPos> containers = new ArrayList<>();
         Set<BlockPos> seen = new HashSet<>();
-        collectContainersAround(world, control.villager().blockPosition(), containers, seen);
-        collectContainersAround(world, workOrigin, containers, seen);
+        for (int chunkX = area.minX() - CONTAINER_MARGIN >> 4; chunkX <= area.maxX() + CONTAINER_MARGIN >> 4; chunkX++) {
+            for (int chunkZ = area.minZ() - CONTAINER_MARGIN >> 4; chunkZ <= area.maxZ() + CONTAINER_MARGIN >> 4; chunkZ++) {
+                if (!world.hasChunk(chunkX, chunkZ)) {
+                    continue;
+                }
+                for (BlockPos pos : world.getChunk(chunkX, chunkZ).getBlockEntities().keySet()) {
+                    if (!isInsideLogisticsArea(pos, area)) {
+                        continue;
+                    }
+                    BlockState state = world.getBlockState(pos);
+                    if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) {
+                        continue;
+                    }
+                    BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, pos);
+                    if (isInsideLogisticsArea(canonical, area)
+                            && seen.add(canonical)
+                            && ValetInventoryTransfer.getContainerInventory(world, canonical) != null) {
+                        containers.add(canonical);
+                    }
+                }
+            }
+        }
+        containers.sort(Comparator.comparingDouble(pos -> squaredDistance(control.villager().blockPosition(), pos)));
         return containers;
     }
 
-    private void collectContainersAround(ServerLevel world, BlockPos origin, List<BlockPos> containers, Set<BlockPos> seen) {
-        if (origin == null) {
-            return;
-        }
-
-        int radius = control.materialRadius();
-        for (BlockPos pos : BlockPos.withinManhattan(origin, radius, 8, radius)) {
-            BlockPos immutable = pos.immutable();
-            BlockState state = world.getBlockState(immutable);
-            if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) {
-                continue;
-            }
-            BlockPos canonical = ValetInventoryTransfer.canonicalContainerPos(world, immutable);
-            if (seen.add(canonical) && ValetInventoryTransfer.getContainerInventory(world, canonical) != null) {
-                containers.add(canonical);
-            }
-        }
+    private boolean isInsideLogisticsArea(BlockPos pos, ValetAnimalArea area) {
+        return pos.getX() >= area.minX() - CONTAINER_MARGIN
+                && pos.getX() <= area.maxX() + CONTAINER_MARGIN
+                && pos.getY() >= area.minY() - AREA_VERTICAL_MARGIN - CONTAINER_MARGIN
+                && pos.getY() <= area.maxY() + AREA_VERTICAL_MARGIN + CONTAINER_MARGIN
+                && pos.getZ() >= area.minZ() - CONTAINER_MARGIN
+                && pos.getZ() <= area.maxZ() + CONTAINER_MARGIN;
     }
 
     private int takeMatchingFromContainer(Container source, Container target, Predicate<ItemStack> predicate, int amount) {
@@ -775,14 +806,6 @@ public final class BreedingRuntimeTask {
             return false;
         }
 
-        Entity secondary = resolveSecondaryEntity(world);
-        if (secondary != null && !control.claimEntity(world, secondary, ENTITY_RESERVATION_TICKS)) {
-            rememberFailedTarget(secondaryEntityUuid);
-            clearTarget();
-            control.setState(control.interruptedWorkState());
-            control.setDelayTicks(8);
-            return false;
-        }
         return true;
     }
 
@@ -790,17 +813,10 @@ public final class BreedingRuntimeTask {
         if (primaryEntityUuid != null) {
             control.releaseEntity(primaryEntityUuid);
         }
-        if (secondaryEntityUuid != null) {
-            control.releaseEntity(secondaryEntityUuid);
-        }
     }
 
     private Entity resolvePrimaryEntity(ServerLevel world) {
         return resolveEntity(world, primaryEntityUuid);
-    }
-
-    private Entity resolveSecondaryEntity(ServerLevel world) {
-        return resolveEntity(world, secondaryEntityUuid);
     }
 
     private static Entity resolveEntity(ServerLevel world, UUID uuid) {
@@ -815,16 +831,26 @@ public final class BreedingRuntimeTask {
         return asAnimal(resolvePrimaryEntity(world));
     }
 
-    private Animal resolveSecondaryAnimal(ServerLevel world) {
-        return asAnimal(resolveSecondaryEntity(world));
-    }
-
     private Animal asAnimal(Entity entity) {
         return entity instanceof Animal animal ? animal : null;
     }
 
-    private boolean isNearTarget() {
-        return targetPos != null && squaredDistance(control.villager().blockPosition(), targetPos) <= 9.0D;
+    private boolean canInteractFromCurrentStand(ServerLevel world, BlockPos target) {
+        return target != null
+                && control.findStandGoals(world, target, PathPurpose.ANIMAL)
+                .contains(control.currentStandPos(world));
+    }
+
+    private boolean isRestockAction() {
+        return action == Action.RESTOCK_FEED || action == Action.RESTOCK_ITEM;
+    }
+
+    private void rememberCurrentLocationFailure() {
+        if (isRestockAction() && targetPos != null) {
+            failedContainers.put(targetPos.immutable(), FAILED_TARGET_MEMORY_TICKS);
+        } else {
+            rememberFailedTarget(primaryEntityUuid);
+        }
     }
 
     private void lookAt(Entity entity) {
@@ -845,16 +871,30 @@ public final class BreedingRuntimeTask {
         return uuid != null && milkCooldowns.containsKey(uuid);
     }
 
-    private boolean isBreedingCoolingDown(UUID uuid) {
-        return uuid != null && breedCooldowns.containsKey(uuid);
+    private ValetAnimalArea currentAssignedArea(ServerLevel world) {
+        int areaId = ValetOrders.getAnimalAreaId(control.villager());
+        return areaId < 0 ? null : control.getAnimalArea(world, areaId);
     }
 
     private static int areaSurface(ValetAnimalArea area) {
         return Math.max(1, area.maxX() - area.minX() + 1) * Math.max(1, area.maxZ() - area.minZ() + 1);
     }
 
-    private static BlockPos areaCenter(ValetAnimalArea area) {
-        return new BlockPos((area.minX() + area.maxX()) / 2, (area.minY() + area.maxY()) / 2, (area.minZ() + area.maxZ()) / 2);
+    private int animalCapacity(ValetAnimalArea area) {
+        int surfaceCapacity = areaSurface(area) * CULL_ANIMALS_PER_SURFACE_BLOCK;
+        return Math.max(1, Math.min(ValetOrders.getMaxAnimals(control.villager()), surfaceCapacity));
+    }
+
+    private int projectedPopulation(List<Animal> animals) {
+        Map<ValetAnimalType, Integer> animalsInLove = new HashMap<>();
+        for (Animal animal : animals) {
+            ValetAnimalType type = ValetAnimalType.fromAnimal(animal);
+            if (type != null && animal.isInLove()) {
+                animalsInLove.merge(type, 1, Integer::sum);
+            }
+        }
+        int pendingBirths = animalsInLove.values().stream().mapToInt(count -> count / 2).sum();
+        return animals.size() + pendingBirths;
     }
 
     private static double squaredDistance(BlockPos first, BlockPos second) {
@@ -870,6 +910,8 @@ public final class BreedingRuntimeTask {
 
     private enum Action {
         NONE,
+        RESTOCK_FEED,
+        RESTOCK_ITEM,
         BREED,
         SHEAR,
         COLLECT_EGG,
@@ -877,7 +919,18 @@ public final class BreedingRuntimeTask {
         CULL
     }
 
-    private record WorkTarget(Action action, UUID primaryUuid, UUID secondaryUuid, BlockPos pos) {
+    private record WorkTarget(Action action, UUID primaryUuid, BlockPos pos, ValetAnimalType feedType, Item item) {
+        private static WorkTarget entity(Action action, Entity entity) {
+            return new WorkTarget(action, entity.getUUID(), entity.blockPosition(), null, null);
+        }
+
+        private static WorkTarget restockFeed(BlockPos pos, ValetAnimalType type) {
+            return new WorkTarget(Action.RESTOCK_FEED, null, pos, type, null);
+        }
+
+        private static WorkTarget restockItem(BlockPos pos, Item item) {
+            return new WorkTarget(Action.RESTOCK_ITEM, null, pos, null, item);
+        }
     }
 
     public interface Control {
@@ -886,8 +939,6 @@ public final class BreedingRuntimeTask {
         BlockPos getWorkOrigin(ServerLevel world);
 
         ValetAnimalArea getAnimalArea(ServerLevel world, int areaId);
-
-        List<ValetAnimalArea> getAnimalAreas(ServerLevel world);
 
         boolean hasBreedingOrder();
 
@@ -924,12 +975,6 @@ public final class BreedingRuntimeTask {
         void setDelayTicks(int ticks);
 
         int noTargetDelayTicks();
-
-        int animalRadius();
-
-        int animalVerticalRadius();
-
-        int materialRadius();
 
         int getUsableInventorySlots(Container inventory);
 

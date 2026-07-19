@@ -1,7 +1,8 @@
 package com.wawane.valet.state;
 
 import com.wawane.valet.ValetConversations;
-import com.wawane.valet.ValetHome;
+import com.wawane.valet.ValetAnchor;
+import com.wawane.valet.ai.ValetResidence;
 import com.wawane.valet.ValetMod;
 import com.wawane.valet.ValetRole;
 import com.wawane.valet.order.ValetOrders;
@@ -27,7 +28,8 @@ public final class ValetData {
     public static void writeToNbt(Villager villager, ValueOutput output) {
         ValetIdentity.writeToNbt(villager, output);
         ValetBehavior.writeToNbt(villager, output);
-        ValetHome.writeToNbt(villager, output);
+        ValetAnchor.writeToNbt(villager, output);
+        ValetResidence.writeToNbt(villager, output);
         ValetRole.writeToNbt(villager, output);
         ValetOrders.writeToNbt(villager, output);
         ValetProgress.writeToNbt(villager, output);
@@ -37,7 +39,8 @@ public final class ValetData {
     public static void readFromNbt(Villager villager, ValueInput input) {
         ValetIdentity.readFromNbt(villager, input);
         ValetBehavior.readFromNbt(villager, input);
-        ValetHome.readFromNbt(villager, input);
+        ValetAnchor.readFromNbt(villager, input);
+        ValetResidence.readFromNbt(villager, input);
         ValetRole.readFromNbt(villager, input);
         ValetOrders.readFromNbt(villager, input);
         ValetProgress.readFromNbt(villager, input);
@@ -47,7 +50,8 @@ public final class ValetData {
     public static void clearVillagerRuntime(UUID uuid) {
         ValetIdentity.clear(uuid);
         ValetBehavior.clear(uuid);
-        ValetHome.clear(uuid);
+        ValetAnchor.clear(uuid);
+        ValetResidence.clear(uuid);
         ValetRole.clear(uuid);
         ValetConversations.clear(uuid);
         ValetOrders.clear(uuid);
@@ -58,7 +62,8 @@ public final class ValetData {
     public static void clearAllVillagerRuntime() {
         ValetIdentity.clearAll();
         ValetBehavior.clearAll();
-        ValetHome.clearAll();
+        ValetAnchor.clearAll();
+        ValetResidence.clearAll();
         ValetRole.clearAll();
         ValetConversations.clearAll();
         ValetOrders.clearAll();
@@ -67,13 +72,14 @@ public final class ValetData {
     }
 
     public static boolean hasRuntimeData(Villager villager) {
-        return ValetBehavior.hasData(villager) || ValetHome.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager) || ValetCombatProgress.hasData(villager);
+        return ValetBehavior.hasData(villager) || ValetAnchor.hasData(villager) || ValetResidence.hasData(villager) || ValetOrders.hasData(villager) || ValetProgress.hasData(villager) || ValetCombatProgress.hasData(villager);
     }
 
     private static boolean hasPersistentData(ValueInput input) {
         return ValetIdentity.hasNbt(input)
                 || ValetBehavior.hasNbt(input)
-                || ValetHome.hasNbt(input)
+                || ValetAnchor.hasNbt(input)
+                || ValetResidence.hasNbt(input)
                 || ValetRole.hasNbt(input)
                 || ValetOrders.hasNbt(input)
                 || ValetProgress.hasNbt(input)
