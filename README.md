@@ -79,32 +79,35 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
 - Portillons : le Brain ouvre seulement un portillon coherent avec le chemin bloque, exige que le nouveau trajet vanilla passe par ce portillon puis le referme apres le passage.
 - Missions de groupe : un ordre joueur peut sortir du territoire; sans chemin de surface, le groupe attend et replanifie au lieu de creuser.
 
-## Build
+## Installation sur un PC vierge Windows
 
-Prerequis :
+1. Lance une fois **Minecraft 26.2**, puis ferme Minecraft et son launcher.
+2. Telecharge [Fabric Installer pour Windows](https://fabricmc.net/use/installer/).
+3. Dans l'installateur :
+   - Minecraft : `26.2`
+   - Loader : `0.19.3`
+   - Coche `Create Profile`
+   - Clique sur `Install`
+4. Telecharge :
+   - [Valet 0.4.4](https://github.com/wawane63/mod_valet_minecraft/releases/download/v0.4.4/valet-0.4.4.jar)
+   - [Fabric API 0.154.2+26.2](https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.154.2+26.2/fabric-api-0.154.2+26.2.jar)
+5. Appuie sur `Windows + R`, puis saisis :
 
-- JDK 25
-- Minecraft 26.2 + Fabric Loader 0.19.3
-- Fabric API 0.154.2+26.2 pour lancer le jeu (la dependance de compilation est geree par Gradle)
-- Gradle wrapper du repo
+   ```text
+   %APPDATA%\.minecraft\mods
+   ```
 
-Windows PowerShell :
+6. Cree le dossier `mods` s'il n'existe pas.
+7. Place les deux jars dedans, sans les decompresser :
 
-```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
-.\gradlew.bat --no-daemon clean build
-```
+   ```text
+   valet-0.4.4.jar
+   fabric-api-0.154.2+26.2.jar
+   ```
 
-macOS/Linux :
+8. Dans le launcher Minecraft, selectionne `fabric-loader-0.19.3-26.2`.
+9. Lance le jeu.
 
-```bash
-./gradlew --no-daemon clean build
-```
-
-Le `.jar` est genere dans `build/libs/`. A la fin du build, `installClientJar` retire les anciens `valet-*.jar` puis installe la version courante dans le dossier Minecraft de l'OS :
-
-- Windows : `%APPDATA%\.minecraft\mods`
-- macOS : `~/Library/Application Support/minecraft/mods`
-- Linux : `~/.minecraft/mods`
+Tu n'as pas besoin d'installer Java, Git, Gradle ou le code source : l'installateur Fabric Windows utilise le Java fourni avec le launcher officiel. Voir la [documentation Fabric](https://docs.fabricmc.net/players/installing-fabric/windows).
 
 Le projet est distribue sous licence MIT, voir [LICENSE](LICENSE).
