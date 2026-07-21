@@ -122,7 +122,7 @@ public final class BreedingRuntimeTask {
         if (target == null) {
             releaseReservedEntities();
             ValetDebug.record(control.villager(), "breeding no_target animals=" + countAnimalsInScope(world, workOrigin, area));
-            control.setState(control.hasInventoryItems() ? State.RETURNING : State.RETURNING_HOME);
+            control.setState(hasDepositableItems() ? State.RETURNING : State.RETURNING_HOME);
             control.setDelayTicks(control.noTargetDelayTicks());
             return;
         }
@@ -161,6 +161,17 @@ public final class BreedingRuntimeTask {
 
         pathFailures = 0;
         control.startPath(PathPurpose.ANIMAL, path);
+    }
+
+    private boolean hasDepositableItems() {
+        Container inventory = control.villager().getInventory();
+        for (int slot = 0; slot < control.getUsableInventorySlots(inventory); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && !LogisticsRuntimeTask.isBreedingSupply(stack)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void completePath(ServerLevel world) {

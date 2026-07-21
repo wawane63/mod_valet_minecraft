@@ -63,6 +63,20 @@ public final class ValetFarmStorage extends SavedData {
         return removed;
     }
 
+    public ValetFarmArea renameArea(int id, String name) {
+        for (int i = 0; i < areas.size(); i++) {
+            ValetFarmArea area = areas.get(i);
+            if (area.id() != id) {
+                continue;
+            }
+            ValetFarmArea renamed = new ValetFarmArea(area.id(), name, area.minX(), area.minY(), area.minZ(), area.maxX(), area.maxY(), area.maxZ());
+            areas.set(i, renamed);
+            setDirty();
+            return renamed;
+        }
+        return null;
+    }
+
     public List<ValetFarmArea> getAreas() {
         return List.copyOf(areas);
     }

@@ -35,6 +35,7 @@ Regles obligatoires :
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | `v0.4.2` | `build/libs/valet-0.4.2.jar` | `1853752E58FE1C16A8C78B0E54FD2FC292AA9DC20555917A400FE401F5F46CA5` |
 | 0.4.3 | Navigation de surface et maire unique interactif | `v0.4.3` | `build/libs/valet-0.4.3.jar` | `4ED4C5A9BC3C23FB2C66808E5ABDD4D6780114A91BDE22428D9FCF8A06C06E27` |
 | 0.4.4 | Brain borne, valets sans poste et residence explicite | `v0.4.4` | `build/libs/valet-0.4.4.jar` | `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68` |
+| 0.4.5 | Zones renommables et logistique eleveur | `v0.4.5` | `build/libs/valet-0.4.5.jar` | `7FA132DE6D99DC7DCF74268904CC28D186C516E54DE31DE92E609A1090C6B27C` |
 
 Le jar `0.2.1` correspond a la release `v0.2.1`, juste avant le decoupage metiers.
 Le jar `0.3.0` correspond a la release `v0.3.0`.
@@ -52,6 +53,30 @@ La version `0.4.1` ajoute le maire, les quetes de livraison et les raccourcis `J
 La version `0.4.2` publie l'ensemble de la branche `0.4.x` avec le maire et ses quetes, puis remplace les teleportations de deplacement par la navigation vanilla sous garde-fous Valet et fiabilise le fermier.
 La version `0.4.3` publie la navigation de surface, le maire unique interactif et les quetes corrigees.
 La version `0.4.4` remplace le deplacement parallele par un Brain borne, supprime les postes de metier et tout creusage de trajet, puis ajoute la residence explicite, l'inventaire interactif et le kit visuel Artisan.
+La version `0.4.5` ajoute le renommage persistant des zones et aligne le depot de ressources de l'eleveur sur celui du fermier.
+
+## 0.4.5 - Zones renommables et logistique eleveur
+
+Objectif : rendre les zones identifiables et fiabiliser le retour des ressources d'elevage au coffre.
+
+Fonctionnalite :
+
+- Renommage des champs et enclos depuis l'UI, valide cote serveur et persistant dans les donnees du monde.
+- Reserve de plantation ramenee a 16 items par culture afin que les pommes de terre recoltees en surplus soient deposees au coffre.
+- Depot des oeufs, de la laine, du lait et des produits d'abattage dans un coffre du territoire.
+- Conservation d'une reserve de nourriture et des outils d'elevage pendant le depot.
+- Fin de la boucle depot/reapprovisionnement quand seuls les consommables et outils restent dans l'inventaire.
+- Libelle court pour le bouton de renommage afin d'eviter le rectangle de defilement hors ecran qui faisait crasher l'UI.
+- Diagnostic des chunks : fichiers de region incoherents avec coordonnees internes decalees; aucune implication du code Valet dans la pile d'erreur.
+
+Verification :
+
+- Compilation Java : OK.
+- Build complet et installation locale : OK.
+- Jar actuel : `valet-0.4.5.jar`.
+- SHA-256 : `7FA132DE6D99DC7DCF74268904CC28D186C516E54DE31DE92E609A1090C6B27C`.
+- Dossier mods : un seul jar Valet, hash identique au build.
+- Publication GitHub : `v0.4.5`.
 
 ## 0.4.4 - Brain borne, valets sans poste et residence explicite
 

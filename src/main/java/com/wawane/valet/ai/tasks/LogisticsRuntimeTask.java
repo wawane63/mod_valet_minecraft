@@ -5,6 +5,7 @@ import com.wawane.valet.ValetMod;
 import com.wawane.valet.ai.ValetStateMachine.PathPurpose;
 import com.wawane.valet.ai.ValetStateMachine.State;
 import com.wawane.valet.ai.inventory.ValetInventoryTransfer;
+import com.wawane.valet.breeding.ValetAnimalType;
 import com.wawane.valet.order.ValetFarmCrop;
 import com.wawane.valet.order.ValetOrders;
 import com.wawane.valet.progress.ValetProgress;
@@ -21,7 +22,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class LogisticsRuntimeTask {
-    private static final int FARM_PLANTING_RESERVE_PER_ITEM = 64;
+    private static final int FARM_PLANTING_RESERVE_PER_ITEM = 16;
+    private static final int BREEDING_SUPPLY_RESERVE_PER_ITEM = 16;
 
     private final Control control;
     private BlockPos chestPos;
@@ -179,15 +181,23 @@ public final class LogisticsRuntimeTask {
                 : 0;
         int movedItems = 0;
         if (chestPos != null) {
-            movedItems += farmCropMask == 0
-                    ? ValetInventoryTransfer.depositInventory(world, chestPos, inventory)
-                    : ValetInventoryTransfer.depositInventory(
+            movedItems += farmCropMask != 0
+                    ? ValetInventoryTransfer.depositInventory(
                             world,
                             chestPos,
                             inventory,
                             stack -> isFarmPlantingItem(stack, farmCropMask),
                             FARM_PLANTING_RESERVE_PER_ITEM
-                    );
+                    )
+                    : control.hasBreedingOrder()
+                    ? ValetInventoryTransfer.depositInventory(
+                            world,
+                            chestPos,
+                            inventory,
+                            LogisticsRuntimeTask::isBreedingSupply,
+                            BREEDING_SUPPLY_RESERVE_PER_ITEM
+                    )
+                    : ValetInventoryTransfer.depositInventory(world, chestPos, inventory);
         }
 
         int requestedPlantingCropMask = control.requestedFarmPlantingCropMask();
@@ -229,6 +239,12 @@ public final class LogisticsRuntimeTask {
         if (control.hasInventoryItems()) {
             if (farmCropMask != 0 && hasOnlyFarmPlantingItems(inventory, farmCropMask) && canResumeWorkWithoutDepositing()) {
                 ValetDebug.record(control.villager(), "logistics retained_planting crops=" + farmCropMask);
+                control.setState(State.FIND_TARGET);
+                control.setDelayTicks(4);
+                return;
+            }
+            if (control.hasBreedingOrder() && hasOnlyBreedingSupplies(inventory) && canResumeWorkWithoutDepositing()) {
+                ValetDebug.record(control.villager(), "logistics retained_breeding_supplies");
                 control.setState(State.FIND_TARGET);
                 control.setDelayTicks(4);
                 return;
@@ -276,6 +292,33 @@ public final class LogisticsRuntimeTask {
                 || control.hasCraftOrder()
                 || control.hasCookingWork()
                 || control.hasStewardWork());
+    }
+
+    public static boolean isBreedingSupply(ItemStack stack) {
+        if (stack.is(Items.SHEARS) || stack.is(Items.BUCKET)) {
+            return true;
+        }
+        for (ValetAnimalType type : ValetAnimalType.values()) {
+            if (type.feedItems().contains(stack.getItem())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasOnlyBreedingSupplies(Container inventory) {
+        boolean found = false;
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (!isBreedingSupply(stack)) {
+                return false;
+            }
+            found = true;
+        }
+        return found;
     }
 
     private BlockPos findNearestContainer(ServerLevel world, BlockPos origin) {

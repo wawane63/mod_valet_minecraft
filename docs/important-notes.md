@@ -7,8 +7,8 @@ Ce fichier sert a donner le contexte utile a Codex quand le repo est clone sur u
 - Repo GitHub : `https://github.com/wawane63/mod_valet_minecraft.git`
 - Branche durable : `main`
 - Version stable actuelle : voir `README.md` et `JAR_REGISTRY.md`
-- Version actuelle : `0.4.4` (Brain borne, valets sans poste et residence explicite)
-- Derniere release publiee : `v0.4.4`
+- Version actuelle : `0.4.5` (Zones renommables et logistique eleveur)
+- Derniere release publiee : `v0.4.5`
 - Le jar publie est sur la page GitHub Releases.
 
 ## Reprise sur un autre ordinateur
@@ -61,6 +61,7 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 - La tache Gradle `installClientJar` installe le jar dans `%APPDATA%/.minecraft/mods` (Windows), `~/Library/Application Support/minecraft/mods` (macOS) ou `~/.minecraft/mods` (Linux).
 - Verifier qu'un seul `valet-*.jar` est present dans le dossier mods.
 - Le build 0.4.4 publie porte le SHA-256 `8C32B2940A1F23A06EB57499435AA5C9110D527BFA24AF575697B38B47027B68`.
+- Le build local 0.4.5 porte le SHA-256 `7FA132DE6D99DC7DCF74268904CC28D186C516E54DE31DE92E609A1090C6B27C`.
 
 ## Fichiers de trace
 

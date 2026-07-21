@@ -67,6 +67,20 @@ public final class ValetAnimalStorage extends SavedData {
         return removed;
     }
 
+    public ValetAnimalArea renameArea(int id, String name) {
+        for (int i = 0; i < areas.size(); i++) {
+            ValetAnimalArea area = areas.get(i);
+            if (area.id() != id) {
+                continue;
+            }
+            ValetAnimalArea renamed = new ValetAnimalArea(area.id(), name, area.animalTypeIndex(), area.minX(), area.minY(), area.minZ(), area.maxX(), area.maxY(), area.maxZ());
+            areas.set(i, renamed);
+            setDirty();
+            return renamed;
+        }
+        return null;
+    }
+
     public String nextDefaultName(ValetAnimalType type) {
         return type == null ? "Enclos " + nextId : type.defaultAreaName(nextId);
     }

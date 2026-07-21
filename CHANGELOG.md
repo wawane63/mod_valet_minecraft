@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.5 - Zones renommables et logistique eleveur
+
+### Added
+
+- Les champs et enclos sauvegardes peuvent etre renommes depuis l'interface du valet.
+
+### Changed
+
+- L'eleveur depose au coffre les ressources collectees comme le fermier, tout en gardant sa reserve de nourriture, ses cisailles et ses seaux.
+
+### Fixed
+
+- Le fermier de pommes de terre ne conserve plus toute une pile comme semences : il garde 16 patates et depose le surplus au coffre comme le fermier de ble.
+- L'eleveur ne boucle plus entre depot et reapprovisionnement lorsque son inventaire ne contient que ses fournitures de travail.
+- Le bouton de renommage des zones utilise un libelle court qui evite le defilement de texte et son rectangle de decoupe hors ecran sur les petites resolutions ou grandes echelles GUI.
+
+### Investigated
+
+- Les erreurs `Chunk found in invalid location` du monde teste proviennent de fichiers de region incoherents (coordonnees internes decalees de 64 chunks en Z); aucune classe Valet n'apparait dans la pile vanilla.
+
 ## 0.4.4 - Brain borne, valets sans poste et residence explicite
 
 ### Added

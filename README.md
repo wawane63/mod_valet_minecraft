@@ -4,9 +4,9 @@ Mod Fabric 26.2 qui ajoute les metiers de villageois `Valet`.
 
 La tracabilite des jars, bugs corriges et changements par version est tenue dans [JAR_REGISTRY.md](JAR_REGISTRY.md).
 
-Version actuelle : 0.4.4 - Brain borne, valets sans poste et residence explicite.
+Version actuelle : 0.4.5 - Zones renommables et logistique eleveur.
 
-Derniere version publiee : 0.4.4 (`v0.4.4`).
+Derniere version publiee : 0.4.5 (`v0.4.5`).
 
 ## Guides
 
@@ -18,6 +18,7 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
 - [Notes 0.4.2](docs/releases/v0.4.2.md)
 - [Notes 0.4.3](docs/releases/v0.4.3.md)
 - [Notes 0.4.4](docs/releases/v0.4.4.md)
+- [Notes 0.4.5](docs/releases/v0.4.5.md)
 - [Pipeline visuel IA](docs/visual-asset-pipeline.md)
 
 ## Versions disponibles
@@ -45,6 +46,7 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
 | 0.4.2 | Navigation vanilla, fermier et ameliorations generales | [`v0.4.2`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.2) |
 | 0.4.3 | Navigation de surface et maire unique interactif | [`v0.4.3`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.3) |
 | 0.4.4 | Brain borne, valets sans poste et residence explicite | [`v0.4.4`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.4) |
+| 0.4.5 | Zones renommables et logistique eleveur | [`v0.4.5`](https://github.com/wawane63/mod_valet_minecraft/tree/v0.4.5) |
 
 ## Depart
 
@@ -62,7 +64,7 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
 - La version 0.4.4 inclut le kit visuel refait depuis des concepts IA en ligne : Insigne original, icone Artisan, skin Valet 64x64 fidele au modele SuperMaker valide et icone du mod, tous reconstruits sans filigrane.
 - Artisan : minerais, bois, construction, craft.
 - Combattant : defense locale, arbre epee et arbre arc.
-- Fermier : recolte et plantation du ble, carottes, pommes de terre, betteraves et verrues du Nether; reserve les items a replanter, peut en prendre dans un coffre proche, zones supprimables depuis l'UI et deplacement continu vanilla.
+- Fermier : recolte et plantation du ble, carottes, pommes de terre, betteraves et verrues du Nether; garde 16 items par culture pour replanter et depose le surplus, peut en prendre dans un coffre proche, zones renommables/supprimables depuis l'UI et deplacement continu vanilla.
 - Magicien : sort de glace, crocs magiques, soins, buffs allies et malus ennemis.
 - Eleveur : exige un enclos sauvegarde choisi dans l'UI, rejoint chaque adulte pret et le nourrit individuellement; le `BreedGoal` vanilla forme ensuite le couple. Il marche aussi jusqu'aux coffres proches de l'enclos et prend une reserve de 16 nourritures par passage.
 - Cuisinier : recolte ble et pommes de terre, prend les ingredients crus dans son coffre dedie, prepare puis depose les repas.
@@ -89,7 +91,7 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
    - Coche `Create Profile`
    - Clique sur `Install`
 4. Telecharge :
-   - [Valet 0.4.4](https://github.com/wawane63/mod_valet_minecraft/releases/download/v0.4.4/valet-0.4.4.jar)
+   - [Valet 0.4.5](https://github.com/wawane63/mod_valet_minecraft/releases/download/v0.4.5/valet-0.4.5.jar)
    - [Fabric API 0.154.2+26.2](https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.154.2+26.2/fabric-api-0.154.2+26.2.jar)
 5. Appuie sur `Windows + R`, puis saisis :
 
@@ -101,7 +103,7 @@ Derniere version publiee : 0.4.4 (`v0.4.4`).
 7. Place les deux jars dedans, sans les decompresser :
 
    ```text
-   valet-0.4.4.jar
+   valet-0.4.5.jar
    fabric-api-0.154.2+26.2.jar
    ```
 

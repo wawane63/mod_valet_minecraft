@@ -19,6 +19,7 @@ import com.wawane.valet.network.packets.DeleteFarmAreaPayload;
 import com.wawane.valet.network.packets.DeleteAnimalAreaPayload;
 import com.wawane.valet.network.packets.OpenValetInventoryPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.RenameWorkAreaPayload;
 import com.wawane.valet.network.packets.RequestBedBadgePayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
@@ -100,12 +101,14 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private final List<ValetConstructionSummary> localConstructions;
     private EditBox nameField;
     private EditBox animalMaxField;
+    private EditBox areaNameField;
     private Button renameButton;
     private Button bedBadgeButton;
     private Button buildConstructionButton;
     private Button deleteConstructionButton;
     private Button deleteFarmAreaButton;
     private Button deleteAnimalAreaButton;
+    private Button renameAreaButton;
     private Checkbox replantFarmCheckbox;
     private Checkbox tillFarmCheckbox;
     private Checkbox animalBreedCheckbox;
@@ -128,6 +131,7 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
     private int selectedWoodTargetIndex = -1;
     private int selectedFarmAreaId = -1;
     private int selectedAnimalAreaId = -1;
+    private int areaNameFieldAreaId = -1;
     private int selectedConstructionTargetId = -1;
     private int selectedCraftTargetIndex = -1;
     private int localLevel;
@@ -242,10 +246,15 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 .bounds(rightLeft + RIGHT_WIDTH - 60, top + 42, 50, 18)
                 .build());
         deleteFarmAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete_farm_area"), button -> sendDeleteFarmArea())
-                .bounds(rightLeft + RIGHT_WIDTH - 88, top + 42, 78, 18)
+                .bounds(rightLeft + 184, top + 42, 78, 18)
                 .build());
         deleteAnimalAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.delete_animal_area"), button -> sendDeleteAnimalArea())
-                .bounds(rightLeft + RIGHT_WIDTH - 88, top + 42, 78, 18)
+                .bounds(rightLeft + 184, top + 42, 78, 18)
+                .build());
+        areaNameField = addRenderableWidget(new EditBox(font, rightLeft + 10, top + 43, 116, 16, Component.translatable("screen.valet.area_name")));
+        areaNameField.setMaxLength(48);
+        renameAreaButton = addRenderableWidget(Button.builder(Component.translatable("screen.valet.rename_apply"), button -> sendRenameArea())
+                .bounds(rightLeft + 130, top + 42, 50, 18)
                 .build());
         int behaviorLeft = getLeftPanelLeft() + 8;
         int behaviorTop = getPanelTop() + PANEL_HEIGHT - 44;
@@ -417,7 +426,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         int top = getPanelTop();
         context.text(font, title, left + 8, top + 7, 0xFF303030, false);
 
-        context.enableScissor(left + 7, getOrderListTop(), left + LEFT_WIDTH - 7, getOrderListTop() + getOrderListHeight());
         for (int i = 0; i < orderEntries.size(); i++) {
             OrderEntry entry = orderEntries.get(i);
             int rowTop = getOrderTop(i);
@@ -429,7 +437,6 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             drawInset(context, left + 7, rowTop, LEFT_WIDTH - 14, ORDER_ROW_HEIGHT, selected ? 0xFFB99A45 : hovered ? 0xFFD8D1BD : 0xFFC5C0B2);
             context.text(font, getOrderLabel(entry, selected), left + 12, rowTop + 6, selected ? 0xFF2B1A05 : 0xFF303030, false);
         }
-        context.disableScissor();
         drawOrderScrollbar(context);
     }
 
@@ -1456,6 +1463,18 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             animalMaxField.keyPressed(event);
             return true;
         }
+        if (areaNameField != null && areaNameField.isFocused()) {
+            if (keyCode == 257 || keyCode == 335) {
+                sendRenameArea();
+                return true;
+            }
+            if (keyCode == 256) {
+                areaNameField.setFocused(false);
+                return true;
+            }
+            areaNameField.keyPressed(event);
+            return true;
+        }
         return super.keyPressed(event);
     }
 
@@ -1470,6 +1489,9 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
                 return animalMaxField.charTyped(event);
             }
             return true;
+        }
+        if (areaNameField != null && areaNameField.isFocused()) {
+            return areaNameField.charTyped(event);
         }
         return super.charTyped(event);
     }
@@ -1577,6 +1599,38 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
         localValetName = nameField.getValue().trim();
         ClientPlayNetworking.send(new RenameValetPayload(viewModel.valetEntityId(), localValetName));
         nameField.setFocused(false);
+    }
+
+    private void sendRenameArea() {
+        if (areaNameField == null) {
+            return;
+        }
+        String name = areaNameField.getValue().trim();
+        if (selectedCategory == TargetCategory.FARM) {
+            ValetFarmArea area = getSelectedFarmArea();
+            if (area == null) {
+                return;
+            }
+            int areaId = area.id();
+            localFarmAreas.replaceAll(candidate -> candidate.id() == areaId
+                    ? new ValetFarmArea(candidate.id(), name, candidate.minX(), candidate.minY(), candidate.minZ(), candidate.maxX(), candidate.maxY(), candidate.maxZ())
+                    : candidate);
+            ClientPlayNetworking.send(new RenameWorkAreaPayload(viewModel.valetEntityId(), false, areaId, name));
+        } else if (selectedCategory == TargetCategory.ANIMAL) {
+            ValetAnimalArea area = getSelectedAnimalArea();
+            if (area == null) {
+                return;
+            }
+            int areaId = area.id();
+            localAnimalAreas.replaceAll(candidate -> candidate.id() == areaId
+                    ? new ValetAnimalArea(candidate.id(), name, candidate.animalTypeIndex(), candidate.minX(), candidate.minY(), candidate.minZ(), candidate.maxX(), candidate.maxY(), candidate.maxZ())
+                    : candidate);
+            ClientPlayNetworking.send(new RenameWorkAreaPayload(viewModel.valetEntityId(), true, areaId, name));
+        } else {
+            return;
+        }
+        areaNameField.setFocused(false);
+        rebuildOrderEntries();
     }
 
     private void sendSelectedConstructionOrder() {
@@ -1747,6 +1801,24 @@ public class ValetOrdersScreen extends AbstractContainerScreen<ValetOrdersScreen
             boolean hasSelectedAnimalArea = selectedCategory == TargetCategory.ANIMAL && getSelectedAnimalArea() != null;
             deleteAnimalAreaButton.visible = hasSelectedAnimalArea;
             deleteAnimalAreaButton.active = hasSelectedAnimalArea;
+        }
+        boolean hasSelectedArea = selectedCategory == TargetCategory.FARM && getSelectedFarmArea() != null
+                || selectedCategory == TargetCategory.ANIMAL && getSelectedAnimalArea() != null;
+        if (areaNameField != null) {
+            int selectedAreaId = selectedCategory == TargetCategory.FARM ? selectedFarmAreaId
+                    : selectedCategory == TargetCategory.ANIMAL ? selectedAnimalAreaId : -1;
+            if (selectedAreaId != areaNameFieldAreaId && !areaNameField.isFocused()) {
+                areaNameFieldAreaId = selectedAreaId;
+                ValetFarmArea farmArea = getSelectedFarmArea();
+                ValetAnimalArea animalArea = getSelectedAnimalArea();
+                areaNameField.setValue(farmArea != null ? farmArea.name() : animalArea != null ? animalArea.name() : "");
+            }
+            areaNameField.visible = hasSelectedArea;
+            areaNameField.setEditable(hasSelectedArea);
+        }
+        if (renameAreaButton != null) {
+            renameAreaButton.visible = hasSelectedArea;
+            renameAreaButton.active = hasSelectedArea;
         }
 
         boolean animalVisible = selectedRightPage == RightPage.FARM_OPTIONS && selectedCategory == TargetCategory.ANIMAL;

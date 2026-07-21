@@ -36,6 +36,7 @@ import com.wawane.valet.network.packets.DeleteAnimalAreaPayload;
 import com.wawane.valet.network.packets.OpenValetInventoryPayload;
 import com.wawane.valet.network.packets.ManageMapGroupPayload;
 import com.wawane.valet.network.packets.RenameValetPayload;
+import com.wawane.valet.network.packets.RenameWorkAreaPayload;
 import com.wawane.valet.network.packets.RequestBedBadgePayload;
 import com.wawane.valet.network.packets.SetBehaviorPayload;
 import com.wawane.valet.network.packets.SetBreedingOrderPayload;
@@ -110,6 +111,7 @@ public final class ValetNetworking {
         ServerPlayNetworking.registerGlobalReceiver(ChoosePerkPayload.TYPE, ValetNetworking::chooseValetPerk);
         ServerPlayNetworking.registerGlobalReceiver(ChooseCombatPerkPayload.TYPE, ValetNetworking::chooseValetCombatPerk);
         ServerPlayNetworking.registerGlobalReceiver(RenameValetPayload.TYPE, ValetNetworking::renameValet);
+        ServerPlayNetworking.registerGlobalReceiver(RenameWorkAreaPayload.TYPE, ValetNetworking::renameWorkArea);
         ServerPlayNetworking.registerGlobalReceiver(RequestBedBadgePayload.TYPE, ValetNetworking::requestBedBadge);
         ServerPlayNetworking.registerGlobalReceiver(DeleteConstructionPayload.TYPE, ValetNetworking::deleteConstruction);
         ServerPlayNetworking.registerGlobalReceiver(DeleteFarmAreaPayload.TYPE, ValetNetworking::deleteFarmArea);
@@ -139,6 +141,7 @@ public final class ValetNetworking {
         PayloadTypeRegistry.serverboundPlay().register(ChoosePerkPayload.TYPE, ChoosePerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ChooseCombatPerkPayload.TYPE, ChooseCombatPerkPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RenameValetPayload.TYPE, RenameValetPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RenameWorkAreaPayload.TYPE, RenameWorkAreaPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RequestBedBadgePayload.TYPE, RequestBedBadgePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DeleteConstructionPayload.TYPE, DeleteConstructionPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(DeleteFarmAreaPayload.TYPE, DeleteFarmAreaPayload.CODEC);
@@ -731,6 +734,33 @@ public final class ValetNetworking {
 
             ValetMod.LOGGER.info("Farm area {} deleted by {}", farmAreaId, player.getGameProfile().name());
             player.sendOverlayMessage(Component.translatable("message.valet.farm_area_deleted"));
+            sendValetState(player, villager);
+        });
+    }
+
+    private static void renameWorkArea(RenameWorkAreaPayload payload, ServerPlayNetworking.Context context) {
+        MinecraftServer server = context.server();
+        ServerPlayer player = context.player();
+        server.execute(() -> {
+            Entity entity = player.level().getEntity(payload.valetEntityId());
+            if (!(entity instanceof Villager villager) || !isValidValetInteraction(player, villager) || payload.areaId() <= 0) {
+                return;
+            }
+
+            String name = payload.name().trim();
+            if (payload.animalArea()) {
+                if (ValetRole.get(player.level(), villager) != ValetRole.BREEDER
+                        || ValetAnimalStorage.get(player.level()).renameArea(payload.areaId(), name) == null) {
+                    player.sendOverlayMessage(Component.translatable("message.valet.no_animal_area"));
+                } else {
+                    player.sendOverlayMessage(Component.translatable("message.valet.animal_area_renamed"));
+                }
+            } else if (ValetRole.get(player.level(), villager) != ValetRole.FARMER
+                    || ValetFarmStorage.get(player.level()).renameArea(payload.areaId(), name) == null) {
+                player.sendOverlayMessage(Component.translatable("message.valet.no_farm_area"));
+            } else {
+                player.sendOverlayMessage(Component.translatable("message.valet.farm_area_renamed"));
+            }
             sendValetState(player, villager);
         });
     }
